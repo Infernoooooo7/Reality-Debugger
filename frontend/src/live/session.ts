@@ -246,7 +246,9 @@ export class LiveSession {
   // ---------------------------------------------------------------- AI analysis
 
   private context(result: FrameResult | null, detail?: string) {
-    const tracks = (result?.tracks ?? []).filter((t) => t.state !== 'tentative').slice(0, 30)
+    // Only objects matched in this frame: a 'lost' track is coasting on its
+    // prediction and may already have left the scene (e.g. after a hard cut).
+    const tracks = (result?.tracks ?? []).filter((t) => t.state === 'confirmed').slice(0, 30)
     return {
       detector: vision.getSnapshot().info?.model ?? 'on-device detector',
       objects: tracks.map((t) => ({ track_id: t.key, label: t.label, confidence: round(t.score, 2), box: roundBox(t.box) })),

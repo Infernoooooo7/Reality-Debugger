@@ -76,8 +76,10 @@ called only when one of these fires, in priority order:
 | `deep_scan` / `freeze` | user request (bypasses the director) |
 
 Gates: never more than one request in flight, at least 5 s between analyses,
-and the frame must be stable (motion < 0.07) unless the trigger has waited
-2.2 s. Errors back off (4 s doubling to 60 s); rate limits wait 15 s;
+and the frame must be settled (motion < 0.07 and no track coasting on a missed
+detection) unless it has waited 2.2 s since sending became allowed. Only tracks
+matched in the sent frame go into its `context`, so objects that just left the
+view (for example after a hard cut) are never reported. Errors back off (4 s doubling to 60 s); rate limits wait 15 s;
 authentication/configuration errors stop automatic analysis and offer demo
 mode. The backend additionally enforces `SCAN_AI_CALLS_PER_MINUTE` (12).
 

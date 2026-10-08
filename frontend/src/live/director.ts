@@ -5,7 +5,7 @@
  * meaningful happens (first look, a new object, an interesting spatial
  * relationship, a substantial scene change, a finding that needs confirming
  * or a possible resolution, or a periodic re-check), never more often than
- * `minGapMs`, and preferably on a stable (low-motion) frame.
+ * `minGapMs`, and preferably on a settled frame (low motion, no coasting tracks).
  */
 import type { Finding, Trigger } from '../lib/schemas'
 import type { Relation } from '../vision/relations'
@@ -163,8 +163,12 @@ export class ScanDirector {
     const anomaly = pending && ANOMALY_TRIGGERS.has(pending.trigger) ? pending.detail : null
     if (!pending || this.inFlight || now < this.backoffUntil) return { decision: null, anomaly }
     if (this.lastAnalysisAt && now - this.lastAnalysisAt < this.cfg.minGapMs) return { decision: null, anomaly }
-    const stable = result.signals.motion < this.cfg.stableMotion
-    if (!stable && now - pending.since < this.cfg.maxWaitStableMs) return { decision: null, anomaly }
+    // Prefer a settled frame: low motion, and no track coasting on a missed
+    // detection, so the context lists what is actually in view. The wait is
+    // counted from when sending became allowed, and is capped.
+    const readyAt = this.lastAnalysisAt ? Math.max(pending.since, this.lastAnalysisAt + this.cfg.minGapMs) : pending.since
+    const settled = result.signals.motion < this.cfg.stableMotion && !result.tracks.some((t) => t.state === 'lost')
+    if (!settled && now - readyAt < this.cfg.maxWaitStableMs) return { decision: null, anomaly }
     this.pending = null
     const { since: _since, ...decision } = pending
     void _since
