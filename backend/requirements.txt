@@ -1,0 +1,17 @@
+# Reality Debugger backend
+# Tested with Python 3.13 on Linux. Supports Python 3.10+ (Windows, macOS, Linux).
+# --prefer-binary lets pip pick a pre-built wheel (e.g. an older OpenCV/numpy
+# on older macOS / Python versions) instead of compiling from source.
+--prefer-binary
+
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.0
+pydantic-settings==2.15.0
+python-multipart==0.0.32
+pillow==12.3.0
+anthropic==1.12.1
+httpx==0.28.1
+numpy>=2.0,<3
+# Only used for the server-side video fallback (videos the browser can't decode).
+opencv-python-headless>=4.9,<6

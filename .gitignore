@@ -1,0 +1,39 @@
+# Secrets
+.env
+.env.local
+*.env.local
+!.env.example
+
+# Python
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Vite
+node_modules/
+frontend/dist/
+frontend/dev-dist/
+*.tsbuildinfo
+.vite/
+
+# Local HTTPS certificates (generated per machine)
+certs/
+frontend/.certs/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test output
+test-results/
+playwright-report/
+e2e/output/
