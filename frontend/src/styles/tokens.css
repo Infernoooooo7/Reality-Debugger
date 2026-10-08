@@ -1,0 +1,71 @@
+/*
+ * Reality OS design tokens.
+ * An instrument, not a dashboard: graphite panels, engraved condensed labels,
+ * wide monospace readouts for data, one hot signal colour for bugs.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --ink-0: #070908;
+  --ink-1: #0c0f0e;
+  --ink-2: #111513;
+  --ink-3: #171c19;
+  --ink-4: #20261f;
+  --line: #29302b;
+  --line-strong: #3b443d;
+
+  /* Text */
+  --chalk: #e8ebe4;
+  --chalk-2: #b0b7af;
+  --chalk-3: #737c75;
+  --chalk-4: #4d554f;
+
+  /* Signals */
+  --signal: #ff5a36;
+  --signal-soft: rgba(255, 90, 54, 0.14);
+  --critical: #ff3a5e;
+  --critical-soft: rgba(255, 58, 94, 0.16);
+  --amber: #f3b33d;
+  --amber-soft: rgba(243, 179, 61, 0.14);
+  --steel: #8db3cf;
+  --steel-soft: rgba(141, 179, 207, 0.14);
+  --phosphor: #63e2a3;
+  --phosphor-soft: rgba(99, 226, 163, 0.14);
+  --hazard: #f4d10b;
+
+  /* Severity mapping */
+  --sev-critical: var(--critical);
+  --sev-high: var(--signal);
+  --sev-medium: var(--amber);
+  --sev-low: var(--steel);
+  --sev-info: var(--chalk-3);
+
+  /* Type */
+  --font-display: 'Big Shoulders Display Variable', 'Arial Narrow', 'Helvetica Neue', sans-serif;
+  --font-body: 'Instrument Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-data: 'Martian Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+
+  /* Space */
+  --gap-1: 4px;
+  --gap-2: 8px;
+  --gap-3: 12px;
+  --gap-4: 16px;
+  --gap-5: 24px;
+  --gap-6: 32px;
+  --gap-7: 48px;
+
+  --radius: 2px;
+  --chamfer: 12px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-snap: cubic-bezier(0.5, 1.6, 0.4, 1);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}

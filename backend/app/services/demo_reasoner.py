@@ -491,8 +491,9 @@ def diagnose_frame(
     simulated lifecycle can confirm or resolve them.
     """
     objects = list(context.objects) if context else []
-    # A clean live frame simply has no findings; one-shot reports get a nominal entry.
-    hits = evaluate_rules(objects, stats, allow_nominal=mode != AnalysisMode.LIVE)
+    # A clean live/deep frame simply has no findings (an "all clear" note must not
+    # become a tracked bug); only one-shot image reports get a nominal entry.
+    hits = evaluate_rules(objects, stats, allow_nominal=mode == AnalysisMode.IMAGE)
     hit_keys = {h.key for h in hits}
     counts = _labels(objects)
     score = penalty_score(hits)
@@ -575,9 +576,13 @@ def diagnose_video(
 
     ``frames`` holds (frame_number, timestamp_s, objects) in chronological order.
     """
+    # INFO-level observations (a person or a plant in view) would flap on and
+    # off between keyframes; only real issues get a narrated lifecycle.
     per_frame: list[dict[str, RuleHit]] = []
     for (_, _, objects), frame_stats in zip(frames, stats, strict=True):
-        per_frame.append({h.key: h for h in evaluate_rules(objects, frame_stats) if h.key != "nominal"})
+        per_frame.append(
+            {h.key: h for h in evaluate_rules(objects, frame_stats, allow_nominal=False) if h.severity != Severity.INFO}
+        )
 
     timeline: list[dict] = []
     findings: dict[str, tuple[RuleHit, list[int]]] = {}
