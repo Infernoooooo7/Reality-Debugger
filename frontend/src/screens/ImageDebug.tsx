@@ -16,8 +16,10 @@ import { spatialRelations } from '../vision/relations'
 import type { Detection, Track } from '../vision/types'
 import '../styles/debug.css'
 
-const ACCEPT = 'image/jpeg,image/png,image/webp'
-const ACCEPTED = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
+// JPG/PNG/WEBP everywhere; HEIC/HEIF/AVIF etc. work wherever the browser can
+// decode them, because the image is re-encoded to JPEG before upload.
+const ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif'
+const IMAGE_NAME = /\.(jpe?g|png|webp|heic|heif|avif)$/i
 
 type StageId = 'decode' | 'vision' | 'relations' | 'upload' | 'reason' | 'report'
 type StageState = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
@@ -90,7 +92,7 @@ export default function ImageDebug() {
       setFocusId(null)
       setStages(resetStages())
 
-      if (!ACCEPTED.has(file.type) && !/\.(jpe?g|png|webp)$/i.test(file.name)) {
+      if (!file.type.startsWith('image/') && !IMAGE_NAME.test(file.name)) {
         setError(new ApiError('UNSUPPORTED_MEDIA_TYPE', `“${file.name}” is not a supported image.`, { hint: 'Use a JPG, PNG or WEBP image.' }))
         return
       }

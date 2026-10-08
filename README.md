@@ -121,8 +121,8 @@ Notes:
 | Mode | What happens |
 | --- | --- |
 | **Live Scan** | Full-screen camera. Local ML detects and tracks objects every frame; the scan director sends a frame to the vision model only on a first look, a new object, an interesting spatial relationship, a substantial scene change, a finding that needs confirmation or a possible resolution, or a periodic re-check. Findings animate through their lifecycle. Pause/resume, **Deep Scan** (freeze + most thorough analysis + *Return to live*), switch camera, end-scan summary, clear session. |
-| **Image Debug** | Take a photo, pick from the gallery or drag a file in. Visible stages: local preprocessing → on-device detection → relationship analysis → EXIF-stripped upload → vision reasoning → validated report. Findings are drawn on the image. |
-| **Video Debug** | The video stays on your device: sampled every ~0.5 s, fingerprinted, run through the detector, segmented into scenes, de-duplicated; ≤ 8 keyframes go to the model, which narrates a chronological timeline. Click any event or keyframe to jump there. Videos the browser can't decode can be processed on the backend instead (OpenCV). |
+| **Image Debug** | Take a photo, pick from the gallery or drag a file in (JPG, PNG, WEBP — and HEIC/AVIF wherever the browser can decode them; images are re-encoded to JPEG before upload). Visible stages: local preprocessing → on-device detection → relationship analysis → EXIF-stripped upload → vision reasoning → validated report. Findings are drawn on the image. |
+| **Video Debug** | The video stays on your device: sampled every ~0.5 s, fingerprinted, run through the detector, segmented into scenes, de-duplicated; ≤ 8 keyframes go to the model, which narrates a chronological timeline. Click any event, keyframe or finding time to jump there. Videos the browser can't decode can be processed on the backend instead (OpenCV). |
 | **Personalities** | **Serious** (incident report), **Brutal** (*"This desk technically functions, but the cable management is committing crimes."*), **Unhinged** (*"ERROR 418: Desk has achieved maximum mug density."*). Humour lives in a separate `quip`; evidence and fixes stay factual. |
 | **Share** | Copy the report as text, or download/share a 1080×1350 diagnostic card (optionally with the photo and bug boxes). |
 
@@ -148,6 +148,14 @@ Backend settings come from environment variables or `.env` (repository root or
 Frontend (optional, `frontend/.env` or shell): `BACKEND_URL` (proxy target,
 default `http://127.0.0.1:8000`), `PORT` (5173), `HTTPS_CERT`/`HTTPS_KEY`,
 `VITE_API_BASE` (call a backend directly instead of the proxy).
+
+**Cost:** a live analysis sends one ~1024 px frame plus a cached system
+prompt. The scan director only calls the model on meaningful changes, at most
+once every 5 s, and the backend caps a scan at `SCAN_AI_CALLS_PER_MINUTE` (12);
+lengthen or switch off the periodic re-check in *Instrument settings* to save
+more. Deep scans, images and videos (≤ 8 keyframes) are single calls. To trade
+quality for cost and latency, set `ANTHROPIC_MODEL` to a smaller Claude model or
+lower `AI_EFFORT_DEEP`.
 
 **Fully local option:** run [Ollama](https://ollama.com) with a vision model and
 set `OPENAI_BASE_URL=http://localhost:11434/v1`, `OPENAI_MODEL=llama3.2-vision`

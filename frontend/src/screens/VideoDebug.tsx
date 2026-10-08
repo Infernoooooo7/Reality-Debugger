@@ -430,7 +430,16 @@ export default function VideoDebug() {
                 </div>
               ) : null}
 
-              <ReportView report={result.report} image={cardImage} showTimes heading="Video diagnostic" />
+              <ReportView
+                report={result.report}
+                image={cardImage}
+                showTimes
+                heading="Video diagnostic"
+                onJump={(t) => {
+                  jump(t)
+                  videoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                }}
+              />
             </>
           ) : !error ? (
             <div className="debug__explain">

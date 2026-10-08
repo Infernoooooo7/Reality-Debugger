@@ -16,6 +16,7 @@ export function FindingCard({
   onFocus,
   focused = false,
   showTimes = false,
+  onJump,
 }: {
   finding: Finding
   expanded: boolean
@@ -23,6 +24,7 @@ export function FindingCard({
   onFocus?: (id: string | null) => void
   focused?: boolean
   showTimes?: boolean
+  onJump?: (seconds: number) => void
 }) {
   const previous = useRef<FindingStatus>(finding.status)
   const [flash, setFlash] = useState<FindingStatus | null>(null)
@@ -60,12 +62,21 @@ export function FindingCard({
         <span>{formatPercent(finding.confidence)} conf</span>
         {finding.sightings > 1 ? <span>seen {finding.sightings}×</span> : null}
         {showTimes && finding.first_seen_s != null ? (
-          <span>
-            {formatClock(finding.first_seen_s)}
-            {finding.last_seen_s != null && finding.last_seen_s !== finding.first_seen_s
-              ? ` → ${formatClock(finding.last_seen_s)}`
-              : ''}
-          </span>
+          onJump ? (
+            <button type="button" className="finding__jump" onClick={() => onJump(finding.first_seen_s!)}>
+              ▶ {formatClock(finding.first_seen_s)}
+              {finding.last_seen_s != null && finding.last_seen_s !== finding.first_seen_s
+                ? ` → ${formatClock(finding.last_seen_s)}`
+                : ''}
+            </button>
+          ) : (
+            <span>
+              {formatClock(finding.first_seen_s)}
+              {finding.last_seen_s != null && finding.last_seen_s !== finding.first_seen_s
+                ? ` → ${formatClock(finding.last_seen_s)}`
+                : ''}
+            </span>
+          )
         ) : null}
         {finding.out_of_view ? <span>out of view</span> : null}
         {related ? <span className="finding__related">{related}</span> : null}

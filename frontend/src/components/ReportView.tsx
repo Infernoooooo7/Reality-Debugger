@@ -109,6 +109,7 @@ export function ReportView({
   onFocus,
   showTimes = false,
   heading = 'Reality diagnostic',
+  onJump,
 }: {
   report: Report
   image?: CardImage | null
@@ -116,6 +117,7 @@ export function ReportView({
   onFocus?: (id: string | null) => void
   showTimes?: boolean
   heading?: string
+  onJump?: (seconds: number) => void
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(report.findings.slice(0, 2).map((f) => f.id)))
   const objectLabel = useMemo(() => new Map(report.objects.map((o) => [o.id, o.label])), [report.objects])
@@ -166,6 +168,7 @@ export function ReportView({
                 focused={focusedId === f.id}
                 onFocus={onFocus}
                 showTimes={showTimes}
+                onJump={onJump}
               />
             ))}
           </div>

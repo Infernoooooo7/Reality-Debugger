@@ -115,6 +115,13 @@
   color: var(--chalk-2);
 }
 
+.finding__jump {
+  color: var(--signal);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .finding__body {
   display: grid;
   gap: 10px;
