@@ -220,7 +220,7 @@ export function Home() {
             </div>
             <div className="world__row">
               <span className="world__score" style={{ color: scoreColor(latest?.score) }}>
-                {latest ? pad2(latest.score) : '--'}
+                {latest ? pad2(latest.score) : '—'}
               </span>
               <div className="world__meter">
                 <Meter value={latest ? latest.score / 100 : null} color={scoreColor(latest?.score)} label="World status" />

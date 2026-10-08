@@ -69,7 +69,7 @@ export default function ImageDebug() {
   const [dragging, setDragging] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const capturer = useRef<JpegCapturer | null>(null)
-  const imageRef = useRef<HTMLImageElement | null>(null)
+  const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null)
   const limit = health?.limits.max_image_bytes ?? 15 * 1024 * 1024
   const demo = isDemo(health, settings.forceDemo)
 
@@ -135,8 +135,7 @@ export default function ImageDebug() {
 
         // 4. Re-encode (resize + strip metadata) and upload.
         setStage('upload', 'active')
-        const imgEl = await loadImage(url)
-        imageRef.current = imgEl
+        setImageEl(await loadImage(url))
         capturer.current ??= new JpegCapturer()
         const shot = await capturer.current.capture(bitmap, 1600, 0.88)
         bitmap.close()
@@ -329,7 +328,7 @@ export default function ImageDebug() {
           {report && picked ? (
             <ReportView
               report={report}
-              image={imageRef.current ? { source: imageRef.current, width: picked.width, height: picked.height } : null}
+              image={imageEl ? { source: imageEl, width: picked.width, height: picked.height } : null}
               focusedId={focusId}
               onFocus={setFocusId}
             />

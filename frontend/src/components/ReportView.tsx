@@ -11,11 +11,11 @@ import { Meter, scoreColor } from './Meter'
 
 export function ScoreReadout({ report }: { report: Report }) {
   const rows: [string, ReactNode][] = [
-    ['System', <span className="t-data report__sys">{report.system_name}</span>],
-    ['Status', <StatusChip status={report.status} />],
-    ['Active bugs', <span className="report__num">{pad2(report.counts.active_bugs)}</span>],
-    ['High priority', <span className="report__num">{pad2(report.counts.high_priority)}</span>],
-    ['Optimizations', <span className="report__num">{pad2(report.counts.optimizations)}</span>],
+    ['System', <span key="sys" className="t-data report__sys">{report.system_name}</span>],
+    ['Status', <StatusChip key="status" status={report.status} />],
+    ['Active bugs', <span key="bugs" className="report__num">{pad2(report.counts.active_bugs)}</span>],
+    ['High priority', <span key="high" className="report__num">{pad2(report.counts.high_priority)}</span>],
+    ['Optimizations', <span key="opt" className="report__num">{pad2(report.counts.optimizations)}</span>],
   ]
   return (
     <div className="readout">

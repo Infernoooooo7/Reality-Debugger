@@ -69,8 +69,8 @@
 /* ---------------------------------------------------------------- hero */
 
 .home__title {
-  margin: 0;
-  font-size: clamp(76px, 21vw, 178px);
+  margin: 0 0 0.28em;
+  font-size: clamp(76px, 21vw, 148px);
   line-height: 0.82;
   letter-spacing: -0.005em;
 }
@@ -82,7 +82,7 @@
 
 .home__lede {
   max-width: 34em;
-  margin: var(--gap-5) 0 var(--gap-5);
+  margin: 0 0 var(--gap-5);
   font-size: 17px;
   color: var(--chalk-2);
 }
@@ -171,8 +171,13 @@
     'desc desc';
   min-height: 132px;
   padding: var(--gap-4) var(--gap-5) var(--gap-4);
+  background: var(--signal);
   color: var(--ink-0);
   border: 0;
+}
+
+.mode--primary:hover {
+  background: #ff7350;
 }
 
 .mode--primary .mode__ch {
@@ -402,7 +407,7 @@
 }
 
 .settings__toggle {
-  width: 100%;
+  width: calc(100% + 2 * var(--gap-4));
   margin-bottom: 0;
   cursor: pointer;
 }

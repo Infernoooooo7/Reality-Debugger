@@ -40,7 +40,7 @@ function Sparkline({ values }: { values: number[] }) {
 }
 
 function Elapsed({ since }: { since: number }) {
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 100)
     return () => window.clearInterval(id)

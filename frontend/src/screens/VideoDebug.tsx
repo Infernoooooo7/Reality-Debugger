@@ -205,7 +205,7 @@ export default function VideoDebug() {
   const findingsCount = result?.report.findings.length ?? 0
   const duration = info?.duration ?? result?.video.duration_s ?? 0
   const scanFraction = progress ? progress.done / progress.total : phase === 'done' ? 1 : 0
-  const timeline = result?.timeline ?? []
+  const timeline = useMemo(() => result?.timeline ?? [], [result])
   const sceneCuts = useMemo(() => timeline.filter((e) => e.kind === 'SCENE_CHANGE'), [timeline])
   const objectEvents = timeline.filter((e) => e.kind === 'OBJECT_ENTERED' || e.kind === 'OBJECT_LEFT').length
   const listed = showLocal ? timeline : timeline.filter((e) => e.kind !== 'OBJECT_ENTERED' && e.kind !== 'OBJECT_LEFT')

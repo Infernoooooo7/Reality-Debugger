@@ -155,7 +155,8 @@ export class OverlayRenderer {
       if (t.state !== 'tentative') this.tag(x, y, `${t.key}  ${Math.round(t.score * 100)}%`, 'rgba(12,15,14,0.72)', `rgba(232,235,228,${alpha})`)
     }
 
-    // Finding anchors
+    // Finding anchors (tags of anchors sharing a box are stacked, not overdrawn)
+    const placed: [number, number][] = []
     for (const anchor of this.anchors) {
       const f = anchor.finding
       const color = SEVERITY_COLOR[f.severity] ?? '#f3b33d'
@@ -175,7 +176,10 @@ export class OverlayRenderer {
       }
       ctx.restore()
       const label = `${f.id} · ${f.severity}${f.status === 'DISCOVERED' ? ' ?' : ''}`
-      this.tag(x, y + h, label, color, '#070908', true)
+      let tagY = y + h
+      while (placed.some(([px, py]) => Math.abs(px - x) < 40 * d && Math.abs(py - tagY) < 18 * d)) tagY += 19 * d
+      placed.push([x, tagY])
+      this.tag(x, tagY, label, color, '#070908', true)
     }
 
     // Recently resolved flashes

@@ -76,7 +76,7 @@ async function request<T>(
   let response: Response
   try {
     response = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal })
-  } catch (error) {
+  } catch {
     if (timedOut) {
       throw new ApiError('REQUEST_TIMEOUT', 'The backend took too long to answer.', {
         hint: 'The vision model may be slow right now. Try again.',
