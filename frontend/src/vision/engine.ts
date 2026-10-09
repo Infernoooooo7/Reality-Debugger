@@ -116,8 +116,9 @@ export class VisionEngine {
     try {
       const detections = this.detect(bitmap)
       const inferenceMs = performance.now() - started
-      const tracks = this.tracker.update(detections, timestamp)
+      // Signals first: the global image motion they measure compensates the tracker's predictions.
       const { signals, signature } = this.signals.analyze(bitmap)
+      const tracks = this.tracker.update(detections, timestamp, signals.cameraShift)
       this.updateView(signals.sceneDelta, signals.motion)
       return {
         frameId,

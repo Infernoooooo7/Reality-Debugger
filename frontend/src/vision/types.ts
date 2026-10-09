@@ -14,7 +14,24 @@ export interface Detection {
   box: NBox
 }
 
-export type TrackState = 'tentative' | 'confirmed' | 'lost'
+/**
+ * tentative: not yet confirmed (one detection); confirmed: matched in this frame;
+ * recovered: matched again in this frame after being lost; occluded: not matched,
+ * predicted box mostly covered by other tracks (probably hidden behind them);
+ * lost: not matched, kept for the lost buffer. Terminated tracks are removed
+ * (a 'left' event). Identities are not guaranteed to stay correct indefinitely.
+ */
+export type TrackState = 'tentative' | 'confirmed' | 'recovered' | 'occluded' | 'lost'
+
+/** Tracks seen in the current frame. */
+export function isVisible(t: { state: TrackState }): boolean {
+  return t.state === 'confirmed' || t.state === 'recovered'
+}
+
+/** Tracks coasting on their prediction (not seen in this frame). */
+export function isCoasting(t: { state: TrackState }): boolean {
+  return t.state === 'lost' || t.state === 'occluded'
+}
 export type Movement = 'static' | 'moving' | 'unknown'
 
 export interface Track {
@@ -30,7 +47,10 @@ export interface Track {
   /** Kalman velocity in normalised units per second. */
   vx: number
   vy: number
+  /** Speed relative to the scene (camera motion compensated when CMC is on), frame units per second. */
   speed: number
+  /** Image-space speed including camera motion, frame units per second. */
+  apparentSpeed: number
   hits: number
   misses: number
   state: TrackState
@@ -50,7 +70,7 @@ export interface Track {
 }
 
 export interface TrackEvent {
-  kind: 'entered' | 'left'
+  kind: 'entered' | 'left' | 'recovered'
   at: number
   trackId: number
   sceneId: string
@@ -74,6 +94,8 @@ export interface FrameSignals {
   brightness: number
   contrast: number
   sharpness: number
+  /** Global image motion since the previous frame (frame widths/heights); null on the first frame. */
+  cameraShift: { dx: number; dy: number; confidence: number } | null
 }
 
 export interface FrameResult {

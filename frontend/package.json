@@ -13,6 +13,7 @@
     "preview:https": "vite preview --mode https",
     "lint": "oxlint src",
     "test": "vitest run",
+    "build:tools": "vite build --config vite.tools.config.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

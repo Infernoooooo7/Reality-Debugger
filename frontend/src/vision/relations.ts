@@ -7,7 +7,7 @@
 import { DIAGNOSTICS } from '../config'
 import { area, baseInside, containment, gap, iou, relativeGap } from './geometry'
 import { hasAttribute } from './ontology'
-import type { Track } from './types'
+import { isVisible, type Track } from './types'
 
 export interface Relation {
   key: string
@@ -22,7 +22,7 @@ const RANK = { on: 0, overlaps: 1, touching: 2, near: 3 }
 
 export function spatialRelations(tracks: Track[], limit = 12): Relation[] {
   const { touchGap, nearRelativeGap } = DIAGNOSTICS.proximity
-  const live = tracks.filter((t) => t.state === 'confirmed')
+  const live = tracks.filter(isVisible)
   const out: Relation[] = []
   for (let i = 0; i < live.length; i++) {
     for (let j = i + 1; j < live.length; j++) {

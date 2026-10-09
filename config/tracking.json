@@ -98,5 +98,19 @@
     "purpose": "Detections of a different class can continue a track if both classes share a COCO supercategory (e.g. cup/wine glass); the track label is decided by score-weighted voting.",
     "source": "paper",
     "ref": "Detectors mostly confuse similar categories (D. Hoiem, Y. Chodpathumwan, Q. Dai, Diagnosing Error in Object Detectors, ECCV 2012); supercategories come from COCO metadata via config/ontology.generated.json."
+  },
+  "cmc": {
+    "value": true,
+    "unit": "boolean",
+    "purpose": "Camera-motion compensation: shift every track's prediction by the estimated global image motion before association, so speed/movement describe motion relative to the scene.",
+    "source": "paper",
+    "ref": "N. Aharon, R. Orfaig, B.-Z. Bobrovsky, BoT-SORT: Robust Associations Multi-Pedestrian Tracking, arXiv:2206.14651 (camera-motion compensation). Here a translation-only estimate (frontend/src/vision/motion.ts); effect measured on KITTI tracking (docs/benchmarks/records/tracking-*)."
+  },
+  "cmcMinConfidence": {
+    "value": 0.25,
+    "unit": "0..1",
+    "purpose": "Minimum confidence of the global motion estimate (distinctness of the best block match) for compensation to be applied; below it the frame is treated as uncompensated.",
+    "source": "heuristic",
+    "ref": "Low-texture frames give flat matching costs (confidence near 0); validated on KITTI sequences, see docs/EVALUATION_PROTOCOL.md."
   }
 }

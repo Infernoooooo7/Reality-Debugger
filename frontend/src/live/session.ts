@@ -23,7 +23,7 @@ import { deepDetector } from '../vision/deep/client'
 import { union } from '../vision/geometry'
 import { spatialRelations } from '../vision/relations'
 import { liveScene, type SceneEventPayload, type ScenePayload } from '../vision/scene'
-import type { FrameResult, Track } from '../vision/types'
+import { isCoasting, isVisible, type FrameResult, type Track } from '../vision/types'
 import { CameraController } from './camera'
 import { FrameGrabber, JpegCapturer } from './capture'
 import { OverlayRenderer, type Anchor } from './overlay'
@@ -212,7 +212,7 @@ export class LiveSession {
 
     if (now - this.lastHudAt > 200) {
       this.lastHudAt = now
-      const visible = result.tracks.filter((t) => t.state === 'confirmed')
+      const visible = result.tracks.filter(isVisible)
       this.store.set({
         hud: {
           fps: round(this.fpsEma, 1),
@@ -316,7 +316,7 @@ export class LiveSession {
   private maybeAskAI(now: number, result: FrameResult): void {
     const pending = this.suggestion
     if (!pending || this.aiBusy || !this.running) return
-    const settled = result.signals.motion < TEMPORAL.sceneChange.settleMotion && !result.tracks.some((t) => t.state === 'lost')
+    const settled = result.signals.motion < TEMPORAL.sceneChange.settleMotion && !result.tracks.some(isCoasting)
     if (!settled && now - pending.since < TEMPORAL.sceneChange.maxSettleWaitMs) return
     this.suggestion = null
     void this.askAI(pending.trigger, result, null)

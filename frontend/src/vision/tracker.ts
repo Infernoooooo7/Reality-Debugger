@@ -48,6 +48,17 @@ export interface TrackerOptions {
   stillSpeed: number
   reversalWindowMs: number
   occludedFraction: number
+  /** Camera-motion compensation: shift predictions by the estimated global image motion. */
+  cmc: boolean
+  /** Minimum confidence of the global motion estimate for it to be applied. */
+  cmcMinConfidence: number
+}
+
+/** Global image motion between the previous and the current frame (see motion.ts). */
+export interface CameraMotion {
+  dx: number
+  dy: number
+  confidence: number
 }
 
 export const TRACKER_DEFAULTS: TrackerOptions = {
@@ -69,6 +80,8 @@ export const TRACKER_DEFAULTS: TrackerOptions = {
   stillSpeed: TEMPORAL.movement.stillSpeed,
   reversalWindowMs: TEMPORAL.movement.reversalWindowMs,
   occludedFraction: TEMPORAL.occlusion.occludedFraction,
+  cmc: TRACKING.cmc,
+  cmcMinConfidence: TRACKING.cmcMinConfidence,
 }
 
 const EDGE = 0.005
@@ -89,6 +102,15 @@ function toBox(mean: Vec): NBox {
   const x2 = Math.min(1, x + w)
   const y2 = Math.min(1, y + h)
   return { x: x1, y: y1, w: Math.max(1e-4, x2 - x1), h: Math.max(1e-4, y2 - y1) }
+}
+
+/** Share of `box` covered by the boxes of other tracks matched in this frame (occlusion proxy). */
+function coverage(box: NBox, tracks: STrack[], self: STrack): number {
+  const own = area(box)
+  if (own <= 0) return 0
+  let covered = 0
+  for (const other of tracks) if (other !== self && other.matched) covered += intersection(box, other.box)
+  return Math.min(1, covered / own)
 }
 
 class STrack {
@@ -116,6 +138,7 @@ class STrack {
   occlusion = 0
   occludedSince: number | null = null
   truncated = false
+  recoveredAt: number | null = null
 
   constructor(id: number, det: Detection, now: number, kf: KalmanFilter) {
     this.id = id
@@ -146,6 +169,9 @@ export class Tracker {
   private readonly kf: KalmanFilter
   private readonly opts: TrackerOptions
   private events: TrackEvent[] = []
+  /** Camera velocity (frame units per second) of the last update, when compensated. */
+  private cameraVelocity: [number, number] = [0, 0]
+  private lastUpdateAt: number | null = null
 
   constructor(options: Partial<TrackerOptions> = {}) {
     this.opts = { ...TRACKER_DEFAULTS, ...options }
@@ -159,9 +185,11 @@ export class Tracker {
     this.tracks = []
     this.nextId = 1
     this.events = []
+    this.cameraVelocity = [0, 0]
+    this.lastUpdateAt = null
   }
 
-  /** Events since the last call (entered / left). */
+  /** Events since the last call (entered / recovered / left = terminated). */
   drainEvents(): TrackEvent[] {
     const out = this.events
     this.events = []
@@ -183,6 +211,20 @@ export class Tracker {
     })
   }
 
+  private compensate(camera: CameraMotion | null, now: number): void {
+    const dt = this.lastUpdateAt === null ? 0 : (now - this.lastUpdateAt) / 1000
+    this.lastUpdateAt = now
+    if (!this.opts.cmc || !camera || camera.confidence < this.opts.cmcMinConfidence) {
+      this.cameraVelocity = [0, 0]
+      return
+    }
+    for (const t of this.tracks) {
+      t.mean[0] = t.mean[0]! + camera.dx
+      t.mean[1] = t.mean[1]! + camera.dy
+    }
+    this.cameraVelocity = dt > 0 ? [camera.dx / dt, camera.dy / dt] : [0, 0]
+  }
+
   private predict(now: number): void {
     for (const t of this.tracks) {
       const dt = Math.min(MAX_DT_FRAMES, Math.max(0, (now - t.predictedAt) / this.opts.nominalFrameMs))
@@ -194,6 +236,10 @@ export class Tracker {
   }
 
   private apply(t: STrack, det: Detection, now: number): void {
+    if (t.state === 'lost' && t.activated) {
+      t.recoveredAt = now
+      this.events.push({ kind: 'recovered', at: now, trackId: t.id, sceneId: `t${t.id}`, label: t.label })
+    }
     this.kf.update(t.mean, t.cov, toMeasurement(det.box))
     t.score = 0.5 * t.score + 0.5 * det.score
     t.votes.set(det.label, (t.votes.get(det.label) ?? 0) + det.score)
@@ -225,9 +271,17 @@ export class Tracker {
     this.events.push({ kind: 'entered', at: now, trackId: t.id, sceneId: `t${t.id}`, label: t.label })
   }
 
-  update(detections: Detection[], now: number): Track[] {
+  /**
+   * One frame. `camera` is the global image motion since the previous frame
+   * (motion.ts); with `cmc` on and a confident estimate, every prediction is
+   * shifted by it before association, so the Kalman state - and the speed and
+   * movement derived from it - describes motion relative to the scene, not
+   * the camera's own motion.
+   */
+  update(detections: Detection[], now: number, camera?: CameraMotion | null): Track[] {
     const o = this.opts
     this.predict(now)
+    this.compensate(camera ?? null, now)
     for (const t of this.tracks) t.matched = false
 
     const high = detections.filter((d) => d.score >= o.highScore)
@@ -388,6 +442,12 @@ export class Tracker {
       const vx = t.mean[4]! * perSecond
       const vy = t.mean[5]! * perSecond
       const held = t.source === 'deep' && now < t.holdUntil
+      const visibleNow = t.matched || held
+      let state: Track['state']
+      if (!t.activated) state = 'tentative'
+      else if (visibleNow) state = t.recoveredAt === now ? 'recovered' : 'confirmed'
+      else if (t.state === 'lost') state = coverage(t.box, this.tracks, t) >= this.opts.occludedFraction ? 'occluded' : 'lost'
+      else state = 'confirmed'
       return {
         id: t.id,
         key: `${t.label}·${String(t.id).padStart(2, '0')}`,
@@ -398,9 +458,10 @@ export class Tracker {
         vx,
         vy,
         speed: Math.hypot(vx, vy),
+        apparentSpeed: Math.hypot(vx + this.cameraVelocity[0], vy + this.cameraVelocity[1]),
         hits: t.hits,
         misses: t.misses,
-        state: !t.activated ? 'tentative' : t.matched || held ? 'confirmed' : t.state === 'lost' ? 'lost' : 'confirmed',
+        state,
         firstSeen: t.firstSeen,
         lastSeen: t.lastSeen,
         movement: t.movement,

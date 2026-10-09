@@ -7,7 +7,7 @@
  */
 import type { Finding } from '../lib/schemas'
 import { lerpBox } from '../vision/geometry'
-import type { NBox, Track } from '../vision/types'
+import { isCoasting, isVisible, type NBox, type Track } from '../vision/types'
 
 export interface Anchor {
   finding: Finding
@@ -151,7 +151,7 @@ export class OverlayRenderer {
       const target: NBox = { x: t.box.x + t.vx * extrapolate, y: t.box.y + t.vy * extrapolate, w: t.box.w, h: t.box.h }
       s.box = this.frozen ? s.box : lerpBox(s.box, target, 0.35)
       const [x, y, w, h] = map(s.box)
-      const alpha = t.state === 'confirmed' ? 0.95 : t.state === 'lost' ? 0.35 : 0.45
+      const alpha = isVisible(t) ? 0.95 : isCoasting(t) ? 0.35 : 0.45
       // Deep-detector-only objects are drawn in the signal blue; both-detector agreement gets a check mark.
       const rgb = t.source === 'deep' ? '141,179,207' : '232,235,228'
       this.brackets(x, y, w, h, `rgba(${rgb},${alpha})`, t.state === 'tentative' || t.source === 'deep')

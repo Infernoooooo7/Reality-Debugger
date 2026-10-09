@@ -58,7 +58,7 @@ class SceneObject(BaseModel):
 class SceneEvent(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    kind: Literal["entered", "left", "moved", "scene_change"]
+    kind: Literal["entered", "left", "recovered", "moved", "scene_change"]
     at_ms: float = Field(ge=0, description="Milliseconds since the start of the session (or video time).")
     object_id: Annotated[str | None, _text(40)] = None
     label: Annotated[str | None, _text(48)] = None

@@ -90,6 +90,8 @@ export interface TrackingConfig {
   kalmanStdWeightPosition: number
   kalmanStdWeightVelocity: number
   classCompatibility: 'supercategory' | 'label'
+  cmc: boolean
+  cmcMinConfidence: number
 }
 
 export interface TemporalConfig {

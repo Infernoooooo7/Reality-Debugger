@@ -13,7 +13,7 @@ import { vision } from '../vision/client'
 import { deepDetector } from '../vision/deep/client'
 import { fuseStill } from '../vision/fusion'
 import { Tracker } from '../vision/tracker'
-import type { Detection } from '../vision/types'
+import { isVisible, type Detection } from '../vision/types'
 
 interface LabState {
   done: boolean
@@ -138,7 +138,7 @@ async function benchTracker(): Promise<void> {
       const tracks = tracker.update(still.detections, i * frameMs)
       if (i >= 8) {
         for (const t of tracks) {
-          if (t.state !== 'confirmed' || t.hits < 4) continue
+          if (!isVisible(t) || t.hits < 4) continue
           speeds.push(t.speed)
           movements[t.movement] = (movements[t.movement] ?? 0) + 1
         }

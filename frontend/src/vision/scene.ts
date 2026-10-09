@@ -7,7 +7,7 @@
 import { TEMPORAL } from '../config'
 import type { FusedObject } from './fusion'
 import { roundBox } from './geometry'
-import type { FrameResult, FrameSignals, NBox, Track } from './types'
+import { isVisible, type FrameResult, type FrameSignals, type NBox, type Track } from './types'
 
 export interface SceneObjectPayload {
   id: string
@@ -28,7 +28,7 @@ export interface SceneObjectPayload {
 }
 
 export interface SceneEventPayload {
-  kind: 'entered' | 'left' | 'moved' | 'scene_change'
+  kind: 'entered' | 'left' | 'recovered' | 'moved' | 'scene_change'
   at_ms: number
   object_id?: string | null
   label?: string | null
@@ -83,7 +83,7 @@ export function trackObject(t: Track, now: number): SceneObjectPayload {
 
 /** Tracks matched in this frame (a coasting "lost" track may already have left the view). */
 export function visibleTracks(tracks: Track[]): Track[] {
-  return tracks.filter((t) => t.state === 'confirmed')
+  return tracks.filter(isVisible)
 }
 
 function signalsPayload(s: FrameSignals): ScenePayload['signals'] {

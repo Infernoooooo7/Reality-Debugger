@@ -56,7 +56,7 @@ describe('Tracker (ByteTrack)', () => {
     expect(hidden.at(-1)![0]).toMatchObject({ id, state: 'lost' })
     const back = tracker.update([det('cup', 0.8, CUP)], 800)
     expect(back).toHaveLength(1)
-    expect(back[0]).toMatchObject({ id, state: 'confirmed' })
+    expect(back[0]).toMatchObject({ id, state: 'recovered' })
   })
 
   it('drops a lost track after the lost buffer and reports that it left', () => {
@@ -74,8 +74,52 @@ describe('Tracker (ByteTrack)', () => {
     feed(tracker, 5, () => [det('laptop', 0.8, CUP)])
     const [laptop] = tracker.current(400).map((t) => t.id)
     const tracks = tracker.update([det('cup', 0.8, CUP)], 500)
-    expect(tracks.find((t) => t.id === laptop)).toMatchObject({ label: 'laptop', state: 'lost' })
+    // Not extended by the cup; it is coasting, and 'occluded' because the cup's box covers its prediction.
+    expect(tracks.find((t) => t.id === laptop)).toMatchObject({ label: 'laptop', state: 'occluded' })
     expect(tracks.find((t) => t.label === 'cup')?.id).not.toBe(laptop)
+  })
+
+  it('compensates camera motion: a static object stays static while the camera pans', () => {
+    // The camera pans so image content moves +0.02 frame widths per 100 ms (0.2 fw/s); the object is still.
+    const pan = (i: number) => [det('cup', 0.8, { ...CUP, x: 0.1 + 0.02 * i })]
+    const camera = { dx: 0.02, dy: 0, confidence: 0.9 }
+    const withCmc = new Tracker({ cmc: true })
+    let last: Track[] = []
+    for (let i = 0; i < 20; i++) last = withCmc.update(pan(i), i * STEP, i ? camera : null)
+    expect(last[0]!.speed).toBeLessThan(0.02)
+    expect(last[0]!.movement).toBe('static')
+    expect(last[0]!.apparentSpeed).toBeGreaterThan(0.18)
+
+    const withoutCmc = new Tracker({ cmc: false })
+    for (let i = 0; i < 20; i++) last = withoutCmc.update(pan(i), i * STEP, i ? camera : null)
+    expect(last[0]!.movement).toBe('moving')
+  })
+
+  it('ignores an unreliable camera-motion estimate', () => {
+    const tracker = new Tracker({ cmc: true, cmcMinConfidence: 0.25 })
+    let last: Track[] = []
+    for (let i = 0; i < 20; i++) last = tracker.update([det('cup', 0.8, { ...CUP, x: 0.1 + 0.02 * i })], i * STEP, { dx: 0.02, dy: 0, confidence: 0.1 })
+    expect(last[0]!.movement).toBe('moving')
+  })
+
+  it('marks a re-acquired track as recovered for one frame and reports it', () => {
+    const tracker = new Tracker()
+    feed(tracker, 5, () => [det('cup', 0.8, CUP)])
+    tracker.drainEvents()
+    feed(tracker, 2, () => [], 500)
+    const back = tracker.update([det('cup', 0.8, CUP)], 700)
+    expect(back[0]).toMatchObject({ state: 'recovered' })
+    expect(tracker.drainEvents().map((e) => e.kind)).toEqual(['recovered'])
+    expect(tracker.update([det('cup', 0.8, CUP)], 800)[0]).toMatchObject({ state: 'confirmed' })
+  })
+
+  it('calls a lost track occluded when another tracked object covers its predicted box', () => {
+    const tracker = new Tracker()
+    const front: NBox = { x: 0.35, y: 0.35, w: 0.25, h: 0.3 }
+    feed(tracker, 5, () => [det('cup', 0.8, CUP), det('laptop', 0.9, front)])
+    const [cupId] = tracker.current(400).filter((t) => t.label === 'cup').map((t) => t.id)
+    const tracks = tracker.update([det('laptop', 0.9, front)], 500) // the cup is hidden behind the laptop
+    expect(tracks.find((t) => t.id === cupId)).toMatchObject({ state: 'occluded' })
   })
 
   it('lets a detection of the same COCO supercategory continue a track', () => {

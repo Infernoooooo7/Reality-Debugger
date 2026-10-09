@@ -6,6 +6,7 @@
  * All buffers are allocated once and reused.
  */
 import { VISION } from '../config'
+import { estimateShift } from './motion'
 import type { FrameSignals, NBox, Signature } from './types'
 
 // config/vision.json "signals" (shared with the backend's video fallback).
@@ -123,7 +124,10 @@ export class SignalAnalyzer {
     // Motion: frame difference + bounding box of changed pixels.
     let motion = 0
     let motionBox: NBox | null = null
+    let cameraShift: FrameSignals['cameraShift'] = null
     if (temporal && this.hasPrev) {
+      const shift = estimateShift(this.prevGray, gray, W, H)
+      cameraShift = { dx: round4(shift.dx), dy: round4(shift.dy), confidence: shift.confidence }
       let diffSum = 0
       let minX = W
       let minY = H
@@ -171,6 +175,7 @@ export class SignalAnalyzer {
         brightness: round3(brightness),
         contrast: round3(Math.min(1, contrast * 2)),
         sharpness: round3(sharpness),
+        cameraShift,
       },
       signature,
     }
@@ -179,4 +184,8 @@ export class SignalAnalyzer {
 
 function round3(v: number): number {
   return Math.round(v * 1000) / 1000
+}
+
+function round4(v: number): number {
+  return Math.round(v * 10000) / 10000
 }
