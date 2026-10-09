@@ -63,8 +63,10 @@ def greedy_nmm(
     metric: str = "ios",
     threshold: float = 0.5,
     class_agnostic: bool = False,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Greedy non-maximum merging. Returns (boxes, scores, classes) after merging.
+    return_index: bool = False,
+) -> tuple[np.ndarray, ...]:
+    """Greedy non-maximum merging. Returns (boxes, scores, classes) after merging
+    (plus, with ``return_index``, the index of each group's leading box).
 
     Highest-scoring box first; the remaining boxes of the same class (or any
     class if class_agnostic) whose overlap with it is >= threshold are taken
@@ -74,9 +76,10 @@ def greedy_nmm(
     the union are dropped, as in SAHI.
     """
     if boxes.size == 0:
-        return boxes.reshape(0, 4), scores, classes
+        empty = (boxes.reshape(0, 4), scores, classes)
+        return (*empty, np.zeros(0, np.int64)) if return_index else empty
     order = list(np.argsort(-scores, kind="stable"))
-    out_boxes, out_scores, out_classes = [], [], []
+    out_boxes, out_scores, out_classes, leaders = [], [], [], []
     alive = np.ones(len(boxes), dtype=bool)
     for i in order:
         if not alive[i]:
@@ -97,4 +100,6 @@ def greedy_nmm(
         out_boxes.append(merged)
         out_scores.append(scores[i])
         out_classes.append(classes[i])
-    return np.asarray(out_boxes), np.asarray(out_scores), np.asarray(out_classes)
+        leaders.append(i)
+    result = (np.asarray(out_boxes), np.asarray(out_scores), np.asarray(out_classes))
+    return (*result, np.asarray(leaders, np.int64)) if return_index else result

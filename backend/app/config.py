@@ -104,6 +104,17 @@ class Settings(BaseSettings):
     # Allow any localhost / private-LAN origin (phones on the same Wi-Fi).
     cors_allow_lan: bool = True
 
+    # --- Server-side vision (/api/vision/*) -----------------------------------
+    # Heavier models run on demand: precision (tiled) detection and reference
+    # comparison. Weights load lazily, checksum-verified, within this budget.
+    vision_backend: bool = True
+    vision_memory_budget_mb: float = 250.0
+    # Concurrent inferences (keep 1 on small instances: each uses ~100 MB).
+    vision_max_concurrency: int = 1
+    # ONNX Runtime threads; default follows the container's CPU quota.
+    vision_threads: int | None = None
+    max_reference_bytes: int = 8 * 1024 * 1024
+
     # --- Shared parameter files ----------------------------------------------
     # config/*.json (vision, detection, tracking, temporal, diagnostics, ai).
     config_dir: Path | None = None
@@ -134,6 +145,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "openai_base_url", "openai_model", "anthropic_base_url", "gemini_model", "gemini_base_url", "frontend_dist", "config_dir",
+        "vision_threads",
         mode="before",
     )
     @classmethod

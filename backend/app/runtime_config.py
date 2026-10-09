@@ -16,7 +16,7 @@ from typing import Any
 from app.config import ROOT_DIR
 
 DEFAULT_CONFIG_DIR = ROOT_DIR / "config"
-FILES = ("vision", "detection", "tracking", "temporal", "diagnostics", "ai")
+FILES = ("vision", "detection", "tracking", "temporal", "diagnostics", "ai", "inference")
 
 
 class ConfigError(RuntimeError):

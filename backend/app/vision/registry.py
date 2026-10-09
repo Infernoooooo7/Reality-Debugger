@@ -60,6 +60,13 @@ def _weight_dirs() -> list[Path]:
     return dirs
 
 
+def _manifest_dirs() -> list[Path]:
+    dirs = [ROOT_DIR / "frontend" / "public" / "models"]
+    if dist := os.environ.get("FRONTEND_DIST"):
+        dirs.append(Path(dist) / "models")
+    return dirs
+
+
 class ModelRegistry:
     def __init__(self, directory: Path = REGISTRY_DIR) -> None:
         self.directory = directory
@@ -77,16 +84,21 @@ class ModelRegistry:
     def ids(self, task: str | None = None) -> list[str]:
         return [i for i, e in self.entries.items() if task is None or task in e.get("tasks", [])]
 
+    def _manifest(self, model_id: str) -> Path | None:
+        for directory in _manifest_dirs():
+            if (path := directory / f"{model_id}.manifest.json").exists():
+                return path
+        return None
+
     def labels(self, model_id: str) -> list[str | None]:
         """The vocabulary from the model's own metadata (browser manifest), if recorded."""
-        manifest = ROOT_DIR / "frontend" / "public" / "models" / f"{model_id}.manifest.json"
-        if manifest.exists():
+        if manifest := self._manifest(model_id):
             return json.loads(manifest.read_text())["labels"]
         entry = self.get(model_id)
         family = entry.get("family")
-        if family == "yolox" or entry.get("vocabulary", {}).get("dataset") == "COCO 2017":
+        if (family == "yolox" or entry.get("vocabulary", {}).get("dataset") == "COCO 2017") and (coco := self._manifest("yolox_s")):
             # Every COCO-80 model in the registry uses the same contiguous class order (verified by evaluation).
-            return json.loads((ROOT_DIR / "frontend" / "public" / "models" / "yolox_s.manifest.json").read_text())["labels"]
+            return json.loads(coco.read_text())["labels"]
         raise ModelUnavailable(model_id, "no label list recorded")
 
     def weights_path(self, model_id: str) -> Path | None:
@@ -117,11 +129,12 @@ class ModelRegistry:
     def availability(self, model_id: str, *, verify: bool = False) -> Availability:
         entry = self.get(model_id)
         status = entry.get("status", "unknown")
-        if status not in ("bundled", "fetchable"):
+        if status not in ("bundled", "fetchable", "buildable"):
             return Availability(model_id, False, status, entry.get("unavailable_reason", status), None)
         path = self.weights_path(model_id)
         if path is None:
-            return Availability(model_id, False, status, f"weights not downloaded (python tools/fetch_models.py --fetch {model_id})", None)
+            how = entry.get("build") or f"python tools/fetch_models.py --fetch {model_id}"
+            return Availability(model_id, False, status, f"weights not present ({how})", None)
         if verify and not self.verify(model_id, path):
             return Availability(model_id, False, status, "weights failed the SHA-256 check", str(path))
         return Availability(model_id, True, status, None, str(path))

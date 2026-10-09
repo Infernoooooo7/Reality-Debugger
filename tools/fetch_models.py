@@ -169,7 +169,7 @@ def build(ids: list[str] | None, *, check_only: bool, keep_manifests: bool) -> i
     problems = 0
     for entry in selected:
         if entry.get("status") not in ("bundled", "fetchable"):
-            print(f"{entry['id']}: {entry.get('status')} - {entry.get('unavailable_reason', '')}")
+            print(f"{entry['id']}: {entry.get('status')} - {entry.get('unavailable_reason') or entry.get('build', '')}")
             continue
         path, bad = ensure_file(entry, check_only=check_only)
         problems += bad

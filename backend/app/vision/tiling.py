@@ -64,7 +64,15 @@ def sliced_detect(detect: Callable[[np.ndarray], InferenceResult], image_bgr: np
         tile = int(tile * 1.25)
         windows = tile_windows(w, h, tile, config.overlap)
     tiled = len(windows) > 1 and max(w, h) > config.min_image_side_for_tiling
-    boxes, scores, classes, names, origins = [], [], [], [], []
+    if not tiled:
+        # Nothing to slice: the single pass is already non-maximum-suppressed; merging it again
+        # would fuse distinct neighbouring objects of the same class.
+        result = detect(image_bgr)
+        for d in result.detections:
+            d.extra.setdefault("source", "full")
+        result.config = {**result.config, "tiling": {**asdict(config), "effective_tile": tile, "windows": 0, "passes": 1}}
+        return result
+    boxes, scores, classes, names, origins, sources = [], [], [], [], [], []
     state = AnalysisState.COMPLETE
     notes: list[str] = []
     passes = 0
@@ -77,6 +85,7 @@ def sliced_detect(detect: Callable[[np.ndarray], InferenceResult], image_bgr: np
             classes.append(d.class_id)
             names.append(d.class_name)
             origins.append(origin)
+            sources.append(d)
 
     if config.full_image or not tiled:
         collect(detect(image_bgr), 0, 0, "full")
@@ -94,14 +103,17 @@ def sliced_detect(detect: Callable[[np.ndarray], InferenceResult], image_bgr: np
     s = np.asarray(scores, dtype=np.float64)
     c = np.asarray(classes, dtype=np.int64)
     if config.merge == "nms":
-        keep = batched_nms(b, s, c, config.match_threshold, config.class_agnostic)
-        mb, ms, mc = b[keep], s[keep], c[keep]
+        lead = batched_nms(b, s, c, config.match_threshold, config.class_agnostic)
+        mb, ms, mc = b[lead], s[lead], c[lead]
     else:
-        mb, ms, mc = greedy_nmm(b, s, c, metric=config.match_metric, threshold=config.match_threshold, class_agnostic=config.class_agnostic)
+        mb, ms, mc, lead = greedy_nmm(b, s, c, metric=config.match_metric, threshold=config.match_threshold,
+                                      class_agnostic=config.class_agnostic, return_index=True)
     name_of = dict(zip(classes, names, strict=True))
     dets = [Detection(class_id=int(ci), class_name=name_of[int(ci)], confidence=float(si),
-                      box=(max(0.0, float(bb[0])), max(0.0, float(bb[1])), min(float(w), float(bb[2])), min(float(h), float(bb[3]))))
-            for bb, si, ci in zip(mb, ms, mc, strict=True)]
+                      box=(max(0.0, float(bb[0])), max(0.0, float(bb[1])), min(float(w), float(bb[2])), min(float(h), float(bb[3]))),
+                      uncertainty=sources[int(li)].uncertainty,
+                      extra={**sources[int(li)].extra, "source": origins[int(li)]})
+            for bb, si, ci, li in zip(mb, ms, mc, lead, strict=True)]
     t2 = time.perf_counter()
     return InferenceResult(
         model_id=model_id, model_version=model_version, image=ImageInfo(w, h), detections=dets,

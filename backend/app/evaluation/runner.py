@@ -57,7 +57,10 @@ def _to_results(result: InferenceResult, image_id: Any, name_to_cat: dict[str, i
             unmapped += 1
             continue
         x1, y1, x2, y2 = d.box
-        out.append({"image_id": image_id, "category_id": cat, "bbox": [x1, y1, x2 - x1, y2 - y1], "score": round(float(d.confidence), 5)})
+        row = {"image_id": image_id, "category_id": cat, "bbox": [x1, y1, x2 - x1, y2 - y1], "score": round(float(d.confidence), 5)}
+        if d.uncertainty and "second_class_score" in d.uncertainty:
+            row["second_class_score"] = d.uncertainty["second_class_score"]  # ignored by COCOeval; used for the ambiguity analysis
+        out.append(row)
     return out, unmapped
 
 

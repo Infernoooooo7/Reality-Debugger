@@ -36,5 +36,7 @@ Every parameter is an object:
 | `temporal.json` | frontend + backend | movement/persistence/occlusion thresholds, scene change, observation cadence, finding lifecycle, video sampling |
 | `diagnostics.json` | backend | local diagnostic rule thresholds, severities and scoring |
 | `ai.json` | frontend + backend | when the optional AI reasoning layer is called, cooldowns, de-duplication, caching, image compression |
+| `inference.json` | backend | server-side vision: detector choice, precision (tiled) inference, ambiguity rule, image-quality gate, reference comparison |
+| `profiles.json` | backend + frontend (via API) | domain profiles: supported categories, engines, limitations and safety notices (descriptive, not parameters) |
 | `ontology_roots.json` | `tools/build_ontology.py` | WordNet roots that define semantic attributes |
 | `ontology.generated.json`, `lexicon.generated.json` | frontend + backend | generated - do not edit; run `python tools/build_ontology.py` |

@@ -16,7 +16,6 @@ Two configurations matter and are reported separately:
 
 from __future__ import annotations
 
-import os
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -48,13 +47,9 @@ class YoloxConfig:
 
 
 def _session(path: Path, threads: int | None) -> Any:
-    import onnxruntime as ort
+    from app.vision.runtime import ort_session
 
-    so = ort.SessionOptions()
-    so.intra_op_num_threads = threads or int(os.environ.get("RD_ORT_THREADS", "0")) or min(4, os.cpu_count() or 1)
-    so.inter_op_num_threads = 1
-    so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    return ort.InferenceSession(str(path), so, providers=["CPUExecutionProvider"])
+    return ort_session(path, threads=threads)
 
 
 class YoloxDetector:
@@ -110,9 +105,12 @@ class YoloxDetector:
         keep = score >= cfg.score_floor
         boxes = np.concatenate([xy - wh / 2, xy + wh / 2], 1)[keep] / r
         cls, score, objectness = cls[keep], score[keep], out[keep, 4]
-        # Second-best class margin: a cheap ambiguity signal (not a calibrated uncertainty).
-        sorted_scores = np.sort(cls_scores[keep], axis=1)
-        margin = sorted_scores[:, -1] - sorted_scores[:, -2] if sorted_scores.shape[1] > 1 else sorted_scores[:, -1]
+        # Second-best class score: a cheap ambiguity signal (not a calibrated uncertainty).
+        ranked = np.argsort(cls_scores[keep], axis=1)
+        sorted_scores = np.take_along_axis(cls_scores[keep], ranked, axis=1)
+        second = sorted_scores[:, -2] if sorted_scores.shape[1] > 1 else np.zeros(len(sorted_scores), np.float32)
+        second_cls = ranked[:, -2] if ranked.shape[1] > 1 else np.full(len(ranked), -1)
+        margin = sorted_scores[:, -1] - second
         order = batched_nms(boxes, score, cls, cfg.nms_iou, cfg.class_agnostic)[: cfg.max_detections]
         dets = []
         for i in order:
@@ -123,8 +121,9 @@ class YoloxDetector:
             dets.append(Detection(
                 class_id=int(cls[i]), class_name=label, confidence=float(score[i]),
                 box=(max(0.0, x1), max(0.0, y1), min(float(w), x2), min(float(h), y2)),
-                uncertainty={"class_margin": round(float(margin[i]), 4)},
-                extra={"objectness": round(float(objectness[i]), 4)},
+                uncertainty={"class_margin": round(float(margin[i]), 4), "second_class_score": round(float(second[i]), 4)},
+                extra={"objectness": round(float(objectness[i]), 4),
+                       "second_class": self._labels[int(second_cls[i])] if 0 <= int(second_cls[i]) < len(self._labels) else None},
             ))
         candidates = {"boxes": boxes, "scores": score, "classes": cls} if cfg.keep_candidates else None
         return dets, candidates

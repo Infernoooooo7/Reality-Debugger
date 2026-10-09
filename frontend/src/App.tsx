@@ -7,6 +7,7 @@ import { useSystem } from './state/system'
 const LiveScan = lazy(() => import('./screens/LiveScan'))
 const ImageDebug = lazy(() => import('./screens/ImageDebug'))
 const VideoDebug = lazy(() => import('./screens/VideoDebug'))
+const Inspect = lazy(() => import('./screens/Inspect'))
 
 function Loading() {
   return (
@@ -35,6 +36,7 @@ export function App() {
         {route === 'live' ? <LiveScan /> : null}
         {route === 'image' ? <ImageDebug /> : null}
         {route === 'video' ? <VideoDebug /> : null}
+        {route === 'inspect' ? <Inspect /> : null}
       </Suspense>
       <Toasts />
     </>

@@ -149,17 +149,11 @@ def frame_signals(image: PreparedImage, config: object) -> tuple[float, float]:
     )
 
 
-def prepare_image(data: bytes, *, max_edge: int, max_pixels: int, quality: int = 85) -> PreparedImage:
-    """Validate and normalise an uploaded image to an EXIF-free RGB JPEG.
-
-    Runs synchronously (CPU bound); call it from a worker thread.
-    """
+def _open_rgb(data: bytes, max_pixels: int) -> Image.Image:
+    """Validate (magic bytes, pixel count) and decode to an upright RGB image, in memory."""
     kind = sniff_image_type(data)
     if kind not in ALLOWED_IMAGE_TYPES:
-        raise UnsupportedMediaError(
-            "Unsupported image format.",
-            hint="Use a JPG, PNG or WEBP image.",
-        )
+        raise UnsupportedMediaError("Unsupported image format.", hint="Use a JPG, PNG or WEBP image.")
     try:
         img = Image.open(io.BytesIO(data))
         width, height = img.size
@@ -176,7 +170,6 @@ def prepare_image(data: bytes, *, max_edge: int, max_pixels: int, quality: int =
             "The image could not be decoded (it may be corrupted or truncated).",
             hint="Try exporting the image again as JPG or PNG.",
         ) from exc
-
     img = ImageOps.exif_transpose(img) or img
     if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         background = Image.new("RGB", img.size, (255, 255, 255))
@@ -184,7 +177,22 @@ def prepare_image(data: bytes, *, max_edge: int, max_pixels: int, quality: int =
         img = background
     elif img.mode != "RGB":
         img = img.convert("RGB")
+    return img
 
+
+def decode_bgr(data: bytes, *, max_pixels: int) -> np.ndarray:
+    """Full-resolution BGR array for the server-side models (never written to disk)."""
+    rgb = np.asarray(_open_rgb(data, max_pixels))
+    return np.ascontiguousarray(rgb[..., ::-1])
+
+
+def prepare_image(data: bytes, *, max_edge: int, max_pixels: int, quality: int = 85) -> PreparedImage:
+    """Validate and normalise an uploaded image to an EXIF-free RGB JPEG.
+
+    Runs synchronously (CPU bound); call it from a worker thread.
+    """
+    kind = sniff_image_type(data)
+    img = _open_rgb(data, max_pixels)
     original_width, original_height = img.size
     if max(img.size) > max_edge:
         img.thumbnail((max_edge, max_edge), Image.Resampling.LANCZOS)

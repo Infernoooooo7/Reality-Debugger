@@ -1,0 +1,72 @@
+{
+  "id": "resnet50_v1_patch_features",
+  "name": "ResNet-50 v1 patch features (stages 2+3)",
+  "version": "derived from onnx/models resnet50-v1-12",
+  "family": "resnet",
+  "architecture": "ResNet-50 v1 truncated after residual stages 2 and 3 (strides 8 and 16, 512 and 1024 channels); dynamic input size. Weights unchanged.",
+  "tasks": [
+    "feature-extract",
+    "anomaly-detect"
+  ],
+  "vocabulary": {
+    "type": "none",
+    "dataset": "ImageNet-1k pre-training (features only)"
+  },
+  "paper": "K. Roth et al., Towards Total Recall in Industrial Anomaly Detection (PatchCore), CVPR 2022, arXiv:2106.08265 (method); K. He et al., CVPR 2016 (backbone)",
+  "homepage": "https://github.com/onnx/models/tree/main/validated/vision/classification/resnet",
+  "licence": {
+    "code": "Apache-2.0 (onnx/models)",
+    "weights": "as the source model (resnet50_v1)",
+    "verified": false
+  },
+  "weights": {
+    "file": "resnet50_v1_patch_features.onnx",
+    "url": null,
+    "precision": "fp32",
+    "sha256": "3ffe1fa2bea7f19d111685113106fc4088cc2294194c48c0195767d6d9aee910",
+    "bytes": 34381339
+  },
+  "build": "python tools/build_feature_extractor.py",
+  "runtimes": [
+    {
+      "target": "backend",
+      "engine": "onnxruntime",
+      "providers": [
+        "CPUExecutionProvider"
+      ]
+    }
+  ],
+  "hardware": {
+    "notes": "not measured yet"
+  },
+  "input": {
+    "width": 224,
+    "height": 224,
+    "layout": "NCHW",
+    "channel_order": "RGB",
+    "normalize": "ImageNet mean (0.485, 0.456, 0.406) / std (0.229, 0.224, 0.225) on 0-1 values",
+    "source": "ONNX Model Zoo resnet README (preprocessing of resnet50-v1-12)"
+  },
+  "outputs": [
+    "resnetv17_stage2_activation3",
+    "resnetv17_stage3_activation5"
+  ],
+  "postprocess": {},
+  "limitations": [
+    "PatchCore's reference backbone is WideResNet-50-2 (not available from a reachable source here); ResNet-50 features are expected to score somewhat lower",
+    "ImageNet features: textures and object categories far from ImageNet may separate poorly"
+  ],
+  "status": "buildable",
+  "fetch_by_default": false,
+  "evaluations": [],
+  "derived_from": {
+    "id": "resnet50_v1",
+    "sha256": "3f03fdef724b22947eed826f1eef1dc5c34151bb4c37d634f1db89dfa2dd1526",
+    "script": "tools/build_feature_extractor.py",
+    "onnx_version": "1.23.2",
+    "outputs": [
+      "resnetv17_stage2_activation3",
+      "resnetv17_stage3_activation5"
+    ]
+  }
+}

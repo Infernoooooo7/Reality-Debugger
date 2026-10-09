@@ -316,3 +316,125 @@ export type AICheck = z.infer<typeof AICheckSchema>
 export type AIRun = z.infer<typeof AIRunSchema>
 export type AISuggestion = z.infer<typeof AISuggestionSchema>
 export type Metrics = z.infer<typeof MetricsSchema>
+
+// ------------------------------------------------------------ server-side vision (/api/vision)
+
+export const AnalysisStateSchema = z.enum(['complete', 'analysis_incomplete', 'model_unavailable', 'insufficient_image_quality'])
+export const ObjectStateSchema = z.enum(['detected', 'tentative', 'ambiguous'])
+export const QueryStateSchema = z.enum([
+  'detected',
+  'tentative',
+  'ambiguous',
+  'not_detected',
+  'unsupported_category',
+  'insufficient_image_quality',
+  'analysis_incomplete',
+])
+
+export const QualitySchema = z.object({
+  ok: z.boolean(),
+  brightness: z.number(),
+  sharpness: z.number(),
+  width: z.number(),
+  height: z.number(),
+  issues: z.array(z.object({ code: z.string(), message: z.string() })),
+})
+
+export const VisionModelStatusSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  tasks: z.array(z.string()),
+  available: z.boolean(),
+  reason: z.string().nullable(),
+  loaded: z.boolean(),
+  load_error: z.string().nullable(),
+  licence: z.string().nullable(),
+})
+
+export const VisionStatusSchema = z.object({
+  enabled: z.boolean(),
+  models: z.array(VisionModelStatusSchema),
+  memory_budget_mb: z.number(),
+  threads: z.number(),
+  profiles: z.record(z.string(), z.object({ name: z.string(), status: z.string() })),
+})
+
+export const ProfileSchema = z.object({
+  name: z.string(),
+  status: z.enum(['available', 'limited', 'experimental', 'unavailable']),
+  summary: z.string(),
+  engines: z.array(z.string()),
+  categories: z.union([z.literal('all'), z.array(z.string())]),
+  default_mode: z.string(),
+  unsupported: z.array(z.string()),
+  evidence: z.array(z.string()),
+  safety: z.string().optional(),
+  notes: z.array(z.string()).optional(),
+})
+export const ProfilesSchema = z.record(z.string(), ProfileSchema)
+
+export const VisionObjectSchema = z.object({
+  id: z.number(),
+  label: z.string(),
+  class_id: z.number(),
+  confidence: z.number(),
+  box: z.tuple([z.number(), z.number(), z.number(), z.number()]),
+  state: ObjectStateSchema,
+  alternative_label: z.string().nullable(),
+  in_profile: z.boolean(),
+  source: z.string(),
+})
+
+export const QueryAnswerSchema = z.object({
+  query: z.string(),
+  state: QueryStateSchema,
+  labels: z.array(z.string()),
+  match: z.string().nullable(),
+  count: z.number(),
+  explanation: z.string(),
+})
+
+export const VisionDetectSchema = z.object({
+  state: AnalysisStateSchema,
+  mode: z.enum(['standard', 'precision']),
+  profile: z.string(),
+  model: z.object({ id: z.string(), version: z.string(), vocabulary: z.string(), operating_threshold: z.number() }),
+  image: z.object({ width: z.number(), height: z.number() }),
+  coordinate_system: z.string(),
+  objects: z.array(VisionObjectSchema),
+  queries: z.array(QueryAnswerSchema),
+  quality: QualitySchema,
+  timings_ms: z.record(z.string(), z.number()),
+  notes: z.array(z.string()),
+})
+
+export const VisionCompareSchema = z.object({
+  state: AnalysisStateSchema,
+  verdict: z.enum(['anomalous', 'within_reference_variation']),
+  score: z.number(),
+  threshold: z.number(),
+  score_to_threshold: z.number(),
+  regions: z.array(z.object({ box: z.tuple([z.number(), z.number(), z.number(), z.number()]), area_px: z.number(), peak_score: z.number() })),
+  references: z.number(),
+  method: z.object({
+    name: z.string(),
+    features: z.string(),
+    memory_bank_patches: z.number(),
+    threshold_rule: z.string(),
+    leave_one_out_scores: z.array(z.number()),
+  }),
+  heatmap: z.object({ width: z.number(), height: z.number(), encoding: z.string(), scale: z.string(), data: z.string().nullable() }),
+  quality: QualitySchema,
+  image: z.object({ width: z.number(), height: z.number() }),
+  timings_ms: z.record(z.string(), z.number()),
+  notes: z.array(z.string()),
+  evidence: z.string(),
+})
+
+export type VisionStatus = z.infer<typeof VisionStatusSchema>
+export type Profile = z.infer<typeof ProfileSchema>
+export type Profiles = z.infer<typeof ProfilesSchema>
+export type VisionObject = z.infer<typeof VisionObjectSchema>
+export type QueryAnswer = z.infer<typeof QueryAnswerSchema>
+export type VisionDetect = z.infer<typeof VisionDetectSchema>
+export type VisionCompare = z.infer<typeof VisionCompareSchema>

@@ -196,6 +196,14 @@ export function Home() {
                 <Icon name="video" size={22} />
               </span>
             </button>
+            <button type="button" className="mode" onClick={() => navigate('inspect')}>
+              <span className="mode__ch t-data">IN·D</span>
+              <span className="mode__name">Inspect</span>
+              <span className="mode__desc">Server models · small-object precision scan · compare a part with known-good references</span>
+              <span className="mode__go" aria-hidden="true">
+                <Icon name="scan" size={22} />
+              </span>
+            </button>
           </nav>
 
           <div className="signal-path" aria-label="Processing pipeline">

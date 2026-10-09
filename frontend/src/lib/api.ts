@@ -13,6 +13,10 @@ import {
   ScanAnalysisSchema,
   ScanStateSchema,
   VideoReportSchema,
+  ProfilesSchema,
+  VisionCompareSchema,
+  VisionDetectSchema,
+  VisionStatusSchema,
   type AICheck,
   type Health,
   type Metrics,
@@ -22,6 +26,10 @@ import {
   type ScanState,
   type Trigger,
   type VideoReport,
+  type Profiles,
+  type VisionCompare,
+  type VisionDetect,
+  type VisionStatus,
 } from './schemas'
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') ?? ''
@@ -322,6 +330,42 @@ export function analyzeVideoFile(
     data.append('video', file, file.name || 'video')
     xhr.send(data)
   })
+}
+
+// ------------------------------------------------------- server-side vision
+
+export function getVisionStatus(opts?: RequestOptions): Promise<VisionStatus> {
+  return request('/api/vision/status', { method: 'GET' }, VisionStatusSchema, opts)
+}
+
+export function getProfiles(opts?: RequestOptions): Promise<Profiles> {
+  return request('/api/vision/profiles', { method: 'GET' }, ProfilesSchema, opts)
+}
+
+/** Server-side detection: one pass ("standard") or tiles + full image ("precision", for small objects). */
+export function visionDetect(
+  image: Blob,
+  opts: { mode: 'standard' | 'precision'; profile: string; queries: string; signal?: AbortSignal },
+): Promise<VisionDetect> {
+  return request(
+    '/api/vision/detect',
+    { method: 'POST', body: form({ mode: opts.mode, profile: opts.profile, queries: opts.queries }, [['image', image, 'image']]) },
+    VisionDetectSchema,
+    { signal: opts.signal, timeoutMs: 120_000 },
+  )
+}
+
+/** Reference comparison: an image of a part against 2-10 images of known-good parts. */
+export function visionCompare(image: Blob, references: Blob[], opts: { signal?: AbortSignal } = {}): Promise<VisionCompare> {
+  return request(
+    '/api/vision/compare',
+    {
+      method: 'POST',
+      body: form({}, [['image', image, 'image'], ...references.map((r, i): [string, Blob, string] => ['references', r, `reference-${i + 1}`])]),
+    },
+    VisionCompareSchema,
+    { signal: opts.signal, timeoutMs: 120_000 },
+  )
 }
 
 /** Normalise anything thrown into an ApiError for display. */

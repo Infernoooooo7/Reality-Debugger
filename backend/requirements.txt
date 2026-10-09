@@ -17,3 +17,5 @@ httpx==0.28.1
 numpy>=2.0,<3
 # Only used for the server-side video fallback (videos the browser can't decode).
 opencv-python-headless>=4.9,<6
+# Server-side vision (/api/vision): YOLOX detection and reference comparison on CPU.
+onnxruntime==1.30.0

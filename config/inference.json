@@ -1,0 +1,134 @@
+{
+  "_comment": "Server-side inference (backend /api/vision/*): precision (sliced) detection, image-quality gate, ambiguity flag and reference comparison. Values marked 'empirical' cite the benchmark record they come from (docs/benchmarks/records/).",
+  "detector": {
+    "model": {
+      "value": "yolox_s",
+      "purpose": "Registry id of the server detector (the same weights as the browser deep detector, so results agree).",
+      "source": "empirical",
+      "ref": "COCO val2017 (5000 held-out images): AP 40.2 at the YOLOX evaluation settings (published 40.5); see detection-yolox-s-coco-val2017-val2017-protocol.json"
+    }
+  },
+  "precision": {
+    "tile": {
+      "value": 640,
+      "unit": "px",
+      "purpose": "Tile side of sliced inference in source pixels (precision mode).",
+      "source": "heuristic",
+      "ref": "SAHI defaults (Akyon et al., ICIP 2022, arXiv:2202.06934); replaced by the VisDrone tune-split sweep result when available."
+    },
+    "overlap": {
+      "value": 0.2,
+      "unit": "fraction",
+      "purpose": "Overlap between neighbouring tiles.",
+      "source": "paper",
+      "ref": "SAHI default overlap ratio 0.2 (arXiv:2202.06934)."
+    },
+    "fullImage": {
+      "value": true,
+      "purpose": "Also run the detector on the whole (downscaled) image, so large objects split by tiles are still found whole.",
+      "source": "paper",
+      "ref": "SAHI 'full inference' + slices (FI + SF) is its best configuration."
+    },
+    "merge": {
+      "value": "nmm",
+      "purpose": "How detections from tiles and the full image are combined: greedy non-maximum merging (union of boxes of one object) or NMS.",
+      "source": "paper",
+      "ref": "SAHI GreedyNMMPostprocess with IoS 0.5 (its default)."
+    },
+    "matchMetric": {
+      "value": "ios",
+      "purpose": "Overlap measure for merging (intersection over the smaller box: a half object in one tile still matches the whole object).",
+      "source": "paper",
+      "ref": "SAHI default match metric IOS."
+    },
+    "matchThreshold": {
+      "value": 0.5,
+      "purpose": "Overlap at which two detections of the same class are merged.",
+      "source": "paper",
+      "ref": "SAHI default match threshold 0.5."
+    },
+    "maxTiles": {
+      "value": 24,
+      "unit": "tiles",
+      "purpose": "Upper bound on tiles per image (larger tiles are used when exceeded).",
+      "source": "heuristic",
+      "ref": "Bounds server time on very large images; a 4000x3000 photo at 640 px tiles and 0.2 overlap needs 48 tiles."
+    },
+    "timeBudgetMs": {
+      "value": 25000,
+      "unit": "ms",
+      "purpose": "Stop processing further tiles after this time; the response then says analysis_incomplete and which part was not analysed at full resolution.",
+      "source": "heuristic",
+      "ref": "Keeps one request well below typical 30-60 s proxy timeouts on small CPU instances."
+    }
+  },
+  "ambiguity": {
+    "secondClassRatio": {
+      "value": 0.5,
+      "unit": "ratio",
+      "purpose": "A detection is reported as 'ambiguous' when its second-best class score is at least this fraction of its best class score.",
+      "source": "heuristic",
+      "ref": "Untuned rule; how well it separates wrong-class detections from correct ones is measured on COCO val2017 (see docs/EVALUATION_PROTOCOL.md)."
+    }
+  },
+  "quality": {
+    "minBrightness": {
+      "value": 0.06,
+      "unit": "mean luminance 0..1",
+      "purpose": "Below this mean luminance the image is reported as too dark for 'not detected' to be meaningful.",
+      "source": "heuristic",
+      "ref": "Replaced by the threshold measured with tools/evaluate.py quality (synthetic low light on COCO val2017) when available."
+    },
+    "minSharpness": {
+      "value": 0.2,
+      "unit": "0..1 (log variance of Laplacian, as config/vision.json signals)",
+      "purpose": "Below this sharpness the image is reported as too blurred for 'not detected' to be meaningful.",
+      "source": "heuristic",
+      "ref": "Replaced by the threshold measured with tools/evaluate.py quality (synthetic blur on COCO val2017) when available."
+    },
+    "minShortSide": {
+      "value": 160,
+      "unit": "px",
+      "purpose": "Images whose short side is below this are too small to analyse reliably.",
+      "source": "heuristic",
+      "ref": "At 160 px a 640-px detector input upsamples 4x; COCO 'small' objects (< 32x32 px at full size) are then a few pixels."
+    }
+  },
+  "compare": {
+    "inputSize": {
+      "value": 224,
+      "unit": "px",
+      "purpose": "Square input size of the patch-feature extractor for reference comparison.",
+      "source": "empirical",
+      "ref": "Size used for the VisA evaluation (anomaly-detection-patchcore-resnet50-visa-*.json)."
+    },
+    "minReferences": {
+      "value": 2,
+      "unit": "images",
+      "purpose": "Fewest known-good reference images accepted (the decision threshold is set by leave-one-out over them).",
+      "source": "heuristic",
+      "ref": "Leave-one-out needs at least two references; VisA results improve with more (10 -> 200 references)."
+    },
+    "maxReferences": {
+      "value": 10,
+      "unit": "images",
+      "purpose": "Most reference images accepted per request (bounds time and memory: 10 x 784 patch features of 1024 floats = 32 MB).",
+      "source": "heuristic",
+      "ref": "Matches the k=10 configuration measured on VisA."
+    },
+    "thresholdMargin": {
+      "value": 1.0,
+      "unit": "x leave-one-out maximum",
+      "purpose": "Decision threshold = this factor x the highest leave-one-out score among the references.",
+      "source": "heuristic",
+      "ref": "1.0 = the most anomalous known-good reference; the VisA evaluation uses the same rule with 20 held-out normal images."
+    },
+    "regionMinAreaFraction": {
+      "value": 0.0005,
+      "unit": "fraction of the image",
+      "purpose": "Smallest above-threshold region reported as an anomaly region.",
+      "source": "heuristic",
+      "ref": "Suppresses isolated pixels of the smoothed anomaly map."
+    }
+  }
+}

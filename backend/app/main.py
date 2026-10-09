@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import analyze, health, image, scan, video
+from app.api import analyze, health, image, scan, video, vision
 from app.config import LAN_ORIGIN_REGEX, Settings, get_settings
 from app.errors import register_exception_handlers
 from app.middleware import AccessLogMiddleware, BodySizeLimitMiddleware, CrossOriginIsolationMiddleware
@@ -26,6 +26,7 @@ from app.services.ai_policy import AIPolicy
 from app.services.ai_providers import VisionProvider
 from app.services.ai_service import AIService
 from app.services.diagnostic_service import DiagnosticService
+from app.services.inference_service import VisionService
 from app.services.local_diagnostics import ENGINE_VERSION, LocalDiagnosticEngine
 from app.services.metrics import Metrics
 from app.services.ontology import load_ontology
@@ -83,6 +84,7 @@ def create_app(settings: Settings | None = None, *, providers: Mapping[str, Visi
     policy = AIPolicy(config, settings)
     pipeline = Pipeline(settings=settings, config=config, diagnostics=diagnostics, ai=ai, policy=policy, metrics=metrics)
     scans = ScanStore(ttl_seconds=settings.scan_ttl_seconds, max_scans=settings.max_scans)
+    vision_service = VisionService(settings, config, ontology) if settings.vision_backend else None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -96,6 +98,13 @@ def create_app(settings: Settings | None = None, *, providers: Mapping[str, Visi
             len(engine.rule_names),
         )
         log.info("AI reasoning: %s (%s) - %s", status.provider, status.model or "no model", status.detail)
+        if vision_service is None:
+            log.info("Server-side vision: off (VISION_BACKEND=false)")
+        else:
+            models = vision_service.status()["models"]
+            log.info("Server-side vision: %s (budget %.0f MB, %d threads)",
+                     ", ".join(f"{m['id']} {'ready' if m['available'] else 'unavailable'}" for m in models),
+                     settings.vision_memory_budget_mb, vision_service.threads or 0)
         yield
         await ai.aclose()
 
@@ -119,6 +128,7 @@ def create_app(settings: Settings | None = None, *, providers: Mapping[str, Visi
     app.state.policy = policy
     app.state.pipeline = pipeline
     app.state.scans = scans
+    app.state.vision = vision_service
 
     register_exception_handlers(app)
 
@@ -137,7 +147,7 @@ def create_app(settings: Settings | None = None, *, providers: Mapping[str, Visi
         max_age=600,
     )
 
-    for router in (health.router, analyze.router, image.router, video.router, scan.router):
+    for router in (health.router, analyze.router, image.router, video.router, scan.router, vision.router):
         app.include_router(router, prefix="/api")
 
     dist = settings.frontend_dist

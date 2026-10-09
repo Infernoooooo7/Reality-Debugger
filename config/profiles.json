@@ -1,0 +1,76 @@
+{
+  "_comment": "Domain profiles: what Reality Debugger can and cannot do in each domain with the models it actually ships. 'categories' must be labels of the server detector (checked at start-up). 'status': available | limited | experimental | unavailable. Evidence entries point to docs/benchmarks/records/.",
+  "profiles": {
+    "general": {
+      "name": "General scenes",
+      "status": "available",
+      "summary": "Everyday scenes: the 80 COCO object categories, tracking in live video, scene relations and diagnostics.",
+      "engines": ["detection", "precision-detection", "tracking", "camera-motion", "diagnostics"],
+      "categories": "all",
+      "default_mode": "standard",
+      "unsupported": [
+        "Objects outside the 80 COCO categories (measured: 56.6% of LVIS v1 instances and 81.1% of Open Images boxes have no COCO-80 equivalent)",
+        "Identifying people, reading text, measuring physical size without calibration"
+      ],
+      "evidence": ["detection-yolox-s-coco-val2017-val2017-deployed.json", "vocabulary-coverage-yolox-s-lvis-v1-minival-openimages-v5-val-val-default.json"]
+    },
+    "retail_inventory": {
+      "name": "Inventory and retail (A)",
+      "status": "limited",
+      "summary": "Counts and locates generic product-like COCO categories (bottles, cups, bowls, fruit, books...). It cannot recognise products, brands or SKUs, and it does not detect boxes, cartons, pallets or shelf gaps.",
+      "engines": ["detection", "precision-detection", "counting"],
+      "categories": ["bottle", "wine glass", "cup", "bowl", "banana", "apple", "orange", "broccoli", "carrot", "sandwich", "donut", "cake", "book", "vase", "clock", "scissors", "teddy bear", "backpack", "handbag", "suitcase", "umbrella", "cell phone", "laptop", "keyboard", "mouse", "remote", "tv", "potted plant"],
+      "default_mode": "precision",
+      "unsupported": [
+        "Product / brand / SKU recognition (needs a product-specific detector trained on, e.g., SKU-110K or the store's own catalogue)",
+        "Boxes, cartons, pallets, price tags, barcodes, shelf gaps (no category in the shipped models)",
+        "Exact counts in dense shelves: overlapping identical items are merged or missed; counts are lower bounds"
+      ],
+      "evidence": ["tiling-yolox-s-visdrone-det-val-*.json (small objects)", "detection-yolox-s-coco-val2017-val2017-deployed.json (per-class AP)"],
+      "notes": ["Precision mode (tiled) is the default because shelf items are small in a wide photo."]
+    },
+    "industrial_inspection": {
+      "name": "Industrial inspection (B)",
+      "status": "experimental",
+      "summary": "Reference comparison: give 2-10 photos of known-good parts and one photo of a part to check, taken the same way. The server builds a PatchCore-style memory bank of the good parts and highlights regions that do not look like any of them.",
+      "engines": ["reference-comparison", "anomaly-map"],
+      "categories": [],
+      "default_mode": "compare",
+      "unsupported": [
+        "Defect classification (what kind of defect) and metrology (sizes in mm)",
+        "Parts photographed in a different pose, lighting or background than the references",
+        "Certified pass/fail decisions: this is a screening aid, every flag needs a human check"
+      ],
+      "evidence": ["anomaly-detection-patchcore-resnet50-visa-official-1cls-test-patchcore-k10.json", "anomaly-detection-reference-difference-visa-official-1cls-test-refdiff-k10.json"],
+      "safety": "Not a validated inspection system. Use for screening only; do not ship, reject or certify parts on its output alone."
+    },
+    "robotics": {
+      "name": "Robotics and navigation (C)",
+      "status": "limited",
+      "summary": "Detection and multi-object tracking with explicit track states (tentative, confirmed, occluded, lost, recovered) and camera-motion compensation; speeds are image-space unless the camera is calibrated.",
+      "engines": ["detection", "tracking", "camera-motion"],
+      "categories": ["person", "bicycle", "car", "motorcycle", "bus", "truck", "dog", "cat", "chair", "couch", "dining table", "bed", "potted plant", "bottle", "cup", "backpack", "suitcase"],
+      "default_mode": "standard",
+      "unsupported": [
+        "Metric depth, 3-D position or physical speed (no calibrated camera model; image-space motion only)",
+        "Safety-rated obstacle detection: no guarantee that an object is detected in every frame"
+      ],
+      "evidence": ["tracking-bytetrack-ts-*-kitti-tracking-*.json"],
+      "safety": "Not suitable for collision avoidance or any safety function."
+    },
+    "medical_research": {
+      "name": "Medical and surgical research (D)",
+      "status": "unavailable",
+      "summary": "No medical or surgical model ships with this build: generic COCO detectors are not trained or validated on clinical images, so no medical analysis is offered.",
+      "engines": [],
+      "categories": [],
+      "default_mode": "none",
+      "unsupported": [
+        "Surgical instrument detection or tracking (would need, e.g., a model trained on a surgical-tool dataset and an ethics-approved validation)",
+        "Any diagnosis, triage, measurement or guidance"
+      ],
+      "evidence": [],
+      "safety": "Research prototype only. Not a medical device, not clinically validated, and must not be used for diagnosis, treatment or surgical guidance."
+    }
+  }
+}

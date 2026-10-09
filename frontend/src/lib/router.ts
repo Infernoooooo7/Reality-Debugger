@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-export type Route = 'home' | 'live' | 'image' | 'video'
+export type Route = 'home' | 'live' | 'image' | 'video' | 'inspect'
 
 const ROUTES: Record<string, Route> = {
   '': 'home',
@@ -8,6 +8,7 @@ const ROUTES: Record<string, Route> = {
   '/live': 'live',
   '/image': 'image',
   '/video': 'video',
+  '/inspect': 'inspect',
 }
 
 function parse(hash: string): Route {

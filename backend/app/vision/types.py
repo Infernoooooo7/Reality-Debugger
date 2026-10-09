@@ -38,8 +38,12 @@ class QueryState(StrEnum):
     """Answer to "is there an X?" for a category."""
 
     DETECTED = "detected"
+    TENTATIVE = "tentative"  # only candidates below the operating threshold
+    AMBIGUOUS = "ambiguous"  # found, but the model nearly as strongly suggests another class
     NOT_DETECTED = "not_detected"  # supported but not found: NOT the same as confirmed absent
     UNSUPPORTED_CATEGORY = "unsupported_category"  # no loaded model can name it
+    INSUFFICIENT_IMAGE_QUALITY = "insufficient_image_quality"  # not found, but the image is too poor to rule it out
+    ANALYSIS_INCOMPLETE = "analysis_incomplete"  # not found, but part of the image was not analysed
 
 
 @dataclass(slots=True)

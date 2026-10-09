@@ -80,6 +80,11 @@ def load_detector(model_id: str, registry: ModelRegistry):
                                                 class_agnostic=_v(DETECTION["deep"]["classAgnosticNms"]), keep_candidates=True),
                        thr, _v(DETECTION["deep"]["preNmsScore"]),
                        keep_candidates=True, description="As in the app (config/detection.json deep.*)"),
+            # One-variable ablation of the deployed config: class-aware instead of class-agnostic NMS.
+            ConfigSpec("deployed-classaware", YoloxConfig(score_floor=_v(DETECTION["deep"]["preNmsScore"]), nms_iou=_v(DETECTION["deep"]["nmsIou"]),
+                                                           class_agnostic=False, keep_candidates=True),
+                       thr, _v(DETECTION["deep"]["preNmsScore"]), keep_candidates=True,
+                       description="Deployed settings with class-aware NMS (ablation of deep.classAgnosticNms only)"),
         ]
 
         def infer(bgr, specs):
@@ -268,6 +273,59 @@ def cmd_vocabulary(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_anomaly(args: argparse.Namespace) -> int:
+    """VisA anomaly detection/segmentation: PatchCore (ResNet-50 features) vs the reference-difference baseline."""
+    from app.evaluation import records
+    from app.evaluation.anomaly import EVAL_SIZE, HOLDOUT, run_visa
+
+    registry = ModelRegistry()
+    avail = registry.availability("resnet50_v1_patch_features", verify=True)
+    if not avail.available:
+        raise SystemExit(f"resnet50_v1_patch_features unavailable: {avail.reason}")
+    configs = {
+        "patchcore-k5": {"method": "patchcore", "k": 5, "coreset_ratio": 1.0, "loo_threshold": True},
+        "patchcore-k10": {"method": "patchcore", "k": 10, "coreset_ratio": 1.0, "loo_threshold": True},
+        "patchcore-k50-coreset10": {"method": "patchcore", "k": 50, "coreset_ratio": 0.1},
+        "patchcore-k200-coreset1": {"method": "patchcore", "k": 200, "coreset_ratio": 0.01},
+        "refdiff-k10": {"method": "reference-difference", "k": 10},
+        "refdiff-k50": {"method": "reference-difference", "k": 50},
+    }
+    if args.configs:
+        configs = {k: v for k, v in configs.items() if k in args.configs.split(",")}
+    from app.datasets.adapters import VisaAdapter
+
+    categories = args.categories.split(",") if args.categories else VisaAdapter().categories
+    t0 = time.perf_counter()
+    results = run_visa(categories, configs, extractor_weights=Path(avail.path), size=EVAL_SIZE, seed=args.seed)
+    entry = registry.get("resnet50_v1_patch_features")
+    for name, res in results.items():
+        cfg = configs[name]
+        method = "PatchCore (ResNet-50 v1 stages 2+3)" if cfg["method"] == "patchcore" else "Reference difference (ECC affine + CIE76 Delta E)"
+        record = {
+            "task": "anomaly-detection", "date": records.now(),
+            "model": {"id": "patchcore-resnet50" if cfg["method"] == "patchcore" else "reference-difference", "name": method,
+                      "version": entry.get("weights", {}).get("sha256", "")[:12] if cfg["method"] == "patchcore" else "n/a",
+                      "feature_extractor": "resnet50_v1_patch_features" if cfg["method"] == "patchcore" else None},
+            "dataset": {"id": "visa", "split": "official 1cls test", "categories": categories},
+            "config_name": name,
+            "config": {**cfg, "input_size": EVAL_SIZE, "eval_size": EVAL_SIZE, "holdout_normals_for_threshold": HOLDOUT, "seed": args.seed,
+                       "reference_selection": "seeded random permutation of the official train (normal) images, disjoint from the held-out ones"},
+            "environment": records.environment(),
+            "performance": {**res["timing"], "peak_rss_mb": records.peak_rss_mb(), "wall_s_total_all_configs": round(time.perf_counter() - t0, 1)},
+            "metrics": {"mean_over_categories": res["mean_over_categories"], "per_category": res["per_category"]},
+            "notes": [
+                "Image score = maximum of the anomaly map / patch scores; scores are distances, not probabilities.",
+                "Threshold = maximum image score of held-out normal training images; no anomalous image is used for any choice.",
+                "Pixel metrics at 224x224; ground-truth masks resized with nearest-neighbour interpolation (very thin defects can shrink or vanish).",
+                "Deviations from published PatchCore: ResNet-50 v1 instead of WideResNet-50-2; full-image resize instead of resize+centre-crop; "
+                "k reference images instead of the full training set.",
+            ],
+        }
+        path = records.write(record)
+        print("  wrote", path.relative_to(ROOT))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -301,6 +359,11 @@ def main() -> int:
     p.add_argument("--model", default="yolox_s")
     p.add_argument("--wordnet-dir", default=None, help="directory containing NLTK corpora/wordnet (else NLTK's default search path)")
     p.set_defaults(fn=cmd_vocabulary)
+    p = sub.add_parser("anomaly")
+    p.add_argument("--categories", default="", help="comma-separated VisA categories (default: all 12)")
+    p.add_argument("--configs", default="", help="comma-separated subset of the configurations")
+    p.add_argument("--seed", type=int, default=0)
+    p.set_defaults(fn=cmd_anomaly)
     args = parser.parse_args()
     return args.fn(args)
 

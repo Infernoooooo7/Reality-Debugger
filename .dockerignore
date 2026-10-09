@@ -13,3 +13,7 @@ frontend/playwright-report
 frontend/public/test-media
 frontend/vision-lab.html
 frontend/src/dev
+# Datasets and locally fetched weights never go into images (the build fetches and verifies what it needs).
+data
+models/weights
+frontend/.tools

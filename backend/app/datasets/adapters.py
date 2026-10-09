@@ -349,6 +349,43 @@ class OpenImagesAdapter:
 # -- splits ---------------------------------------------------------------------------------------
 
 
+# -- VisA (anomaly detection) ---------------------------------------------------------------------
+
+
+class VisaAdapter:
+    """VisA with its official one-class split (split_csv/1cls.csv): train = normal images only,
+    test = normal + anomalous images; anomalous ones have a pixel mask (value > 0 = defect)."""
+
+    dataset_id = "visa"
+
+    def __init__(self, root: Path | None = None) -> None:
+        self.root = root or paths.raw_dir(self.dataset_id)
+        _require(self.root / "1cls.csv", self.dataset_id)
+
+    @cached_property
+    def rows(self) -> list[dict[str, str]]:
+        with (self.root / "1cls.csv").open(newline="") as fh:
+            return list(csv.DictReader(fh))
+
+    @property
+    def categories(self) -> list[str]:
+        return sorted({r["object"] for r in self.rows})
+
+    def items(self, category: str, split: str) -> list[dict[str, Any]]:
+        return [{"id": r["image"], "image": self.root / r["image"], "anomalous": r["label"] == "anomaly",
+                 "mask": self.root / r["mask"] if r["mask"] else None}
+                for r in self.rows if r["object"] == category and r["split"] == split]
+
+    def samples(self, split: str | None = None) -> Iterator[Sample]:
+        for r in self.rows:
+            if split is None or r["split"] == split:
+                yield Sample(r["image"], str(self.root / r["image"]), 0, 0, [{"category": r["object"], "anomalous": r["label"] == "anomaly",
+                                                                              "mask": r["mask"] or None}], group=r["object"], meta={"split": r["split"]})
+
+    def stats(self) -> dict[str, Any]:
+        return {"images": dict(Counter(f"{r['object']}/{r['split']}/{r['label']}" for r in self.rows))}
+
+
 def load_split(dataset_id: str, split: str) -> set[str]:
     path = paths.splits_dir() / f"{dataset_id}.json"
     if not path.exists():
@@ -363,6 +400,7 @@ ADAPTERS = {
     "visdrone_det_val": VisDroneAdapter,
     "kitti_tracking": KittiTrackingAdapter,
     "openimages_v5_val_boxes": OpenImagesAdapter,
+    "visa": VisaAdapter,
 }
 
 
