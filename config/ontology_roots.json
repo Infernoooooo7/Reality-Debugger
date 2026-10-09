@@ -1,0 +1,77 @@
+{
+  "description": "Semantic attributes used by the local diagnostic engine. tools/build_ontology.py gives a detector label an attribute when the label's WordNet synset is, or descends from (hypernym closure), one of the listed root synsets, or when its COCO supercategory is listed. Roots are WordNet 3.0 synsets; 'gloss' is quoted from WordNet. Nothing here lists detector classes: the classes come from the models' own metadata and are mapped through WordNet.",
+  "attributes": {
+    "liquid_container": {
+      "synsets": ["vessel.n.03", "drinking_vessel.n.01", "glass.n.02", "cup.n.01", "bottle.n.01"],
+      "supercategories": [],
+      "gloss": "vessel.n.03: an object used as a container (especially for liquids)",
+      "used_for": "spill-risk proximity rule and edge-placement rule"
+    },
+    "electronic": {
+      "synsets": ["electronic_equipment.n.01", "electronic_device.n.01", "computer.n.01"],
+      "supercategories": ["electronic"],
+      "gloss": "electronic_equipment.n.01: equipment that involves the controlled conduction of electrons",
+      "used_for": "objects harmed by liquids, food debris or animals nearby"
+    },
+    "food": {
+      "synsets": ["food.n.01", "food.n.02"],
+      "supercategories": ["food"],
+      "gloss": "food.n.02: any solid substance (as opposed to liquid) that is used as a source of nourishment",
+      "used_for": "food-near-electronics rule"
+    },
+    "sharp": {
+      "synsets": ["edge_tool.n.01"],
+      "supercategories": [],
+      "gloss": "edge_tool.n.01: any cutting tool with a sharp cutting edge (as a chisel or knife or plane or gouge)",
+      "used_for": "exposed sharp tool rule"
+    },
+    "surface": {
+      "synsets": ["table.n.02", "table.n.03", "desk.n.01"],
+      "supercategories": [],
+      "gloss": "table.n.02: a piece of furniture having a smooth flat top that is usually supported by one or more vertical legs",
+      "used_for": "support surface for edge-placement and surface-occupancy measurements"
+    },
+    "furniture": {
+      "synsets": ["furniture.n.01"],
+      "supercategories": ["furniture"],
+      "gloss": "furniture.n.01: furnishings that make a room or other area ready for occupancy",
+      "used_for": "large static structures, excluded from clutter counts"
+    },
+    "appliance": {
+      "synsets": ["appliance.n.02"],
+      "supercategories": ["appliance"],
+      "gloss": "appliance.n.02: durable goods for home or office use",
+      "used_for": "large fixed devices, excluded from clutter counts"
+    },
+    "animal": {
+      "synsets": ["animal.n.01"],
+      "supercategories": ["animal"],
+      "gloss": "animal.n.01: a living organism characterized by voluntary movement",
+      "used_for": "animal-near-equipment rule; excluded from clutter counts"
+    },
+    "person": {
+      "synsets": ["person.n.01"],
+      "supercategories": ["person"],
+      "gloss": "person.n.01: a human being",
+      "used_for": "people are never identified; only excluded from clutter counts and used for occlusion"
+    },
+    "cable": {
+      "synsets": ["cable.n.02", "wire.n.02", "power_cord.n.01", "extension_cord.n.01"],
+      "supercategories": [],
+      "gloss": "cable.n.02: a conductor for transmitting electrical or optical signals or electric power",
+      "used_for": "cable-congestion rule (fires only with a detector whose vocabulary includes cables; the bundled COCO models do not)"
+    },
+    "outlet": {
+      "synsets": ["electric_outlet.n.01"],
+      "supercategories": [],
+      "gloss": "electric_outlet.n.01: receptacle providing a place in a wiring system where current can be taken to run electrical devices",
+      "used_for": "liquid-near-outlet hazard (requires a detector with an outlet category)"
+    },
+    "light_source": {
+      "synsets": ["lamp.n.01"],
+      "supercategories": [],
+      "gloss": "lamp.n.01: an artificial source of visible illumination",
+      "used_for": "reserved for lighting diagnostics with detectors that know lamps"
+    }
+  }
+}

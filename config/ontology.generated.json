@@ -1,0 +1,1633 @@
+{
+ "generated_by": "tools/build_ontology.py",
+ "generated_at": "2026-10-09",
+ "wordnet_version": "3.0",
+ "sources": {
+  "models": {
+   "efficientdet_lite0": {
+    "labels_source": "labels.txt packed in the TFLite model metadata",
+    "num_classes": 80
+   },
+   "yolox_s": {
+    "labels_source": "https://raw.githubusercontent.com/Megvii-BaseDetection/YOLOX/0.1.1rc0/yolox/data/datasets/coco_classes.py",
+    "num_classes": 80
+   }
+  },
+  "coco_categories": "tools/data/coco_panoptic_categories.json (cocodataset/panopticapi)",
+  "synsets": "tools/data/lvis_coco_to_synset.json (lvis-dataset/lvis-api), WordNet first noun sense otherwise",
+  "attribute_roots": "config/ontology_roots.json"
+ },
+ "attributes": {
+  "liquid_container": {
+   "roots": [
+    "vessel.n.03",
+    "drinking_vessel.n.01",
+    "glass.n.02",
+    "cup.n.01",
+    "bottle.n.01"
+   ],
+   "supercategories": [],
+   "used_for": "spill-risk proximity rule and edge-placement rule"
+  },
+  "electronic": {
+   "roots": [
+    "electronic_equipment.n.01",
+    "electronic_device.n.01",
+    "computer.n.01"
+   ],
+   "supercategories": [
+    "electronic"
+   ],
+   "used_for": "objects harmed by liquids, food debris or animals nearby"
+  },
+  "food": {
+   "roots": [
+    "food.n.01",
+    "food.n.02"
+   ],
+   "supercategories": [
+    "food"
+   ],
+   "used_for": "food-near-electronics rule"
+  },
+  "sharp": {
+   "roots": [
+    "edge_tool.n.01"
+   ],
+   "supercategories": [],
+   "used_for": "exposed sharp tool rule"
+  },
+  "surface": {
+   "roots": [
+    "table.n.02",
+    "table.n.03",
+    "desk.n.01"
+   ],
+   "supercategories": [],
+   "used_for": "support surface for edge-placement and surface-occupancy measurements"
+  },
+  "furniture": {
+   "roots": [
+    "furniture.n.01"
+   ],
+   "supercategories": [
+    "furniture"
+   ],
+   "used_for": "large static structures, excluded from clutter counts"
+  },
+  "appliance": {
+   "roots": [
+    "appliance.n.02"
+   ],
+   "supercategories": [
+    "appliance"
+   ],
+   "used_for": "large fixed devices, excluded from clutter counts"
+  },
+  "animal": {
+   "roots": [
+    "animal.n.01"
+   ],
+   "supercategories": [
+    "animal"
+   ],
+   "used_for": "animal-near-equipment rule; excluded from clutter counts"
+  },
+  "person": {
+   "roots": [
+    "person.n.01"
+   ],
+   "supercategories": [
+    "person"
+   ],
+   "used_for": "people are never identified; only excluded from clutter counts and used for occlusion"
+  },
+  "cable": {
+   "roots": [
+    "cable.n.02",
+    "wire.n.02",
+    "power_cord.n.01",
+    "extension_cord.n.01"
+   ],
+   "supercategories": [],
+   "used_for": "cable-congestion rule (fires only with a detector whose vocabulary includes cables; the bundled COCO models do not)"
+  },
+  "outlet": {
+   "roots": [
+    "electric_outlet.n.01"
+   ],
+   "supercategories": [],
+   "used_for": "liquid-near-outlet hazard (requires a detector with an outlet category)"
+  },
+  "light_source": {
+   "roots": [
+    "lamp.n.01"
+   ],
+   "supercategories": [],
+   "used_for": "reserved for lighting diagnostics with detectors that know lamps"
+  }
+ },
+ "supercategory_groups": {
+  "accessory": [
+   "backpack",
+   "handbag",
+   "suitcase",
+   "tie",
+   "umbrella"
+  ],
+  "animal": [
+   "bear",
+   "bird",
+   "cat",
+   "cow",
+   "dog",
+   "elephant",
+   "giraffe",
+   "horse",
+   "sheep",
+   "zebra"
+  ],
+  "appliance": [
+   "microwave",
+   "oven",
+   "refrigerator",
+   "sink",
+   "toaster"
+  ],
+  "electronic": [
+   "cell phone",
+   "keyboard",
+   "laptop",
+   "mouse",
+   "remote",
+   "tv"
+  ],
+  "food": [
+   "apple",
+   "banana",
+   "broccoli",
+   "cake",
+   "carrot",
+   "donut",
+   "hot dog",
+   "orange",
+   "pizza",
+   "sandwich"
+  ],
+  "furniture": [
+   "bed",
+   "chair",
+   "couch",
+   "dining table",
+   "potted plant",
+   "toilet"
+  ],
+  "indoor": [
+   "book",
+   "clock",
+   "hair drier",
+   "scissors",
+   "teddy bear",
+   "toothbrush",
+   "vase"
+  ],
+  "kitchen": [
+   "bottle",
+   "bowl",
+   "cup",
+   "fork",
+   "knife",
+   "spoon",
+   "wine glass"
+  ],
+  "outdoor": [
+   "bench",
+   "fire hydrant",
+   "parking meter",
+   "stop sign",
+   "traffic light"
+  ],
+  "person": [
+   "person"
+  ],
+  "sports": [
+   "baseball bat",
+   "baseball glove",
+   "frisbee",
+   "kite",
+   "skateboard",
+   "skis",
+   "snowboard",
+   "sports ball",
+   "surfboard",
+   "tennis racket"
+  ],
+  "vehicle": [
+   "airplane",
+   "bicycle",
+   "boat",
+   "bus",
+   "car",
+   "motorcycle",
+   "train",
+   "truck"
+  ]
+ },
+ "labels": {
+  "airplane": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 5,
+   "supercategory": "vehicle",
+   "synset": "airplane.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "an aircraft that has a fixed wing and is powered by propellers or jets",
+   "lemmas": [
+    "aeroplane",
+    "airplane",
+    "plane"
+   ],
+   "attributes": []
+  },
+  "apple": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 53,
+   "supercategory": "food",
+   "synset": "apple.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "fruit with red or yellow or green skin and sweet to tart crisp whitish flesh",
+   "lemmas": [
+    "apple"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "backpack": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 27,
+   "supercategory": "accessory",
+   "synset": "backpack.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a bag carried by a strap on your back or shoulder",
+   "lemmas": [
+    "back pack",
+    "backpack",
+    "haversack",
+    "knapsack",
+    "packsack",
+    "rucksack"
+   ],
+   "attributes": []
+  },
+  "banana": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 52,
+   "supercategory": "food",
+   "synset": "banana.n.02",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "elongated crescent-shaped yellow fruit with soft sweet flesh",
+   "lemmas": [
+    "banana"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "baseball bat": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 39,
+   "supercategory": "sports",
+   "synset": "baseball_bat.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "an implement used in baseball by the batter",
+   "lemmas": [
+    "baseball bat",
+    "lumber"
+   ],
+   "attributes": []
+  },
+  "baseball glove": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 40,
+   "supercategory": "sports",
+   "synset": "baseball_glove.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "the handwear used by fielders in playing baseball",
+   "lemmas": [
+    "baseball glove",
+    "baseball mitt",
+    "glove",
+    "mitt"
+   ],
+   "attributes": []
+  },
+  "bear": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 23,
+   "supercategory": "animal",
+   "synset": "bear.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "massive plantigrade carnivorous or omnivorous mammals with long shaggy coats and strong claws",
+   "lemmas": [
+    "bear"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "bed": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 65,
+   "supercategory": "furniture",
+   "synset": "bed.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a piece of furniture that provides a place to sleep",
+   "lemmas": [
+    "bed"
+   ],
+   "attributes": [
+    "furniture"
+   ]
+  },
+  "bench": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 15,
+   "supercategory": "outdoor",
+   "synset": "bench.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a long seat for more than one person",
+   "lemmas": [
+    "bench"
+   ],
+   "attributes": [
+    "furniture"
+   ]
+  },
+  "bicycle": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 2,
+   "supercategory": "vehicle",
+   "synset": "bicycle.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a wheeled vehicle that has two wheels and is moved by foot pedals",
+   "lemmas": [
+    "bicycle",
+    "bike",
+    "cycle",
+    "wheel"
+   ],
+   "attributes": []
+  },
+  "bird": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 16,
+   "supercategory": "animal",
+   "synset": "bird.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "warm-blooded egg-laying vertebrates characterized by feathers and forelimbs modified as wings",
+   "lemmas": [
+    "bird"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "boat": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 9,
+   "supercategory": "vehicle",
+   "synset": "boat.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a small vessel for travel on water",
+   "lemmas": [
+    "boat"
+   ],
+   "attributes": []
+  },
+  "book": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 84,
+   "supercategory": "indoor",
+   "synset": "book.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a written work or composition that has been published (printed on pages bound together)",
+   "lemmas": [
+    "book"
+   ],
+   "attributes": []
+  },
+  "bottle": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 44,
+   "supercategory": "kitchen",
+   "synset": "bottle.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a glass or plastic vessel used for storing drinks or other liquids; typically cylindrical without handles and with a narrow neck that can be plugged or capped",
+   "lemmas": [
+    "bottle"
+   ],
+   "attributes": [
+    "liquid_container"
+   ]
+  },
+  "bowl": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 51,
+   "supercategory": "kitchen",
+   "synset": "bowl.n.03",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a dish that is round and open at the top for serving foods",
+   "lemmas": [
+    "bowl"
+   ],
+   "attributes": []
+  },
+  "broccoli": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 56,
+   "supercategory": "food",
+   "synset": "broccoli.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "plant with dense clusters of tight green flower buds",
+   "lemmas": [
+    "brassica oleracea italica",
+    "broccoli"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "bus": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 6,
+   "supercategory": "vehicle",
+   "synset": "bus.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a vehicle carrying many passengers; used for public transport",
+   "lemmas": [
+    "autobus",
+    "bus",
+    "charabanc",
+    "coach",
+    "double-decker",
+    "jitney",
+    "motorbus",
+    "motorcoach",
+    "omnibus",
+    "passenger vehicle"
+   ],
+   "attributes": []
+  },
+  "cake": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 61,
+   "supercategory": "food",
+   "synset": "cake.n.03",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "baked goods made from or based on a mixture of flour, sugar, eggs, and fat",
+   "lemmas": [
+    "cake"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "car": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 3,
+   "supercategory": "vehicle",
+   "synset": "car.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a motor vehicle with four wheels; usually propelled by an internal combustion engine",
+   "lemmas": [
+    "auto",
+    "automobile",
+    "car",
+    "machine",
+    "motorcar"
+   ],
+   "attributes": []
+  },
+  "carrot": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 57,
+   "supercategory": "food",
+   "synset": "carrot.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "deep orange edible root of the cultivated carrot plant",
+   "lemmas": [
+    "carrot"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "cat": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 17,
+   "supercategory": "animal",
+   "synset": "cat.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "feline mammal usually having thick soft fur and no ability to roar: domestic cats; wildcats",
+   "lemmas": [
+    "cat",
+    "true cat"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "cell phone": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 77,
+   "supercategory": "electronic",
+   "synset": "cellular_telephone.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a hand-held mobile radiotelephone for use in an area divided into small sections, each with its own short-range transmitter/receiver",
+   "lemmas": [
+    "cell",
+    "cellphone",
+    "cellular phone",
+    "cellular telephone",
+    "mobile phone"
+   ],
+   "attributes": [
+    "electronic"
+   ]
+  },
+  "chair": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 62,
+   "supercategory": "furniture",
+   "synset": "chair.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a seat for one person, with a support for the back",
+   "lemmas": [
+    "chair"
+   ],
+   "attributes": [
+    "furniture"
+   ]
+  },
+  "clock": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 85,
+   "supercategory": "indoor",
+   "synset": "clock.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a timepiece that shows the time of day",
+   "lemmas": [
+    "clock"
+   ],
+   "attributes": []
+  },
+  "couch": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 63,
+   "supercategory": "furniture",
+   "synset": "sofa.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "an upholstered seat for more than one person",
+   "lemmas": [
+    "couch",
+    "lounge",
+    "sofa"
+   ],
+   "attributes": [
+    "furniture"
+   ]
+  },
+  "cow": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 21,
+   "supercategory": "animal",
+   "synset": "beef.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "cattle that are reared for their meat",
+   "lemmas": [
+    "beef",
+    "beef cattle"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "cup": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 47,
+   "supercategory": "kitchen",
+   "synset": "cup.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a small open container usually used for drinking; usually has a handle",
+   "lemmas": [
+    "cup"
+   ],
+   "attributes": [
+    "liquid_container"
+   ]
+  },
+  "dining table": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 67,
+   "supercategory": "furniture",
+   "synset": "dining_table.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a table at which meals are served",
+   "lemmas": [
+    "board",
+    "dining table"
+   ],
+   "attributes": [
+    "furniture",
+    "surface"
+   ]
+  },
+  "dog": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 18,
+   "supercategory": "animal",
+   "synset": "dog.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a member of the genus Canis (probably descended from the common wolf) that has been domesticated by man since prehistoric times; occurs in many breeds",
+   "lemmas": [
+    "canis familiaris",
+    "dog",
+    "domestic dog"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "donut": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 60,
+   "supercategory": "food",
+   "synset": "doughnut.n.02",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a small ring-shaped friedcake",
+   "lemmas": [
+    "donut",
+    "doughnut",
+    "sinker"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "elephant": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 22,
+   "supercategory": "animal",
+   "synset": "elephant.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "five-toed pachyderm",
+   "lemmas": [
+    "elephant"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "fire hydrant": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 11,
+   "supercategory": "outdoor",
+   "synset": "fireplug.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "an upright hydrant for drawing water to use in fighting a fire",
+   "lemmas": [
+    "fire hydrant",
+    "fireplug",
+    "plug"
+   ],
+   "attributes": []
+  },
+  "fork": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 48,
+   "supercategory": "kitchen",
+   "synset": "fork.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "cutlery used for serving and eating food",
+   "lemmas": [
+    "fork"
+   ],
+   "attributes": []
+  },
+  "frisbee": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 34,
+   "supercategory": "sports",
+   "synset": "frisbee.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a light, plastic disk about 10 inches in diameter; propelled with a flip of the wrist for recreation or competition",
+   "lemmas": [
+    "frisbee"
+   ],
+   "attributes": []
+  },
+  "giraffe": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 25,
+   "supercategory": "animal",
+   "synset": "giraffe.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "tallest living quadruped; having a spotted coat and small horns and very long neck and legs; of savannahs of tropical Africa",
+   "lemmas": [
+    "camelopard",
+    "giraffa camelopardalis",
+    "giraffe"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "hair drier": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 89,
+   "supercategory": "indoor",
+   "synset": "hand_blower.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a hand-held electric blower that can blow warm air onto the hair; used for styling hair",
+   "lemmas": [
+    "blow drier",
+    "blow dryer",
+    "hair drier",
+    "hair dryer",
+    "hand blower"
+   ],
+   "attributes": [
+    "appliance"
+   ]
+  },
+  "handbag": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 31,
+   "supercategory": "accessory",
+   "synset": "bag.n.04",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a container used for carrying money and small personal items or accessories (especially by women)",
+   "lemmas": [
+    "bag",
+    "handbag",
+    "pocketbook",
+    "purse"
+   ],
+   "attributes": []
+  },
+  "horse": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 19,
+   "supercategory": "animal",
+   "synset": "horse.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "solid-hoofed herbivorous quadruped domesticated since prehistoric times",
+   "lemmas": [
+    "equus caballus",
+    "horse"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "hot dog": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 58,
+   "supercategory": "food",
+   "synset": "frank.n.02",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a smooth-textured sausage of minced beef or pork usually smoked; often served on a bread roll",
+   "lemmas": [
+    "dog",
+    "frank",
+    "frankfurter",
+    "hot dog",
+    "hotdog",
+    "weenie",
+    "wiener",
+    "wienerwurst"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "keyboard": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 76,
+   "supercategory": "electronic",
+   "synset": "computer_keyboard.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a keyboard that is a data input device for computers; arrangement of keys is modelled after the typewriter keyboard",
+   "lemmas": [
+    "computer keyboard",
+    "keypad"
+   ],
+   "attributes": [
+    "electronic"
+   ]
+  },
+  "kite": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 38,
+   "supercategory": "sports",
+   "synset": "kite.n.03",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "plaything consisting of a light frame covered with tissue paper; flown in wind at end of a string",
+   "lemmas": [
+    "kite"
+   ],
+   "attributes": []
+  },
+  "knife": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 49,
+   "supercategory": "kitchen",
+   "synset": "knife.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "edge tool used as a cutting instrument; has a pointed blade with a sharp edge and a handle",
+   "lemmas": [
+    "knife"
+   ],
+   "attributes": [
+    "sharp"
+   ]
+  },
+  "laptop": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 73,
+   "supercategory": "electronic",
+   "synset": "laptop.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a portable computer small enough to use in your lap",
+   "lemmas": [
+    "laptop",
+    "laptop computer"
+   ],
+   "attributes": [
+    "electronic"
+   ]
+  },
+  "microwave": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 78,
+   "supercategory": "appliance",
+   "synset": "microwave.n.02",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "kitchen appliance that cooks food by passing an electromagnetic wave through it; heat results from the absorption of energy by the water molecules in the food",
+   "lemmas": [
+    "microwave",
+    "microwave oven"
+   ],
+   "attributes": [
+    "appliance"
+   ]
+  },
+  "motorcycle": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 4,
+   "supercategory": "vehicle",
+   "synset": "motorcycle.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a motor vehicle with two wheels and a strong frame",
+   "lemmas": [
+    "bike",
+    "motorcycle"
+   ],
+   "attributes": []
+  },
+  "mouse": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 74,
+   "supercategory": "electronic",
+   "synset": "mouse.n.04",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a hand-operated electronic device that controls the coordinates of a cursor on your computer screen as you move it around on a pad; on the bottom of the device is a ball that rolls on the surface of the pad",
+   "lemmas": [
+    "computer mouse",
+    "mouse"
+   ],
+   "attributes": [
+    "electronic"
+   ]
+  },
+  "orange": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 55,
+   "supercategory": "food",
+   "synset": "orange.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "round yellow to orange fruit of any of several citrus trees",
+   "lemmas": [
+    "orange"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "oven": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 79,
+   "supercategory": "appliance",
+   "synset": "oven.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "kitchen appliance used for baking or roasting",
+   "lemmas": [
+    "oven"
+   ],
+   "attributes": [
+    "appliance"
+   ]
+  },
+  "parking meter": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 14,
+   "supercategory": "outdoor",
+   "synset": "parking_meter.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a coin-operated timer located next to a parking space; depositing money into it entitles you to park your car there for a specified length of time",
+   "lemmas": [
+    "parking meter"
+   ],
+   "attributes": []
+  },
+  "person": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 1,
+   "supercategory": "person",
+   "synset": "person.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a human being",
+   "lemmas": [
+    "individual",
+    "mortal",
+    "person",
+    "somebody",
+    "someone",
+    "soul"
+   ],
+   "attributes": [
+    "person"
+   ]
+  },
+  "pizza": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 59,
+   "supercategory": "food",
+   "synset": "pizza.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "Italian open pie made of thin bread dough spread with a spiced mixture of e.g. tomato sauce and cheese",
+   "lemmas": [
+    "pizza",
+    "pizza pie"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "potted plant": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 64,
+   "supercategory": "furniture",
+   "synset": "pot.n.04",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a container in which plants are cultivated",
+   "lemmas": [
+    "flowerpot",
+    "pot"
+   ],
+   "attributes": [
+    "furniture"
+   ]
+  },
+  "refrigerator": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 82,
+   "supercategory": "appliance",
+   "synset": "electric_refrigerator.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a refrigerator in which the coolant is pumped around by an electric motor",
+   "lemmas": [
+    "electric refrigerator",
+    "fridge"
+   ],
+   "attributes": [
+    "appliance"
+   ]
+  },
+  "remote": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 75,
+   "supercategory": "electronic",
+   "synset": "remote_control.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a device that can be used to control a machine or apparatus from a distance",
+   "lemmas": [
+    "remote",
+    "remote control"
+   ],
+   "attributes": [
+    "electronic"
+   ]
+  },
+  "sandwich": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 54,
+   "supercategory": "food",
+   "synset": "sandwich.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "two (or more) slices of bread with a filling between them",
+   "lemmas": [
+    "sandwich"
+   ],
+   "attributes": [
+    "food"
+   ]
+  },
+  "scissors": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 87,
+   "supercategory": "indoor",
+   "synset": "scissors.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "an edge tool having two crossed pivoting blades",
+   "lemmas": [
+    "pair of scissors",
+    "scissors"
+   ],
+   "attributes": [
+    "sharp"
+   ]
+  },
+  "sheep": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 20,
+   "supercategory": "animal",
+   "synset": "sheep.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "woolly usually horned ruminant mammal related to the goat",
+   "lemmas": [
+    "sheep"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  },
+  "sink": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 81,
+   "supercategory": "appliance",
+   "synset": "sink.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "plumbing fixture consisting of a water basin fixed to a wall or floor and having a drainpipe",
+   "lemmas": [
+    "sink"
+   ],
+   "attributes": [
+    "appliance"
+   ]
+  },
+  "skateboard": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 41,
+   "supercategory": "sports",
+   "synset": "skateboard.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a board with wheels that is ridden in a standing or crouching position and propelled by foot",
+   "lemmas": [
+    "skateboard"
+   ],
+   "attributes": []
+  },
+  "skis": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 35,
+   "supercategory": "sports",
+   "synset": "ski.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "narrow wood or metal or plastic runners used in pairs for gliding over snow",
+   "lemmas": [
+    "ski"
+   ],
+   "attributes": []
+  },
+  "snowboard": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 36,
+   "supercategory": "sports",
+   "synset": "snowboard.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a board that resembles a broad ski or a small surfboard; used in a standing position to slide down snow-covered slopes",
+   "lemmas": [
+    "snowboard"
+   ],
+   "attributes": []
+  },
+  "spoon": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 50,
+   "supercategory": "kitchen",
+   "synset": "spoon.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a piece of cutlery with a shallow bowl-shaped container and a handle; used to stir or serve or take up food",
+   "lemmas": [
+    "spoon"
+   ],
+   "attributes": []
+  },
+  "sports ball": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 37,
+   "supercategory": "sports",
+   "synset": "ball.n.06",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a spherical object used as a plaything",
+   "lemmas": [
+    "ball"
+   ],
+   "attributes": []
+  },
+  "stop sign": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 13,
+   "supercategory": "outdoor",
+   "synset": null,
+   "synset_source": null,
+   "definition": null,
+   "lemmas": [
+    "stop sign"
+   ],
+   "attributes": []
+  },
+  "suitcase": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 33,
+   "supercategory": "accessory",
+   "synset": "bag.n.06",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a portable rectangular container for carrying clothes",
+   "lemmas": [
+    "bag",
+    "grip",
+    "suitcase",
+    "traveling bag",
+    "travelling bag"
+   ],
+   "attributes": []
+  },
+  "surfboard": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 42,
+   "supercategory": "sports",
+   "synset": "surfboard.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a narrow buoyant board for riding surf",
+   "lemmas": [
+    "surfboard"
+   ],
+   "attributes": []
+  },
+  "teddy bear": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 88,
+   "supercategory": "indoor",
+   "synset": "teddy.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "plaything consisting of a child's toy bear (usually plush and stuffed with soft materials)",
+   "lemmas": [
+    "teddy",
+    "teddy bear"
+   ],
+   "attributes": []
+  },
+  "tennis racket": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 43,
+   "supercategory": "sports",
+   "synset": "tennis_racket.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a racket used to play tennis",
+   "lemmas": [
+    "tennis racket",
+    "tennis racquet"
+   ],
+   "attributes": []
+  },
+  "tie": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 32,
+   "supercategory": "accessory",
+   "synset": "necktie.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "neckwear consisting of a long narrow piece of material worn (mostly by men) under a collar and tied in knot at the front",
+   "lemmas": [
+    "necktie",
+    "tie"
+   ],
+   "attributes": []
+  },
+  "toaster": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 80,
+   "supercategory": "appliance",
+   "synset": "toaster.n.02",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a kitchen appliance (usually electric) for toasting bread",
+   "lemmas": [
+    "toaster"
+   ],
+   "attributes": [
+    "appliance"
+   ]
+  },
+  "toilet": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 70,
+   "supercategory": "furniture",
+   "synset": "toilet.n.02",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a plumbing fixture for defecation and urination",
+   "lemmas": [
+    "can",
+    "commode",
+    "crapper",
+    "pot",
+    "potty",
+    "stool",
+    "throne",
+    "toilet"
+   ],
+   "attributes": [
+    "furniture"
+   ]
+  },
+  "toothbrush": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 90,
+   "supercategory": "indoor",
+   "synset": "toothbrush.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "small brush; has long handle; used to clean teeth",
+   "lemmas": [
+    "toothbrush"
+   ],
+   "attributes": []
+  },
+  "traffic light": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 10,
+   "supercategory": "outdoor",
+   "synset": "traffic_light.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a visual signal to control the flow of traffic at intersections",
+   "lemmas": [
+    "stoplight",
+    "traffic light",
+    "traffic signal"
+   ],
+   "attributes": []
+  },
+  "train": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 7,
+   "supercategory": "vehicle",
+   "synset": "train.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "public transport provided by a line of railway cars coupled together and drawn by a locomotive",
+   "lemmas": [
+    "railroad train",
+    "train"
+   ],
+   "attributes": []
+  },
+  "truck": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 8,
+   "supercategory": "vehicle",
+   "synset": "truck.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "an automotive vehicle suitable for hauling",
+   "lemmas": [
+    "motortruck",
+    "truck"
+   ],
+   "attributes": []
+  },
+  "tv": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 72,
+   "supercategory": "electronic",
+   "synset": "television_receiver.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "an electronic device that receives television signals and displays them on a screen",
+   "lemmas": [
+    "boob tube",
+    "goggle box",
+    "idiot box",
+    "television",
+    "television receiver",
+    "television set",
+    "telly",
+    "tv",
+    "tv set"
+   ],
+   "attributes": [
+    "electronic"
+   ]
+  },
+  "umbrella": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 28,
+   "supercategory": "accessory",
+   "synset": "umbrella.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a lightweight handheld collapsible canopy",
+   "lemmas": [
+    "umbrella"
+   ],
+   "attributes": []
+  },
+  "vase": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 86,
+   "supercategory": "indoor",
+   "synset": "vase.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "an open jar of glass or porcelain used as an ornament or to hold flowers",
+   "lemmas": [
+    "vase"
+   ],
+   "attributes": [
+    "liquid_container"
+   ]
+  },
+  "wine glass": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 46,
+   "supercategory": "kitchen",
+   "synset": "wineglass.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "a glass that has a stem and in which wine is served",
+   "lemmas": [
+    "wineglass"
+   ],
+   "attributes": [
+    "liquid_container"
+   ]
+  },
+  "zebra": {
+   "models": [
+    "efficientdet_lite0",
+    "yolox_s"
+   ],
+   "coco_id": 24,
+   "supercategory": "animal",
+   "synset": "zebra.n.01",
+   "synset_source": "lvis-api coco_to_synset.json",
+   "definition": "any of several fleet black-and-white striped African equines",
+   "lemmas": [
+    "zebra"
+   ],
+   "attributes": [
+    "animal"
+   ]
+  }
+ },
+ "lexicon_file": "config/lexicon.generated.json"
+}

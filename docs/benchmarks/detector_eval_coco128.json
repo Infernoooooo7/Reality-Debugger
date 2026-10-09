@@ -1,0 +1,462 @@
+{
+ "dataset": "coco128 (first 128 COCO train2017 images, Ultralytics packaging) - local measurement only",
+ "caveat": "Both detectors were trained on COCO train2017, so absolute AP here is optimistic; use for relative comparison.",
+ "images": 128,
+ "boxes": 929,
+ "machine": "Linux x86_64 CPU, onnxruntime 4 intra-op threads, MediaPipe Tasks Python CPU",
+ "results": [
+  {
+   "detector": "efficientdet_lite0 (letterboxed, as in the app)",
+   "load_ms": 62,
+   "latency_ms_median": 29.4,
+   "latency_ms_p90": 34.8,
+   "detections": 4261,
+   "coco": {
+    "AP": 37.0,
+    "AP50": 56.9,
+    "AP75": 39.5,
+    "APs": 5.0,
+    "APm": 33.4,
+    "APl": 57.1,
+    "AR1": 30.9,
+    "AR10": 39.8,
+    "AR100": 40.8,
+    "ARs": 6.8,
+    "ARm": 39.6,
+    "ARl": 59.4
+   },
+   "operating_points": [
+    {
+     "threshold": 0.1,
+     "precision": 0.251,
+     "recall": 0.536,
+     "f1": 0.342,
+     "tp": 498,
+     "fp": 1486
+    },
+    {
+     "threshold": 0.15,
+     "precision": 0.427,
+     "recall": 0.513,
+     "f1": 0.466,
+     "tp": 477,
+     "fp": 641
+    },
+    {
+     "threshold": 0.2,
+     "precision": 0.588,
+     "recall": 0.468,
+     "f1": 0.521,
+     "tp": 435,
+     "fp": 305
+    },
+    {
+     "threshold": 0.25,
+     "precision": 0.681,
+     "recall": 0.433,
+     "f1": 0.529,
+     "tp": 402,
+     "fp": 188
+    },
+    {
+     "threshold": 0.3,
+     "precision": 0.771,
+     "recall": 0.412,
+     "f1": 0.537,
+     "tp": 383,
+     "fp": 114
+    },
+    {
+     "threshold": 0.35,
+     "precision": 0.856,
+     "recall": 0.377,
+     "f1": 0.523,
+     "tp": 350,
+     "fp": 59
+    },
+    {
+     "threshold": 0.4,
+     "precision": 0.89,
+     "recall": 0.339,
+     "f1": 0.491,
+     "tp": 315,
+     "fp": 39
+    },
+    {
+     "threshold": 0.45,
+     "precision": 0.928,
+     "recall": 0.304,
+     "f1": 0.457,
+     "tp": 282,
+     "fp": 22
+    },
+    {
+     "threshold": 0.5,
+     "precision": 0.951,
+     "recall": 0.272,
+     "f1": 0.423,
+     "tp": 253,
+     "fp": 13
+    },
+    {
+     "threshold": 0.55,
+     "precision": 0.957,
+     "recall": 0.237,
+     "f1": 0.38,
+     "tp": 220,
+     "fp": 10
+    },
+    {
+     "threshold": 0.6,
+     "precision": 0.975,
+     "recall": 0.207,
+     "f1": 0.341,
+     "tp": 192,
+     "fp": 5
+    },
+    {
+     "threshold": 0.65,
+     "precision": 0.994,
+     "recall": 0.174,
+     "f1": 0.297,
+     "tp": 162,
+     "fp": 1
+    },
+    {
+     "threshold": 0.7,
+     "precision": 1.0,
+     "recall": 0.141,
+     "f1": 0.247,
+     "tp": 131,
+     "fp": 0
+    },
+    {
+     "threshold": 0.75,
+     "precision": 1.0,
+     "recall": 0.112,
+     "f1": 0.201,
+     "tp": 104,
+     "fp": 0
+    },
+    {
+     "threshold": 0.8,
+     "precision": 1.0,
+     "recall": 0.083,
+     "f1": 0.153,
+     "tp": 77,
+     "fp": 0
+    }
+   ],
+   "f1_optimal": {
+    "threshold": 0.3,
+    "precision": 0.771,
+    "recall": 0.412,
+    "f1": 0.537,
+    "tp": 383,
+    "fp": 114
+   }
+  },
+  {
+   "detector": "efficientdet_lite0 (MediaPipe default stretch)",
+   "load_ms": 73,
+   "latency_ms_median": 28.0,
+   "latency_ms_p90": 32.8,
+   "detections": 4202,
+   "coco": {
+    "AP": 36.3,
+    "AP50": 54.6,
+    "AP75": 40.0,
+    "APs": 6.1,
+    "APm": 32.1,
+    "APl": 54.5,
+    "AR1": 30.8,
+    "AR10": 39.6,
+    "AR100": 40.5,
+    "ARs": 7.4,
+    "ARm": 38.2,
+    "ARl": 57.0
+   },
+   "operating_points": [
+    {
+     "threshold": 0.1,
+     "precision": 0.277,
+     "recall": 0.553,
+     "f1": 0.369,
+     "tp": 514,
+     "fp": 1342
+    },
+    {
+     "threshold": 0.15,
+     "precision": 0.456,
+     "recall": 0.516,
+     "f1": 0.484,
+     "tp": 479,
+     "fp": 571
+    },
+    {
+     "threshold": 0.2,
+     "precision": 0.613,
+     "recall": 0.483,
+     "f1": 0.54,
+     "tp": 449,
+     "fp": 284
+    },
+    {
+     "threshold": 0.25,
+     "precision": 0.721,
+     "recall": 0.451,
+     "f1": 0.555,
+     "tp": 419,
+     "fp": 162
+    },
+    {
+     "threshold": 0.3,
+     "precision": 0.768,
+     "recall": 0.413,
+     "f1": 0.537,
+     "tp": 384,
+     "fp": 116
+    },
+    {
+     "threshold": 0.35,
+     "precision": 0.843,
+     "recall": 0.369,
+     "f1": 0.513,
+     "tp": 343,
+     "fp": 64
+    },
+    {
+     "threshold": 0.4,
+     "precision": 0.891,
+     "recall": 0.334,
+     "f1": 0.486,
+     "tp": 310,
+     "fp": 38
+    },
+    {
+     "threshold": 0.45,
+     "precision": 0.923,
+     "recall": 0.297,
+     "f1": 0.45,
+     "tp": 276,
+     "fp": 23
+    },
+    {
+     "threshold": 0.5,
+     "precision": 0.953,
+     "recall": 0.263,
+     "f1": 0.412,
+     "tp": 244,
+     "fp": 12
+    },
+    {
+     "threshold": 0.55,
+     "precision": 0.981,
+     "recall": 0.221,
+     "f1": 0.36,
+     "tp": 205,
+     "fp": 4
+    },
+    {
+     "threshold": 0.6,
+     "precision": 0.989,
+     "recall": 0.193,
+     "f1": 0.323,
+     "tp": 179,
+     "fp": 2
+    },
+    {
+     "threshold": 0.65,
+     "precision": 1.0,
+     "recall": 0.16,
+     "f1": 0.276,
+     "tp": 149,
+     "fp": 0
+    },
+    {
+     "threshold": 0.7,
+     "precision": 1.0,
+     "recall": 0.118,
+     "f1": 0.212,
+     "tp": 110,
+     "fp": 0
+    },
+    {
+     "threshold": 0.75,
+     "precision": 1.0,
+     "recall": 0.104,
+     "f1": 0.189,
+     "tp": 97,
+     "fp": 0
+    },
+    {
+     "threshold": 0.8,
+     "precision": 1.0,
+     "recall": 0.076,
+     "f1": 0.142,
+     "tp": 71,
+     "fp": 0
+    }
+   ],
+   "f1_optimal": {
+    "threshold": 0.25,
+    "precision": 0.721,
+    "recall": 0.451,
+    "f1": 0.555,
+    "tp": 419,
+    "fp": 162
+   }
+  },
+  {
+   "detector": "yolox_s (official preprocessing, NMS IoU 0.45)",
+   "load_ms": 204,
+   "latency_ms_median": 81.7,
+   "latency_ms_p90": 98.9,
+   "detections": 1704,
+   "coco": {
+    "AP": 48.3,
+    "AP50": 68.0,
+    "AP75": 49.9,
+    "APs": 21.3,
+    "APm": 49.4,
+    "APl": 65.1,
+    "AR1": 38.0,
+    "AR10": 51.9,
+    "AR100": 53.2,
+    "ARs": 25.2,
+    "ARm": 54.4,
+    "ARl": 68.4
+   },
+   "operating_points": [
+    {
+     "threshold": 0.1,
+     "precision": 0.531,
+     "recall": 0.699,
+     "f1": 0.603,
+     "tp": 649,
+     "fp": 573
+    },
+    {
+     "threshold": 0.15,
+     "precision": 0.6,
+     "recall": 0.668,
+     "f1": 0.632,
+     "tp": 621,
+     "fp": 414
+    },
+    {
+     "threshold": 0.2,
+     "precision": 0.679,
+     "recall": 0.652,
+     "f1": 0.665,
+     "tp": 606,
+     "fp": 287
+    },
+    {
+     "threshold": 0.25,
+     "precision": 0.723,
+     "recall": 0.624,
+     "f1": 0.67,
+     "tp": 580,
+     "fp": 222
+    },
+    {
+     "threshold": 0.3,
+     "precision": 0.772,
+     "recall": 0.598,
+     "f1": 0.674,
+     "tp": 556,
+     "fp": 164
+    },
+    {
+     "threshold": 0.35,
+     "precision": 0.802,
+     "recall": 0.571,
+     "f1": 0.667,
+     "tp": 530,
+     "fp": 131
+    },
+    {
+     "threshold": 0.4,
+     "precision": 0.825,
+     "recall": 0.547,
+     "f1": 0.658,
+     "tp": 508,
+     "fp": 108
+    },
+    {
+     "threshold": 0.45,
+     "precision": 0.844,
+     "recall": 0.52,
+     "f1": 0.644,
+     "tp": 483,
+     "fp": 89
+    },
+    {
+     "threshold": 0.5,
+     "precision": 0.865,
+     "recall": 0.498,
+     "f1": 0.633,
+     "tp": 463,
+     "fp": 72
+    },
+    {
+     "threshold": 0.55,
+     "precision": 0.891,
+     "recall": 0.474,
+     "f1": 0.618,
+     "tp": 440,
+     "fp": 54
+    },
+    {
+     "threshold": 0.6,
+     "precision": 0.915,
+     "recall": 0.44,
+     "f1": 0.594,
+     "tp": 409,
+     "fp": 38
+    },
+    {
+     "threshold": 0.65,
+     "precision": 0.933,
+     "recall": 0.407,
+     "f1": 0.567,
+     "tp": 378,
+     "fp": 27
+    },
+    {
+     "threshold": 0.7,
+     "precision": 0.949,
+     "recall": 0.361,
+     "f1": 0.523,
+     "tp": 335,
+     "fp": 18
+    },
+    {
+     "threshold": 0.75,
+     "precision": 0.974,
+     "recall": 0.323,
+     "f1": 0.485,
+     "tp": 300,
+     "fp": 8
+    },
+    {
+     "threshold": 0.8,
+     "precision": 0.973,
+     "recall": 0.277,
+     "f1": 0.431,
+     "tp": 257,
+     "fp": 7
+    }
+   ],
+   "f1_optimal": {
+    "threshold": 0.3,
+    "precision": 0.772,
+    "recall": 0.598,
+    "f1": 0.674,
+    "tp": 556,
+    "fp": 164
+   }
+  }
+ ]
+}

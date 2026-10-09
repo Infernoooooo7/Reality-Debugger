@@ -1,0 +1,188 @@
+{
+  "movement": {
+    "movingSpeed": {
+      "value": 0.08,
+      "unit": "frame widths per second",
+      "purpose": "A tracked object whose Kalman-estimated centre speed exceeds this is 'moving'.",
+      "source": "heuristic",
+      "ref": "Placeholder until measured; see docs/COMPUTER_VISION_RESEARCH.md (tracker noise on static scenes)."
+    },
+    "stillSpeed": {
+      "value": 0.03,
+      "unit": "frame widths per second",
+      "purpose": "Below this speed an object is 'static' (hysteresis band between stillSpeed and movingSpeed keeps the previous state).",
+      "source": "heuristic",
+      "ref": "Placeholder until measured; see movingSpeed."
+    },
+    "reversalWindowMs": {
+      "value": 10000,
+      "unit": "ms",
+      "purpose": "Window in which horizontal direction reversals of a moving object are counted (repeated-movement observation).",
+      "source": "heuristic",
+      "ref": "Covers a few back-and-forth hand movements."
+    }
+  },
+  "persistence": {
+    "persistentAfterMs": {
+      "value": 3000,
+      "unit": "ms",
+      "purpose": "A confirmed track visible for this long counts as a persistent object in the scene model.",
+      "source": "heuristic",
+      "ref": "Three times the track loss buffer: excludes objects passing through the view."
+    }
+  },
+  "occlusion": {
+    "occludedFraction": {
+      "value": 0.4,
+      "unit": "fraction of box area",
+      "purpose": "An object whose box is covered at least this much by other objects' boxes (or cut by the frame edge) is flagged as occluded.",
+      "source": "heuristic",
+      "ref": "Box overlap is a proxy: without depth or masks the front/back order is unknown, so the flag means 'partly hidden or overlapping'."
+    }
+  },
+  "sceneChange": {
+    "threshold": {
+      "value": 0.32,
+      "purpose": "Fingerprint distance to the last analysed frame above which the scene counts as changed (new view).",
+      "source": "empirical",
+      "ref": "Measured with the fake-camera feed in headless Chromium: frames of the same scene 0.00-0.09, cuts between photos 0.85-0.87. 0.32 leaves margin for hand-held drift (not measured on a real phone)."
+    },
+    "settleMotion": {
+      "value": 0.07,
+      "purpose": "Frames with motion below this are 'settled' and preferred for analysis.",
+      "source": "empirical",
+      "ref": "Measured with the fake-camera feed: static scenes give motion 0.00-0.04; 0.07 sits above that noise."
+    },
+    "maxSettleWaitMs": {
+      "value": 2200,
+      "unit": "ms",
+      "purpose": "Maximum wait for a settled frame before analysing anyway.",
+      "source": "heuristic",
+      "ref": "Longer than the track loss buffer (1000 ms) so coasting tracks expire first."
+    }
+  },
+  "observe": {
+    "intervalMs": {
+      "value": 1500,
+      "unit": "ms",
+      "purpose": "How often the live scene model is sent to the local diagnostic engine when it has changed.",
+      "source": "heuristic",
+      "ref": "Fast enough to confirm a finding within ~3 s (two observations), small JSON payloads only."
+    },
+    "heartbeatMs": {
+      "value": 6000,
+      "unit": "ms",
+      "purpose": "Maximum time between observations even when nothing changed, so time-based rules and resolutions progress.",
+      "source": "heuristic",
+      "ref": "Bounds how long a resolved issue can stay displayed as open."
+    }
+  },
+  "lifecycle": {
+    "confirmObservations": {
+      "value": 2,
+      "unit": "observations",
+      "purpose": "A local finding becomes CONFIRMED after being observed this many times...",
+      "source": "heuristic",
+      "ref": "Temporal confirmation instead of single-frame evidence (cf. ByteTrack confirming tracks on the second detection)."
+    },
+    "confirmMinSpanMs": {
+      "value": 1500,
+      "unit": "ms",
+      "purpose": "...spanning at least this long.",
+      "source": "heuristic",
+      "ref": "One observation interval: rules out a single noisy frame."
+    },
+    "trackingObservations": {
+      "value": 3,
+      "unit": "observations",
+      "purpose": "Observations after which a confirmed finding is TRACKING.",
+      "source": "heuristic",
+      "ref": "Matches the previous AI-only lifecycle (third sighting)."
+    },
+    "resolveAfterMs": {
+      "value": 3000,
+      "unit": "ms",
+      "purpose": "A local finding is RESOLVED when its rule has not fired for this long while the camera still looks at the same scene...",
+      "source": "heuristic",
+      "ref": "Three times the track loss buffer; avoids flapping on a brief detection drop."
+    },
+    "resolveObservations": {
+      "value": 2,
+      "unit": "observations",
+      "purpose": "...and over at least this many consecutive observations.",
+      "source": "heuristic",
+      "ref": "Hysteresis: one empty observation never resolves a finding."
+    },
+    "exitEdgeMargin": {
+      "value": 0.04,
+      "unit": "fraction of frame",
+      "purpose": "When an object involved in a finding is no longer tracked and its last box was within this distance of the frame edge, it is assumed to have left the view: the finding becomes NOT VISIBLE instead of counting towards resolution.",
+      "source": "heuristic",
+      "ref": "Objects leave the view across an edge; an object that vanishes from the middle of an unchanged view was moved or removed."
+    }
+  },
+  "video": {
+    "sampleIntervalS": {
+      "value": 0.5,
+      "unit": "s",
+      "purpose": "Target spacing of sampled video frames.",
+      "source": "heuristic",
+      "ref": "Two samples per second captures object entries/exits in handheld clips."
+    },
+    "minSamples": {
+      "value": 8,
+      "unit": "frames",
+      "purpose": "Lower bound on samples for very short clips.",
+      "source": "heuristic",
+      "ref": "Enough to find at least one scene boundary."
+    },
+    "maxSamples": {
+      "value": 72,
+      "unit": "frames",
+      "purpose": "Upper bound on samples (cost cap for long videos).",
+      "source": "heuristic",
+      "ref": "Keeps on-device processing under ~15 s on a laptop."
+    },
+    "sceneBoundary": {
+      "value": 0.3,
+      "purpose": "Fingerprint distance between consecutive samples that starts a new scene.",
+      "source": "heuristic",
+      "ref": "Histogram-difference shot-boundary detection; tuned on test clips."
+    },
+    "sceneDrift": {
+      "value": 0.48,
+      "purpose": "Distance from a scene's first sample that starts a new scene (catches slow pans).",
+      "source": "heuristic",
+      "ref": "1.6 x sceneBoundary."
+    },
+    "dedupe": {
+      "value": 0.06,
+      "purpose": "Samples closer than this to the previous kept sample of the same scene are redundant.",
+      "source": "heuristic",
+      "ref": "Below compression noise between consecutive frames of a still shot."
+    },
+    "maxKeyframes": {
+      "value": 8,
+      "unit": "frames",
+      "purpose": "Maximum representative keyframes per video.",
+      "source": "heuristic",
+      "ref": "Deep detection and optional AI reasoning only see keyframes."
+    },
+    "representativeWindow": {
+      "value": [
+        0.2,
+        0.8
+      ],
+      "purpose": "Representative frame chosen from this part of each scene (avoids transitions).",
+      "source": "heuristic",
+      "ref": "Scene starts/ends often contain motion blur from the cut or pan."
+    },
+    "keyframeMinGapS": {
+      "value": 0.75,
+      "unit": "s",
+      "purpose": "Minimum spacing between keyframes.",
+      "source": "heuristic",
+      "ref": "Avoids near-duplicate keyframes."
+    }
+  }
+}

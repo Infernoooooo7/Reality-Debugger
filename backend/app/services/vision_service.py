@@ -38,6 +38,7 @@ class PreparedImage:
     original_height: int
     source_type: str
     stats: ImageStats
+    ahash: int = 0  # 64-bit average hash, used to de-duplicate AI calls
     label: str | None = None
     extra: dict = field(default_factory=dict)
 
@@ -103,6 +104,51 @@ def _stats(img: Image.Image) -> ImageStats:
     )
 
 
+def average_hash(img: Image.Image) -> int:
+    """64-bit average hash: 8x8 grey thumbnail, one bit per pixel (above the mean)."""
+    small = np.asarray(img.convert("L").resize((8, 8), Image.Resampling.BILINEAR), dtype=np.float32)
+    bits = (small > small.mean()).flatten()
+    value = 0
+    for bit in bits:
+        value = (value << 1) | int(bit)
+    return value
+
+
+def hamming(a: int, b: int) -> int:
+    return (a ^ b).bit_count()
+
+
+def gray_signals(gray: np.ndarray, *, log_offset: float, log_span: float) -> tuple[float, float]:
+    """Brightness and sharpness of a luminance thumbnail (0..1 floats), computed
+    exactly like the browser's signal analyser (config/vision.json "signals"):
+    sharpness = clip((log10(var(Laplacian)) + offset) / span, 0, 1)."""
+    brightness = float(gray.mean())
+    if gray.shape[0] < 3 or gray.shape[1] < 3:
+        return brightness, 0.0
+    lap = gray[1:-1, :-2] + gray[1:-1, 2:] + gray[:-2, 1:-1] + gray[2:, 1:-1] - 4 * gray[1:-1, 1:-1]
+    variance = float(lap.var())
+    sharpness = min(1.0, max(0.0, (float(np.log10(variance + 1e-6)) + log_offset) / log_span))
+    return round(brightness, 4), round(sharpness, 4)
+
+
+def thumbnail_gray(img: Image.Image, width: int, height: int) -> np.ndarray:
+    small = img.convert("RGB").resize((width, height), Image.Resampling.BILINEAR)
+    rgb = np.asarray(small, dtype=np.float32) / 255.0
+    return rgb @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+
+
+def frame_signals(image: PreparedImage, config: object) -> tuple[float, float]:
+    """Browser-compatible brightness/sharpness of a prepared image."""
+    get = getattr(config, "get")
+    img = Image.open(io.BytesIO(image.jpeg))
+    gray = thumbnail_gray(img, int(get("vision.signals.thumbWidth")), int(get("vision.signals.thumbHeight")))
+    return gray_signals(
+        gray,
+        log_offset=float(get("vision.signals.sharpnessLogOffset")),
+        log_span=float(get("vision.signals.sharpnessLogSpan")),
+    )
+
+
 def prepare_image(data: bytes, *, max_edge: int, max_pixels: int, quality: int = 85) -> PreparedImage:
     """Validate and normalise an uploaded image to an EXIF-free RGB JPEG.
 
@@ -154,4 +200,5 @@ def prepare_image(data: bytes, *, max_edge: int, max_pixels: int, quality: int =
         original_height=original_height,
         source_type=kind,
         stats=stats,
+        ahash=average_hash(img),
     )

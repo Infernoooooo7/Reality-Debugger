@@ -37,3 +37,8 @@ Thumbs.db
 test-results/
 playwright-report/
 e2e/output/
+
+# Large model weights are fetched and SHA-256-verified by tools/fetch_models.py
+# (the Docker build runs it); only the small fast model is committed.
+frontend/public/models/*.onnx
+frontend/public/models/*.part

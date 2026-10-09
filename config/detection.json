@@ -1,0 +1,102 @@
+{
+  "fast": {
+    "scoreThreshold": {
+      "value": 0.3,
+      "unit": "score",
+      "purpose": "Detections at or above this score count as reliable observations (first ByteTrack association, object lists, scene model).",
+      "source": "empirical",
+      "ref": "F1-optimal operating point on coco128 for the letterboxed fast detector: P 0.771, R 0.412, F1 0.537 (docs/benchmarks/detector_eval_coco128.json)."
+    },
+    "lowScoreFloor": {
+      "value": 0.15,
+      "unit": "score",
+      "purpose": "Lowest score requested from MediaPipe. Detections between this and scoreThreshold are only used to keep existing tracks alive (ByteTrack second association), never to create objects.",
+      "source": "empirical",
+      "ref": "ByteTrack uses 0.1 with YOLOX (YOLOX precision at 0.1 on coco128: 0.531). The fast detector reaches a similar precision between 0.15 (0.427) and 0.20 (0.588); 0.15 keeps more recall for occluded objects."
+    },
+    "maxResults": {
+      "value": 30,
+      "unit": "detections",
+      "purpose": "Maximum detections MediaPipe returns per frame (after its NMS).",
+      "source": "heuristic",
+      "ref": "Indoor scenes rarely exceed 20 objects above the low floor; caps worst-case tracker cost."
+    },
+    "nmsIou": {
+      "value": 0.3,
+      "readOnly": true,
+      "purpose": "IoU threshold of MediaPipe's class-agnostic non-maximum suppression for this model (not settable from the web API; recorded for reference).",
+      "source": "model-doc",
+      "ref": "mediapipe/tasks/cc/vision/object_detector/proto/object_detector_options.proto: min_suppression_threshold default 0.3, multiclass_nms default false; the model has no in-model NMS."
+    }
+  },
+  "deep": {
+    "inputSize": {
+      "value": 640,
+      "unit": "px",
+      "purpose": "Square network input of YOLOX-S.",
+      "source": "model-doc",
+      "ref": "YOLOX README (YOLOX-s size 640) and the ONNX input shape [1,3,640,640]."
+    },
+    "padValue": {
+      "value": 114,
+      "purpose": "Grey value used to pad the letterboxed input.",
+      "source": "model-doc",
+      "ref": "YOLOX yolox/data/data_augment.py preproc()."
+    },
+    "channelOrder": {
+      "value": "BGR",
+      "options": ["BGR", "RGB"],
+      "purpose": "Channel order expected by the network.",
+      "source": "model-doc",
+      "ref": "YOLOX ONNX demo reads images with OpenCV (BGR). Measured: RGB input turns a photo of oranges into a single 'vase'."
+    },
+    "preNmsScore": {
+      "value": 0.1,
+      "unit": "score",
+      "purpose": "Candidates below this (objectness x class probability) are dropped before NMS.",
+      "source": "model-doc",
+      "ref": "YOLOX demo/ONNXRuntime/onnx_inference.py: multiclass_nms(..., score_thr=0.1)."
+    },
+    "nmsIou": {
+      "value": 0.45,
+      "purpose": "IoU threshold of YOLOX non-maximum suppression.",
+      "source": "model-doc",
+      "ref": "YOLOX ONNX demo: multiclass_nms(nms_thr=0.45)."
+    },
+    "classAgnosticNms": {
+      "value": true,
+      "purpose": "Suppress overlapping boxes regardless of class.",
+      "source": "model-doc",
+      "ref": "YOLOX yolox/utils/demo_utils.py multiclass_nms(class_agnostic=True) default."
+    },
+    "scoreThreshold": {
+      "value": 0.3,
+      "unit": "score",
+      "purpose": "Deep detections at or above this score are reported and fused into the scene.",
+      "source": "empirical",
+      "ref": "F1-optimal on coco128 (P 0.772, R 0.598, F1 0.674); also the YOLOX demo's visualisation threshold (0.3)."
+    }
+  },
+  "fusion": {
+    "matchIou": {
+      "value": 0.3,
+      "purpose": "A deep detection confirms a tracked object when their boxes overlap at least this much and the classes are compatible.",
+      "source": "paper",
+      "ref": "Same IoU gate ByteTrack uses for unconfirmed tracks (linear_assignment thresh 0.7 on IoU distance)."
+    },
+    "deepOnlyMinScore": {
+      "value": 0.4,
+      "unit": "score",
+      "purpose": "Deep detections without a tracked counterpart become scene objects only above this score.",
+      "source": "empirical",
+      "ref": "YOLOX precision on coco128 is 0.825 at 0.40; objects the fast detector never saw need stronger evidence."
+    },
+    "relabelMargin": {
+      "value": 0.15,
+      "unit": "score",
+      "purpose": "A deep detection replaces a tracked object's class only if its score exceeds the track's score by this margin.",
+      "source": "heuristic",
+      "ref": "Prevents label flip-flops between two similar scores."
+    }
+  }
+}

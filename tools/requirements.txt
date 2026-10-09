@@ -1,0 +1,6 @@
+# Developer tools only (model fetching, ontology generation, benchmarks).
+# Not needed to run the app.
+nltk==3.9.2
+numpy>=2.0,<3
+onnxruntime>=1.20,<2
+opencv-python-headless>=4.9,<6

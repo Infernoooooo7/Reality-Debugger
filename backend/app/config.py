@@ -40,10 +40,20 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
-    # --- AI provider -------------------------------------------------------
-    # auto: anthropic if ANTHROPIC_API_KEY is set, else openai if OPENAI_API_KEY
-    # or OPENAI_BASE_URL is set, else demo (simulated, clearly labelled).
-    ai_provider: Literal["auto", "anthropic", "openai", "demo"] = "auto"
+    # --- Optional AI reasoning layer ------------------------------------------
+    # The local computer-vision pipeline and diagnostics never need an API key.
+    # none: local only. gemini / claude / openai: that provider only.
+    # auto: the provider whose key is configured (gemini, then claude, then
+    # openai), else none. "anthropic" and "demo" are accepted as aliases of
+    # "claude" and "none".
+    ai_provider: Literal["auto", "none", "gemini", "claude", "openai", "anthropic", "demo"] = "auto"
+    # Fallback is never automatic: a second (possibly paid) provider is only
+    # called when it is configured here explicitly.
+    ai_fallback_provider: Literal["none", "gemini", "claude", "openai", "anthropic"] = "none"
+
+    gemini_api_key: SecretStr | None = None
+    gemini_model: str | None = None  # default: config/ai.json gemini.defaultModel
+    gemini_base_url: str | None = None
 
     anthropic_api_key: SecretStr | None = None
     anthropic_model: str = "claude-opus-5-5"
@@ -63,13 +73,8 @@ class Settings(BaseSettings):
     # Empty string = do not send an effort value (for models that reject it).
     ai_effort_live: Effort = "low"
     ai_effort_deep: Effort = "medium"
-    # Long edge (px) of images sent to the vision model.
-    ai_image_max_edge_live: int = 1024
-    ai_image_max_edge_deep: int = 1600
-    ai_image_max_edge_video: int = 1024
     ai_malformed_retries: int = 1
-    # Short artificial pause for demo answers so the UI states stay readable.
-    demo_latency_ms: int = 700
+    # Image sizes, triggers, cooldowns and caching of AI calls live in config/ai.json.
 
     # --- Upload limits -----------------------------------------------------
     max_image_bytes: int = 15 * 1024 * 1024
@@ -77,12 +82,13 @@ class Settings(BaseSettings):
     max_video_bytes: int = 300 * 1024 * 1024
     max_video_keyframes: int = 12
     max_image_pixels: int = 50_000_000
-    max_context_chars: int = 64_000
+    max_scene_chars: int = 96_000
 
     # --- Live scan sessions (in memory only) -------------------------------
     scan_ttl_seconds: int = 2 * 60 * 60
     max_scans: int = 200
-    scan_ai_calls_per_minute: int = 12
+    # Overrides config/ai.json budget.maxCallsPerMinute when set.
+    scan_ai_calls_per_minute: int | None = None
 
     # --- Network -----------------------------------------------------------
     cors_origins: Annotated[list[str], NoDecode] = Field(
@@ -98,6 +104,10 @@ class Settings(BaseSettings):
     # Allow any localhost / private-LAN origin (phones on the same Wi-Fi).
     cors_allow_lan: bool = True
 
+    # --- Shared parameter files ----------------------------------------------
+    # config/*.json (vision, detection, tracking, temporal, diagnostics, ai).
+    config_dir: Path | None = None
+
     # --- Single-service deployment -----------------------------------------
     # Built frontend (frontend/dist). When set, this server also serves the
     # app itself, so one process and one URL host everything (see Dockerfile).
@@ -110,14 +120,17 @@ class Settings(BaseSettings):
             return [part.strip() for part in value.split(",") if part.strip()]
         return value
 
-    @field_validator("anthropic_api_key", "openai_api_key", mode="before")
+    @field_validator("anthropic_api_key", "openai_api_key", "gemini_api_key", mode="before")
     @classmethod
     def _blank_key_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():
             return None
         return value
 
-    @field_validator("openai_base_url", "openai_model", "anthropic_base_url", "frontend_dist", mode="before")
+    @field_validator(
+        "openai_base_url", "openai_model", "anthropic_base_url", "gemini_model", "gemini_base_url", "frontend_dist", "config_dir",
+        mode="before",
+    )
     @classmethod
     def _blank_str_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():

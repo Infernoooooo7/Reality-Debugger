@@ -1,0 +1,154 @@
+{
+  "triggers": {
+    "deepScan": {
+      "value": true,
+      "purpose": "Ask the AI layer when the user runs a Deep Scan.",
+      "source": "heuristic",
+      "ref": "Explicit user request."
+    },
+    "userExplain": {
+      "value": true,
+      "purpose": "Ask the AI layer when the user taps 'Explain' on a finding.",
+      "source": "heuristic",
+      "ref": "Explicit user request."
+    },
+    "confirmedFinding": {
+      "value": true,
+      "purpose": "Ask once per newly CONFIRMED local finding of at least minSeverity, for an explanation and context.",
+      "source": "heuristic",
+      "ref": "Confirmed anomaly requiring reasoning."
+    },
+    "minSeverity": {
+      "value": "MEDIUM",
+      "purpose": "Lowest severity of a confirmed local finding that triggers AI reasoning.",
+      "source": "heuristic",
+      "ref": "LOW/INFO findings are self-explanatory."
+    },
+    "sceneChange": {
+      "value": true,
+      "purpose": "Ask when the view changes substantially (new scene).",
+      "source": "heuristic",
+      "ref": "temporal.json sceneChange.threshold."
+    },
+    "newRelation": {
+      "value": true,
+      "purpose": "Ask when a new hazard-type relation appears between objects (e.g. liquid next to electronics).",
+      "source": "heuristic",
+      "ref": "New important relationship."
+    },
+    "ambiguousScene": {
+      "value": true,
+      "purpose": "Ask when the local result is uncertain: low mean detection confidence or many tentative tracks.",
+      "source": "heuristic",
+      "ref": "Ambiguity resolution."
+    },
+    "ambiguousMeanConfidence": {
+      "value": 0.4,
+      "purpose": "Mean confidence of reported objects below which the scene is ambiguous.",
+      "source": "empirical",
+      "ref": "Fast detector precision on coco128 is 0.89 at 0.40; scenes averaging below it are mostly uncertain detections."
+    },
+    "periodicMs": {
+      "value": 0,
+      "unit": "ms",
+      "purpose": "Periodic contextual reasoning interval (0 = off). User-adjustable.",
+      "source": "heuristic",
+      "ref": "Off by default to minimise API usage."
+    }
+  },
+  "budget": {
+    "cooldownMs": {
+      "value": 15000,
+      "unit": "ms",
+      "purpose": "Minimum time between automatic AI calls in one live scan (user-requested calls bypass it).",
+      "source": "heuristic",
+      "ref": "AI is an optional reasoning layer; local diagnostics run continuously."
+    },
+    "maxCallsPerMinute": {
+      "value": 6,
+      "unit": "calls",
+      "purpose": "Hard cap enforced by the backend per scan session (also caps user-requested calls).",
+      "source": "heuristic",
+      "ref": "Protects against runaway costs; SCAN_AI_CALLS_PER_MINUTE env var overrides."
+    },
+    "dedupeHamming": {
+      "value": 6,
+      "unit": "bits of 64",
+      "purpose": "A frame whose 64-bit average hash differs from the last analysed frame of the scan by at most this many bits reuses the cached answer.",
+      "source": "heuristic",
+      "ref": "Average hash on an 8x8 grey thumbnail; small differences are compression noise or slight jitter."
+    },
+    "cacheTtlMs": {
+      "value": 120000,
+      "unit": "ms",
+      "purpose": "How long a cached AI answer can be reused for a duplicate frame/scene.",
+      "source": "heuristic",
+      "ref": "Two minutes; scenes rarely stay identical longer without the user expecting fresh reasoning."
+    },
+    "failureBackoffMs": {
+      "value": 60000,
+      "unit": "ms",
+      "purpose": "After a retryable provider failure (rate limit, quota, timeout, network, 5xx), automatic AI calls pause for this long; user-requested calls still go through and show the error.",
+      "source": "heuristic",
+      "ref": "Avoids hammering a provider that is failing; one minute matches typical per-minute quota windows."
+    },
+    "hardFailureBackoffMs": {
+      "value": 600000,
+      "unit": "ms",
+      "purpose": "After a non-retryable failure (invalid key, unknown model, rejected request), automatic AI calls pause for this long.",
+      "source": "heuristic",
+      "ref": "Such failures need a configuration change; retrying every few seconds would only add failed requests."
+    }
+  },
+  "images": {
+    "liveMaxEdge": {
+      "value": 1024,
+      "unit": "px",
+      "purpose": "Long edge of live frames sent to the AI provider.",
+      "source": "heuristic",
+      "ref": "Detail for scene reasoning at modest token cost."
+    },
+    "deepMaxEdge": {
+      "value": 1600,
+      "unit": "px",
+      "purpose": "Long edge for Deep Scan and Image Debug.",
+      "source": "heuristic",
+      "ref": "Most detailed analysis."
+    },
+    "videoMaxEdge": {
+      "value": 1024,
+      "unit": "px",
+      "purpose": "Long edge of video keyframes.",
+      "source": "heuristic",
+      "ref": "Up to 8 keyframes per request."
+    },
+    "jpegQuality": {
+      "value": 85,
+      "unit": "JPEG quality",
+      "purpose": "Re-encoding quality after EXIF/GPS stripping.",
+      "source": "heuristic",
+      "ref": "Visually lossless for reasoning."
+    }
+  },
+  "gemini": {
+    "defaultModel": {
+      "value": "gemini-flash-latest",
+      "purpose": "Default Gemini model when GEMINI_MODEL is not set.",
+      "source": "model-doc",
+      "ref": "google-genai 2.29.0 README (Oct 2026) uses gemini-flash-latest throughout; the -latest alias tracks the current Flash model."
+    },
+    "temperature": {
+      "value": 0.4,
+      "purpose": "Sampling temperature for structured diagnoses.",
+      "source": "heuristic",
+      "ref": "Low randomness for consistent JSON, some variety in wording."
+    },
+    "maxOutputTokens": {
+      "value": 8192,
+      "unit": "tokens",
+      "purpose": "Upper bound on the response length.",
+      "source": "heuristic",
+      "ref": "A full diagnosis is ~1-3k tokens; headroom for thinking models."
+    }
+  }
+}

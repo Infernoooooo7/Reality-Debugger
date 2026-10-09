@@ -1,5 +1,5 @@
-"""Request-side models: local perception context from the browser and the
-structured diagnosis returned by the vision model ("wire" format).
+"""Request-side models: video manifests from the browser and the structured
+diagnosis returned by the optional AI reasoning layer ("wire" format).
 
 The wire models are deliberately lenient: every field is coerced and clipped,
 and :func:`parse_diagnosis` validates list items one by one so a malformed
@@ -13,6 +13,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, model_validator
 
 from app.schemas.common import Box, Category, Severity
+from app.schemas.scene import OptUnit, SceneObject
 from app.utils import coerce
 
 
@@ -27,7 +28,7 @@ CategoryField = Annotated[Category, BeforeValidator(coerce.category)]
 
 
 # --------------------------------------------------------------------------
-# Local perception context (browser → backend)
+# Video manifest (browser → backend)
 # --------------------------------------------------------------------------
 
 
@@ -40,22 +41,6 @@ class LocalObject(BaseModel):
     box: OptionalBox = None
 
 
-class LocalContext(BaseModel):
-    """What the on-device vision engine saw. Treated as hints, never as truth."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    detector: Annotated[str | None, _text(80)] = None
-    objects: list[LocalObject] = Field(default_factory=list, max_length=60)
-    motion: Annotated[float | None, BeforeValidator(lambda v: None if v is None else coerce.unit_float(v, 0))] = None
-    scene_change: Annotated[float | None, BeforeValidator(lambda v: None if v is None else coerce.unit_float(v, 0))] = None
-    brightness: Annotated[float | None, BeforeValidator(lambda v: None if v is None else coerce.unit_float(v, 0.5))] = None
-    sharpness: Annotated[float | None, BeforeValidator(lambda v: None if v is None else coerce.unit_float(v, 0.5))] = None
-    relationships: list[Annotated[str, _text(160)]] = Field(default_factory=list, max_length=12)
-    trigger_detail: Annotated[str | None, _text(200)] = None
-    fps: float | None = None
-
-
 class VideoFrameManifest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -65,7 +50,9 @@ class VideoFrameManifest(BaseModel):
     reason: Annotated[str, _text(60)] = "representative"
     objects: list[LocalObject] = Field(default_factory=list, max_length=60)
     sharpness: float | None = None
+    brightness: float | None = None
     motion: float | None = None
+    detectors: list[Annotated[str, _text(48)]] = Field(default_factory=list, max_length=4)
 
 
 class VideoSceneManifest(BaseModel):
@@ -84,6 +71,47 @@ class LocalVideoEvent(BaseModel):
     text: Annotated[str, _text(160)]
 
 
+class VideoSample(BaseModel):
+    """One sampled video frame as seen by the browser's detector and tracker."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    t: float = Field(ge=0)
+    scene: int = Field(default=0, ge=0)
+    objects: list[SceneObject] = Field(default_factory=list, max_length=40)
+    brightness: OptUnit = None
+    sharpness: OptUnit = None
+    motion: OptUnit = None
+    detectors: list[Annotated[str, _text(48)]] = Field(default_factory=list, max_length=4)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_invalid_objects(cls, data: Any) -> Any:
+        if isinstance(data, dict) and isinstance(data.get("objects"), list):
+            data = dict(data)
+            kept = []
+            for item in data["objects"][:40]:
+                try:
+                    kept.append(SceneObject.model_validate(item))
+                except ValidationError:
+                    continue
+            data["objects"] = kept
+        return data
+
+
+class VideoTrackSummary(BaseModel):
+    """One object followed across the sampled frames by the browser's tracker."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: Annotated[str, _text(40)]
+    label: Annotated[str, _text(48)]
+    first_t: float = Field(ge=0)
+    last_t: float = Field(ge=0)
+    samples: int = Field(default=1, ge=1, le=100000)
+    mean_confidence: Confidence = 0.5
+
+
 class VideoManifest(BaseModel):
     """Describes keyframes the browser selected from a local video."""
 
@@ -98,8 +126,18 @@ class VideoManifest(BaseModel):
     sampled_frames: int = Field(default=0, ge=0, le=100000)
     redundant_removed: int = Field(default=0, ge=0, le=100000)
     scenes: list[VideoSceneManifest] = Field(default_factory=list, max_length=500)
-    frames: list[VideoFrameManifest] = Field(min_length=1, max_length=64)
+    # Keyframes (images are uploaded only when AI reasoning is on).
+    frames: list[VideoFrameManifest] = Field(default_factory=list, max_length=64)
+    # Every sampled frame with tracked objects: the local engine's input.
+    samples: list[VideoSample] = Field(default_factory=list, max_length=240)
     events: list[LocalVideoEvent] = Field(default_factory=list, max_length=200)
+    tracks: list[VideoTrackSummary] = Field(default_factory=list, max_length=300)
+
+    @model_validator(mode="after")
+    def _needs_frames(self) -> "VideoManifest":
+        if not self.frames and not self.samples:
+            raise ValueError("the manifest lists neither samples nor keyframes")
+        return self
 
 
 # --------------------------------------------------------------------------
@@ -249,6 +287,22 @@ class AITimelineEvent(BaseModel):
         return data
 
 
+class AILocalNote(BaseModel):
+    """The AI layer's explanation of one finding measured by the local engine."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    finding_id: Annotated[str, _text(48)]
+    note: Annotated[str, _text(400)]
+    agrees: bool = True
+
+    @model_validator(mode="after")
+    def _needs_note(self) -> "AILocalNote":
+        if not self.finding_id or not self.note:
+            raise ValueError("note without id or text")
+        return self
+
+
 class AIDiagnosis(BaseModel):
     scene: AIScene = Field(default_factory=AIScene)
     objects: list[AIObject] = Field(default_factory=list)
@@ -257,6 +311,7 @@ class AIDiagnosis(BaseModel):
     status_updates: list[AIStatusUpdate] = Field(default_factory=list)
     optimizations: list[AIOptimization] = Field(default_factory=list)
     timeline: list[AITimelineEvent] = Field(default_factory=list)
+    local_notes: list[AILocalNote] = Field(default_factory=list)
     system_score: int | None = None
     final_diagnosis: str = ""
 
@@ -272,6 +327,7 @@ _LIMITS: dict[str, tuple[type[BaseModel], int]] = {
     "status_updates": (AIStatusUpdate, 30),
     "optimizations": (AIOptimization, 8),
     "timeline": (AITimelineEvent, 60),
+    "local_notes": (AILocalNote, 30),
 }
 
 
@@ -317,8 +373,8 @@ def parse_diagnosis(data: Any) -> tuple[AIDiagnosis, list[str]]:
         warnings.append("Scene block was malformed; using defaults.")
         scene = AIScene()
 
-    if scene_raw is None and not parsed["findings"] and not parsed["objects"]:
-        raise MalformedDiagnosisError("Model output contained no scene, objects or findings.")
+    if scene_raw is None and not parsed["findings"] and not parsed["objects"] and not parsed["local_notes"]:
+        raise MalformedDiagnosisError("Model output contained no scene, objects, findings or notes.")
 
     diagnosis = AIDiagnosis(
         scene=scene,

@@ -11,6 +11,8 @@ pydantic-settings==2.15.0
 python-multipart==0.0.32
 pillow==12.3.0
 anthropic==1.12.1
+# Optional AI reasoning layer: Gemini (official Google Gen AI SDK).
+google-genai==2.29.0
 httpx==0.28.1
 numpy>=2.0,<3
 # Only used for the server-side video fallback (videos the browser can't decode).

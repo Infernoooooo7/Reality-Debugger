@@ -1,0 +1,124 @@
+{
+  "proximity": {
+    "touchGap": {
+      "value": 0.01,
+      "unit": "frame fraction",
+      "purpose": "Boxes overlapping or closer than this (edge to edge, normalised to the frame) are 'touching'.",
+      "source": "heuristic",
+      "ref": "About one box-edge jitter of the fast detector at 320 px input."
+    },
+    "nearRelativeGap": {
+      "value": 0.35,
+      "unit": "x reference size",
+      "purpose": "Two objects are 'near' when their edge gap is below this multiple of the reference size (square root of the larger box area). Scale-invariant, so it works close-up and far away.",
+      "source": "heuristic",
+      "ref": "Roughly a third of an object's size: a mug next to a laptop, not across the desk."
+    }
+  },
+  "rules": {
+    "spill_risk": {
+      "enabled": { "value": true, "purpose": "Liquid container touching or near an electronic device (attributes from the ontology).", "source": "heuristic", "ref": "Classic desk hazard; attributes liquid_container and electronic are WordNet-derived." },
+      "severityTouching": { "value": "HIGH", "purpose": "Severity when the boxes touch or overlap.", "source": "heuristic", "ref": "Overlap in the image often means the container stands on or against the device." },
+      "severityNear": { "value": "MEDIUM", "purpose": "Severity when near but not touching.", "source": "heuristic", "ref": "Within knock-over distance." }
+    },
+    "food_near_electronics": {
+      "enabled": { "value": true, "purpose": "Food touching or near an electronic device.", "source": "heuristic", "ref": "Crumbs and grease; attributes food and electronic." },
+      "severityTouching": { "value": "MEDIUM", "purpose": "Severity when touching.", "source": "heuristic", "ref": "Less acute than liquids." },
+      "severityNear": { "value": "LOW", "purpose": "Severity when near.", "source": "heuristic", "ref": "See severityTouching." }
+    },
+    "sharp_exposed": {
+      "enabled": { "value": true, "purpose": "A sharp tool left out (attribute sharp).", "source": "heuristic", "ref": "Knives/scissors are only a problem when left lying around, hence the persistence requirement." },
+      "minPersistenceMs": { "value": 2000, "unit": "ms", "purpose": "Live Scan: the tool must be tracked this long (ignored for single images).", "source": "heuristic", "ref": "Excludes a knife being used and put away." },
+      "severity": { "value": "MEDIUM", "purpose": "Severity.", "source": "heuristic", "ref": "Injury risk, easy fix." }
+    },
+    "edge_placement": {
+      "enabled": { "value": true, "purpose": "A liquid container standing near the edge of a detected surface (table/desk).", "source": "heuristic", "ref": "Requires an object with the surface attribute; measured from box geometry." },
+      "edgeMargin": { "value": 0.08, "unit": "x surface width", "purpose": "Distance from the container's base centre to the surface's left, right or front (bottom) edge that counts as 'at the edge'.", "source": "heuristic", "ref": "About a hand's width on a typical desk." },
+      "severity": { "value": "MEDIUM", "purpose": "Severity.", "source": "heuristic", "ref": "Knock-off risk." }
+    },
+    "clutter": {
+      "enabled": { "value": true, "purpose": "Many small objects in view (workspace density).", "source": "heuristic", "ref": "Object-count proxy for visual clutter; perceptual clutter measures such as Feature Congestion (Rosenholtz et al., J. Vision 2007) need pixel statistics we do not model." },
+      "excludeAttributes": { "value": ["furniture", "appliance", "person", "animal", "surface"], "purpose": "Large or living things are not counted as clutter.", "source": "heuristic", "ref": "Clutter means loose items." },
+      "minCountLow": { "value": 8, "unit": "objects", "purpose": "LOW severity from this many countable objects.", "source": "heuristic", "ref": "A tidy desk shows 3-6 detectable items." },
+      "minCountMedium": { "value": 12, "unit": "objects", "purpose": "MEDIUM severity from this many countable objects.", "source": "heuristic", "ref": "See minCountLow." }
+    },
+    "surface_congestion": {
+      "enabled": { "value": true, "purpose": "Objects cover most of a detected surface (blocked work area).", "source": "heuristic", "ref": "Union of object boxes inside the surface box / surface box area (rasterised)." },
+      "minOccupancy": { "value": 0.6, "unit": "fraction of surface", "purpose": "Occupancy that counts as congested.", "source": "heuristic", "ref": "Less than 40% free surface leaves no clear work area." },
+      "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Workflow issue, not a hazard." }
+    },
+    "overlap_stack": {
+      "enabled": { "value": true, "purpose": "Several countable objects heavily overlapping each other (stacked or piled items).", "source": "heuristic", "ref": "Pairwise IoU between countable objects." },
+      "minIou": { "value": 0.3, "purpose": "IoU above which two objects count as stacked/overlapping.", "source": "heuristic", "ref": "Same value as the fusion/unconfirmed association gate." },
+      "minPairs": { "value": 2, "unit": "pairs", "purpose": "Number of overlapping pairs before the finding is raised.", "source": "heuristic", "ref": "One overlap is normal (a cup in front of a laptop)." },
+      "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Organisation issue." }
+    },
+    "animal_near_equipment": {
+      "enabled": { "value": true, "purpose": "An animal touching or near electronics.", "source": "heuristic", "ref": "Attributes animal and electronic." },
+      "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Chewed cables, knocked devices." }
+    },
+    "cable_congestion": {
+      "enabled": { "value": true, "purpose": "Several cable-like objects close together. Needs a detector whose vocabulary contains cables (attribute cable); never fires with the bundled COCO detectors.", "source": "heuristic", "ref": "config/ontology_roots.json cable roots." },
+      "minCables": { "value": 3, "unit": "objects", "purpose": "Cables near each other before the finding is raised.", "source": "heuristic", "ref": "Two cables are normal." },
+      "severity": { "value": "MEDIUM", "purpose": "Severity.", "source": "heuristic", "ref": "Trip and snag hazard." }
+    },
+    "liquid_near_outlet": {
+      "enabled": { "value": true, "purpose": "Liquid container near a power outlet. Needs a detector with an outlet category (attribute outlet).", "source": "heuristic", "ref": "config/ontology_roots.json outlet roots." },
+      "severity": { "value": "HIGH", "purpose": "Severity.", "source": "heuristic", "ref": "Electrical hazard." }
+    },
+    "persistent_occlusion": {
+      "enabled": { "value": true, "purpose": "Live Scan: an object stays heavily overlapped by others.", "source": "heuristic", "ref": "Uses the scene model's per-object occlusion fraction." },
+      "minDurationMs": { "value": 5000, "unit": "ms", "purpose": "Time the object must stay occluded.", "source": "heuristic", "ref": "Excludes hands passing in front." },
+      "severity": { "value": "INFO", "purpose": "Severity.", "source": "heuristic", "ref": "Context for other findings, not a bug by itself." }
+    },
+    "view_obstruction": {
+      "enabled": { "value": true, "purpose": "Live Scan: something covers most of the view (very dark frame or a single box covering most of the frame).", "source": "heuristic", "ref": "Brightness and box-area signals." },
+      "minBoxArea": { "value": 0.6, "unit": "frame fraction", "purpose": "Box area that counts as covering the view.", "source": "heuristic", "ref": "More than half the view." },
+      "maxBrightness": { "value": 0.06, "purpose": "Mean luminance below which the camera is considered covered.", "source": "heuristic", "ref": "Darker than a dim room." },
+      "minDurationMs": { "value": 2000, "unit": "ms", "purpose": "Duration before the finding is raised.", "source": "heuristic", "ref": "Excludes brief hand movements." },
+      "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Scan quality issue." }
+    },
+    "lighting": {
+      "enabled": { "value": true, "purpose": "Scene too dark or too bright for reliable analysis and comfortable work.", "source": "heuristic", "ref": "Mean luminance of the frame (Rec. 601 weights)." },
+      "dark": { "value": 0.22, "purpose": "Mean luminance below which the scene is 'low light'.", "source": "heuristic", "ref": "Detector recall drops visibly below this on test images." },
+      "bright": { "value": 0.85, "purpose": "Mean luminance above which the scene is 'washed out'.", "source": "heuristic", "ref": "Large clipped areas." },
+      "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Ergonomics/quality." }
+    },
+    "blur": {
+      "enabled": { "value": true, "purpose": "Image too blurred to analyse reliably.", "source": "heuristic", "ref": "Variance-of-Laplacian focus measure (vision.json sharpness)." },
+      "minSharpness": { "value": 0.25, "purpose": "Sharpness below which the frame is 'blurred'.", "source": "heuristic", "ref": "Below the sharpness of all in-focus test images." },
+      "severity": { "value": "INFO", "purpose": "Severity.", "source": "heuristic", "ref": "Scan quality, not a scene problem." }
+    },
+    "long_presence": {
+      "enabled": { "value": true, "purpose": "Live Scan: a food item or liquid container stays in the same place for a long time (left behind).", "source": "heuristic", "ref": "Static, persistent track of an object with attribute food or liquid_container." },
+      "minDurationMs": { "value": 300000, "unit": "ms", "purpose": "Time the object must stay static.", "source": "heuristic", "ref": "Five minutes." },
+      "severity": { "value": "INFO", "purpose": "Severity.", "source": "heuristic", "ref": "Reminder, not a hazard." }
+    },
+    "repeated_movement": {
+      "enabled": { "value": true, "purpose": "Live Scan: an object is moved back and forth repeatedly.", "source": "heuristic", "ref": "Direction reversals counted per track (temporal.json movement.reversalWindowMs)." },
+      "minReversals": { "value": 4, "unit": "reversals", "purpose": "Reversals within the window.", "source": "heuristic", "ref": "Two full back-and-forth movements." },
+      "severity": { "value": "INFO", "purpose": "Severity.", "source": "heuristic", "ref": "Workflow observation (e.g. an item constantly in the way)." }
+    }
+  },
+  "confidence": {
+    "persistenceFullMs": {
+      "value": 3000,
+      "unit": "ms",
+      "purpose": "Local finding confidence = mean detection confidence of the involved objects x (0.7 + 0.3 x min(1, persistence / this)).",
+      "source": "heuristic",
+      "ref": "Objects seen for longer are more trustworthy (temporal evidence)."
+    }
+  },
+  "score": {
+    "severityWeights": {
+      "value": { "CRITICAL": 30, "HIGH": 16, "MEDIUM": 8, "LOW": 3, "INFO": 0 },
+      "purpose": "Penalty per open finding: weight x (0.5 + 0.5 x confidence).",
+      "source": "heuristic",
+      "ref": "Unchanged from v1 (docs/ARCHITECTURE.md section 5)."
+    },
+    "floor": { "value": 5, "purpose": "Lowest computed score.", "source": "heuristic", "ref": "A score of 0 reads as 'broken', which is never justified by detections." },
+    "aiBlend": { "value": 0.5, "purpose": "When an AI score exists: score = blend x AI score + (1 - blend) x computed score.", "source": "heuristic", "ref": "Unchanged from v1." },
+    "criticalBelow": { "value": 45, "purpose": "Status CRITICAL below this score (or with an open CRITICAL finding).", "source": "heuristic", "ref": "Unchanged from v1." },
+    "degradedBelow": { "value": 80, "purpose": "Status DEGRADED below this score (or with an open HIGH finding).", "source": "heuristic", "ref": "Unchanged from v1." }
+  }
+}

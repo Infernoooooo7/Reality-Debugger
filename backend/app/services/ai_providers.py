@@ -1,12 +1,15 @@
-"""Vision-model providers.
+"""Optional AI reasoning providers.
 
+* :class:`GeminiProvider` - Gemini via the official ``google-genai`` SDK
+  (structured JSON output with ``response_json_schema``).
 * :class:`AnthropicProvider` - Claude via the official ``anthropic`` SDK
   (structured JSON output, optional server-side refusal fallback).
 * :class:`OpenAICompatibleProvider` - any ``/chat/completions`` endpoint that
   accepts images (OpenAI, Ollama, LM Studio, vLLM, OpenRouter, ...).
 
-Both raise :class:`AIError` subclasses with user-safe messages; raw provider
-errors and API keys never reach the client.
+All raise :class:`AIError` subclasses with user-safe messages; raw provider
+errors and API keys never reach the client. None of them is ever required:
+the local computer-vision pipeline and diagnostics work without any provider.
 """
 
 from __future__ import annotations
@@ -20,6 +23,9 @@ from typing import Any, Protocol
 
 import anthropic
 import httpx
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
 
 from app.config import Settings
 from app.errors import AppError
@@ -136,7 +142,7 @@ def _b64(data: bytes) -> str:
 
 
 class AnthropicProvider:
-    name = "anthropic"
+    name = "claude"
 
     def __init__(self, settings: Settings, *, http_client: Any = None) -> None:
         kwargs: dict[str, Any] = {
@@ -437,6 +443,184 @@ class OpenAICompatibleProvider:
 
     async def aclose(self) -> None:
         await self._client.aclose()
+
+
+# --------------------------------------------------------------------------
+# Google Gemini
+# --------------------------------------------------------------------------
+
+_BLOCKED_FINISH = {
+    "SAFETY",
+    "PROHIBITED_CONTENT",
+    "BLOCKLIST",
+    "SPII",
+    "IMAGE_SAFETY",
+    "IMAGE_PROHIBITED_CONTENT",
+    "RECITATION",
+}
+
+
+class GeminiProvider:
+    """Gemini through the official google-genai SDK (Gemini Developer API).
+
+    The API key stays server-side; requests carry the scene model as text and,
+    when available, one compressed frame. Structured output uses
+    ``response_mime_type="application/json"`` + ``response_json_schema`` as in
+    the SDK documentation; if the API rejects the schema the provider falls back
+    to plain JSON mode and relies on the backend's own validation.
+    """
+
+    name = "gemini"
+
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        default_model: str,
+        temperature: float,
+        max_output_tokens: int,
+        http_client: httpx.AsyncClient | None = None,
+    ) -> None:
+        if settings.gemini_api_key is None:
+            raise AINotConfiguredError(
+                "No Gemini API key was found.", hint="Set GEMINI_API_KEY in .env, or use AI_PROVIDER=none (local only)."
+            )
+        options: dict[str, Any] = {
+            "timeout": int(settings.ai_timeout_seconds * 1000),
+            # Retries are decided by the app (AI calls are optional and throttled).
+            "retry_options": genai_types.HttpRetryOptions(attempts=1),
+        }
+        if settings.gemini_base_url:
+            options["base_url"] = settings.gemini_base_url
+        if http_client is not None:  # injected by tests
+            options["httpx_async_client"] = http_client
+        self._client = genai.Client(
+            api_key=settings.gemini_api_key.get_secret_value(), http_options=genai_types.HttpOptions(**options)
+        )
+        self.model = settings.gemini_model or default_model
+        self._temperature = temperature
+        self._max_output_tokens = max_output_tokens
+        self._json_schema = True
+
+    def _config(self, system: str, schema: dict, timeout: float, max_tokens: int) -> genai_types.GenerateContentConfig:
+        return genai_types.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            response_json_schema=schema if self._json_schema else None,
+            temperature=self._temperature,
+            max_output_tokens=min(max_tokens, self._max_output_tokens),
+            http_options=genai_types.HttpOptions(timeout=int(timeout * 1000)),
+        )
+
+    @staticmethod
+    def _contents(user_text: str, images: list[ProviderImage]) -> list[genai_types.Content]:
+        parts: list[genai_types.Part] = []
+        for image in images:
+            if image.label:
+                parts.append(genai_types.Part.from_text(text=image.label))
+            parts.append(genai_types.Part.from_bytes(data=image.jpeg, mime_type="image/jpeg"))
+        parts.append(genai_types.Part.from_text(text=user_text))
+        return [genai_types.Content(role="user", parts=parts)]
+
+    def _map_api_error(self, exc: genai_errors.APIError) -> AIError:
+        code = int(getattr(exc, "code", 0) or 0)
+        status = str(getattr(exc, "status", "") or "")
+        message = str(getattr(exc, "message", "") or "")
+        details = str(getattr(exc, "details", "") or "")
+        lowered = f"{message} {details}".lower()
+        if code in (401, 403) or "api_key_invalid" in lowered or "api key not valid" in lowered or status == "UNAUTHENTICATED":
+            return AIAuthError(
+                "The Gemini API rejected the API key.",
+                hint="Check GEMINI_API_KEY in .env (and that the Generative Language API is enabled for it), then restart the backend.",
+            )
+        if code == 404:
+            return AIModelNotFoundError(f"Gemini model '{self.model}' was not found.", hint="Set GEMINI_MODEL to a current model id.")
+        if code == 429 or status == "RESOURCE_EXHAUSTED":
+            quota = "quota" in lowered
+            return AIRateLimitError(
+                "The Gemini quota is exhausted." if quota else "The Gemini API is rate limited.",
+                hint="Local diagnostics keep working. Wait, or check the API key's quota and billing." if quota else "Wait a moment; local diagnostics keep working.",
+            )
+        if code == 504 or status == "DEADLINE_EXCEEDED":
+            return AITimeoutError("Gemini did not answer in time.", hint="Local diagnostics keep working.")
+        if code >= 500:
+            return AIUnavailableError(f"Gemini is temporarily unavailable (HTTP {code}).", hint="Try again later.")
+        log.warning("Gemini rejected the request: HTTP %s %s", code, status)
+        return AIBadRequestError(
+            "Gemini rejected the request.",
+            hint="If you changed GEMINI_MODEL, make sure it accepts images and JSON output.",
+        )
+
+    async def complete(
+        self,
+        *,
+        system: str,
+        user_text: str,
+        images: list[ProviderImage],
+        schema: dict,
+        effort: str | None,
+        timeout: float,
+        max_tokens: int,
+    ) -> Completion:
+        for _ in range(2):
+            try:
+                response = await self._client.aio.models.generate_content(
+                    model=self.model,
+                    contents=self._contents(user_text, images),
+                    config=self._config(system, schema, timeout, max_tokens),
+                )
+                break
+            except genai_errors.ClientError as exc:
+                text = f"{getattr(exc, 'message', '')} {getattr(exc, 'details', '')}".lower()
+                if self._json_schema and getattr(exc, "code", 0) == 400 and "schema" in text:
+                    log.info("Gemini rejected the JSON schema; retrying in plain JSON mode.")
+                    self._json_schema = False
+                    continue
+                raise self._map_api_error(exc) from exc
+            except genai_errors.APIError as exc:
+                raise self._map_api_error(exc) from exc
+            except httpx.TimeoutException as exc:
+                raise AITimeoutError("Gemini did not answer in time.", hint="Local diagnostics keep working.") from exc
+            except httpx.HTTPError as exc:
+                raise AIUnavailableError("Could not reach the Gemini API.", hint="Check the internet connection.") from exc
+        else:  # pragma: no cover - loop always breaks or raises
+            raise AIBadRequestError("Gemini rejected the request.")
+
+        feedback = getattr(response, "prompt_feedback", None)
+        if feedback is not None and getattr(feedback, "block_reason", None):
+            raise AIRefusedError("Gemini declined to analyse this frame.", hint="Try a different frame or angle.")
+        candidates = getattr(response, "candidates", None) or []
+        if not candidates:
+            raise AIMalformedError("Gemini returned no answer.", hint="Try again.")
+        finish = getattr(candidates[0], "finish_reason", None)
+        finish_name = getattr(finish, "name", None) or (str(finish) if finish else None)
+        if finish_name in _BLOCKED_FINISH:
+            raise AIRefusedError("Gemini declined to analyse this frame.", hint="Try a different frame or angle.")
+        try:
+            text = response.text or ""
+        except ValueError:  # pragma: no cover - SDK raises for non-text parts
+            text = ""
+        usage = getattr(response, "usage_metadata", None)
+        return Completion(
+            text=text,
+            model=str(getattr(response, "model_version", None) or self.model),
+            stop_reason="max_tokens" if finish_name == "MAX_TOKENS" else (finish_name or "").lower() or None,
+            input_tokens=getattr(usage, "prompt_token_count", None),
+            output_tokens=getattr(usage, "candidates_token_count", None),
+        )
+
+    async def check(self) -> None:
+        try:
+            await self._client.aio.models.get(model=self.model)
+        except genai_errors.APIError as exc:
+            raise self._map_api_error(exc) from exc
+        except httpx.TimeoutException as exc:
+            raise AITimeoutError("Gemini did not answer in time.") from exc
+        except httpx.HTTPError as exc:
+            raise AIUnavailableError("Could not reach the Gemini API.", hint="Check the internet connection.") from exc
+
+    async def aclose(self) -> None:
+        await self._client.aio.aclose()
 
 
 def monotonic_ms() -> float:

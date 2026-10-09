@@ -119,6 +119,8 @@ def box(value: Any) -> Box | None:
     """Accept {x,y,w,h} or [x,y,w,h] in fractions or percentages."""
     if value is None:
         return None
+    if isinstance(value, Box):
+        return value
     try:
         if isinstance(value, dict):
             raw = [value.get("x"), value.get("y"), value.get("w"), value.get("h")]

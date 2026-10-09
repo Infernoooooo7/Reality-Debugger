@@ -1,0 +1,103 @@
+{
+  "fast": {
+    "model": {
+      "value": "efficientdet_lite0",
+      "purpose": "Detector run on every live frame (manifest: frontend/public/models/efficientdet_lite0.manifest.json).",
+      "source": "empirical",
+      "ref": "Fastest model that runs on phones without a GPU: 4.6 MB, 25.69 COCO val AP (TFLite Model Maker table); measured 29 ms/image on desktop CPU (docs/benchmarks/detector_eval_coco128.json)."
+    },
+    "letterbox": {
+      "value": true,
+      "purpose": "Pad each frame to a square (grey 114) before detection instead of letting MediaPipe stretch it to the 320x320 input.",
+      "source": "empirical",
+      "ref": "coco128: letterboxed AP 37.0 / AP50 56.9 vs stretched AP 36.3 / AP50 54.6."
+    },
+    "maxFps": {
+      "value": 10,
+      "options": [6, 10, 15],
+      "unit": "frames/s",
+      "purpose": "Upper bound on detector frames per second (user-selectable in Instrument settings).",
+      "source": "empirical",
+      "ref": "Measured 75-110 ms per frame for the CPU (WASM) delegate in headless Chromium; 10 fps keeps the main thread free on phones."
+    },
+    "grabWidth": {
+      "value": 480,
+      "unit": "px",
+      "purpose": "Width of camera frames transferred to the vision worker; the detector input is 320x320 so larger frames only cost copying.",
+      "source": "model-doc",
+      "ref": "EfficientDet-Lite0 input tensor [1,320,320,3]."
+    }
+  },
+  "deep": {
+    "model": {
+      "value": "yolox_s",
+      "purpose": "Selective, more accurate detector (manifest: frontend/public/models/yolox_s.manifest.json). Never runs on every frame.",
+      "source": "empirical",
+      "ref": "coco128: AP 48.3 vs 37.0 and small-object AP 21.3 vs 5.0 for the fast detector; 40.5 COCO val mAP per the YOLOX README; Apache-2.0."
+    },
+    "mode": {
+      "value": "auto",
+      "options": ["auto", "off"],
+      "purpose": "auto = load on first use (Image Debug, Deep Scan, video keyframes, live ambiguity checks); off = never download it.",
+      "source": "heuristic",
+      "ref": "Model (35.9 MB) + ONNX Runtime WebAssembly (28.3 MB) are only fetched when needed."
+    },
+    "backend": {
+      "value": "auto",
+      "options": ["auto", "webgpu", "wasm"],
+      "purpose": "ONNX Runtime Web execution provider. auto = WebGPU if available and verified on a probe image, else WebAssembly.",
+      "source": "model-doc",
+      "ref": "onnxruntime-web README: WebGPU needs Chromium 113+, described as experimental; WebAssembly is the portable fallback."
+    },
+    "wasmThreads": {
+      "value": 4,
+      "unit": "threads",
+      "purpose": "ONNX Runtime WebAssembly threads (only effective when the page is cross-origin isolated; otherwise 1).",
+      "source": "default",
+      "ref": "onnxruntime-web wasm-factory.ts requires SharedArrayBuffer / crossOriginIsolated for >1 thread."
+    },
+    "liveCooldownMs": {
+      "value": 12000,
+      "unit": "ms",
+      "purpose": "Minimum time between automatic deep checks during Live Scan.",
+      "source": "heuristic",
+      "ref": "Deep checks are a verification aid, not a tracker; one per ~12 s keeps CPU/battery use low."
+    },
+    "liveMaxLatencyMs": {
+      "value": 600,
+      "unit": "ms",
+      "purpose": "Automatic deep checks during Live Scan only run if the measured deep inference latency on this device is below this value.",
+      "source": "heuristic",
+      "ref": "About six fast-detector frames at 10 fps; slower devices keep deep detection for Image Debug and Deep Scan only."
+    },
+    "videoBudgetMs": {
+      "value": 15000,
+      "unit": "ms",
+      "purpose": "Total time budget for deep detection on video keyframes; stops early on slow devices.",
+      "source": "heuristic",
+      "ref": "Keeps Video Debug responsive; keyframes beyond the budget keep fast-detector results only."
+    }
+  },
+  "capture": {
+    "aiFrameMaxEdge": { "value": 1280, "unit": "px", "purpose": "Long edge of live frames sent to the optional AI reasoning layer (re-downscaled server-side).", "source": "heuristic", "ref": "Backend normalises to 1024 px for live frames anyway; 1280 leaves room for the resize." },
+    "aiFrameQuality": { "value": 0.82, "unit": "JPEG quality", "purpose": "JPEG quality of live frames sent to the AI layer.", "source": "heuristic", "ref": "Visually lossless for scene reasoning at ~100-200 KB per frame." },
+    "deepScanMaxEdge": { "value": 1600, "unit": "px", "purpose": "Long edge of the frozen frame captured for Deep Scan.", "source": "heuristic", "ref": "Matches the backend's deep-analysis image size." },
+    "deepScanQuality": { "value": 0.88, "unit": "JPEG quality", "purpose": "JPEG quality of the Deep Scan frame.", "source": "heuristic", "ref": "Higher than live frames because Deep Scan is a one-off." },
+    "keyframeMaxEdge": { "value": 1024, "unit": "px", "purpose": "Long edge of video keyframes sent to the AI layer.", "source": "heuristic", "ref": "Same as live AI frames after server normalisation." },
+    "keyframeQuality": { "value": 0.85, "unit": "JPEG quality", "purpose": "JPEG quality of video keyframes.", "source": "heuristic", "ref": "Keeps 8 keyframes under ~1.5 MB total." }
+  },
+  "signals": {
+    "thumbWidth": { "value": 128, "unit": "px", "purpose": "Width of the thumbnail used for motion, sharpness, brightness and scene fingerprints.", "source": "heuristic", "ref": "Cheap to compute every frame; enough resolution for frame differencing." },
+    "thumbHeight": { "value": 96, "unit": "px", "purpose": "Height of the signal thumbnail (4:3).", "source": "heuristic", "ref": "See thumbWidth." },
+    "gridWidth": { "value": 16, "unit": "cells", "purpose": "Luminance-grid columns of the scene fingerprint.", "source": "heuristic", "ref": "Coarse layout descriptor in the spirit of histogram/grid shot-boundary detectors." },
+    "gridHeight": { "value": 12, "unit": "cells", "purpose": "Luminance-grid rows of the scene fingerprint.", "source": "heuristic", "ref": "See gridWidth." },
+    "histogramBins": { "value": 4, "unit": "bins per channel", "purpose": "RGB histogram resolution of the scene fingerprint (4x4x4 = 64 bins).", "source": "heuristic", "ref": "Colour-histogram differences are the classic shot-boundary cue." },
+    "histogramWeight": { "value": 0.55, "purpose": "Weight of the histogram term in the fingerprint distance (the grid term gets 1 - weight).", "source": "heuristic", "ref": "Histogram is robust to small camera motion; the grid catches layout changes with similar colours." },
+    "gridGain": { "value": 3, "purpose": "Scale of the mean absolute grid difference before clipping to 1.", "source": "heuristic", "ref": "Maps a 0.33 mean luminance change to the maximum distance." },
+    "motionGain": { "value": 6, "purpose": "Scale of the mean absolute luminance difference between consecutive frames (motion = min(1, gain * meanDiff)).", "source": "heuristic", "ref": "A hand moving through ~15% of the view reaches ~1." },
+    "motionPixelDelta": { "value": 0.12, "unit": "luminance", "purpose": "Per-pixel luminance change counted as 'changed' for the motion bounding box.", "source": "heuristic", "ref": "Above camera sensor noise in indoor light." },
+    "motionMinFraction": { "value": 0.004, "unit": "fraction of pixels", "purpose": "Minimum share of changed pixels before a motion box is reported.", "source": "heuristic", "ref": "Ignores isolated noisy pixels." },
+    "sharpnessLogOffset": { "value": 4, "purpose": "Sharpness = clip((log10(LaplacianVariance) + offset) / span, 0, 1).", "source": "empirical", "ref": "Variance of the Laplacian focus measure (Pech-Pacheco et al., ICPR 2000); log scale chosen after the raw value saturated on test images." },
+    "sharpnessLogSpan": { "value": 2.6, "purpose": "Span of the log10 Laplacian variance mapped onto 0-1.", "source": "empirical", "ref": "1e-4 (very blurred) -> 0, ~0.04 (crisp) -> 1 on the test images." }
+  }
+}

@@ -13,11 +13,13 @@ import time
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
-from app.errors import NotFoundError, RateLimitedError
+from app.errors import NotFoundError
 from app.schemas.analysis import AIFinding
 from app.schemas.common import Box, Category, FindingStatus, Personality, Severity
-from app.schemas.diagnostics import Finding, LifecycleEvent, Optimization, SceneInfo, StatusChange
+from app.schemas.diagnostics import AIRun, Finding, LifecycleEvent, Optimization, SceneInfo, StatusChange
+from app.services.ai_policy import AIBudget
 
 SCAN_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,48}$")
 _BUG_RE = re.compile(r"^bug[\s_-]*0*(\d{1,4})$", re.IGNORECASE)
@@ -47,17 +49,28 @@ class TrackedFinding:
     box: Box | None
     related_objects: list[str]
     status: FindingStatus
-    source: str
+    source: str  # "local" | "ai"
     first_seen_at: datetime
     last_seen_at: datetime
     sightings: int = 1
     out_of_view: bool = False
     resolved_note: str | None = None
-    demo_key: str | None = None
+    # Local findings: rule identity, measurements and temporal bookkeeping.
+    rule: str | None = None
+    key: str | None = None
+    object_ids: list[str] = field(default_factory=list)
+    object_boxes: dict[str, Box] = field(default_factory=dict)  # last box of each involved object
+    measurements: dict[str, Any] = field(default_factory=dict)
+    first_seen_ms: float = 0.0  # session clock (scene.at_ms)
+    last_seen_ms: float = 0.0
+    misses: int = 0  # consecutive observations without the finding (same view)
+    view_id: int = 0
+    ai_note: str | None = None
+    ai_agrees: bool | None = None
     history: list[StatusChange] = field(default_factory=list)
 
     @classmethod
-    def from_ai(cls, finding_id: str, af: AIFinding, *, source: str, status: FindingStatus, now: datetime) -> "TrackedFinding":
+    def from_ai(cls, finding_id: str, af: AIFinding, *, status: FindingStatus, now: datetime) -> "TrackedFinding":
         tf = cls(
             id=finding_id,
             severity=af.severity,
@@ -72,10 +85,9 @@ class TrackedFinding:
             box=af.box,
             related_objects=list(af.related_objects),
             status=status,
-            source=source,
+            source="ai",
             first_seen_at=now,
             last_seen_at=now,
-            demo_key=af.id[5:] if af.id.startswith("demo_") else None,
         )
         tf.history.append(StatusChange(status=status, at=now))
         return tf
@@ -98,10 +110,7 @@ class TrackedFinding:
     def transition(self, status: FindingStatus, now: datetime, note: str | None = None) -> None:
         self.status = status
         self.history.append(StatusChange(status=status, at=now, note=note))
-        if status == FindingStatus.RESOLVED:
-            self.resolved_note = note
-        else:
-            self.resolved_note = None
+        self.resolved_note = note if status == FindingStatus.RESOLVED else None
 
     def to_model(self) -> Finding:
         return Finding(
@@ -118,7 +127,11 @@ class TrackedFinding:
             status=self.status,
             box=self.box,
             related_objects=self.related_objects,
-            source="demo" if self.source == "demo" else "ai",
+            source="local" if self.source == "local" else "ai",
+            rule=self.rule,
+            measurements=dict(self.measurements),
+            ai_note=self.ai_note,
+            ai_agrees=self.ai_agrees,
             sightings=self.sightings,
             out_of_view=self.out_of_view,
             first_seen_at=self.first_seen_at,
@@ -139,16 +152,21 @@ class ScanSession:
     next_bug: int = 1
     next_event: int = 1
     analyses: int = 0
-    scene: SceneInfo | None = None
+    observations: int = 0
+    scene: SceneInfo | None = None  # what the UI shows: AI scene for the current view, else the local one
+    ai_scene: SceneInfo | None = None
+    ai_scene_view: int | None = None  # view_id the AI scene describes
     system_name: str | None = None
     last_ai_score: int | None = None
     final_diagnosis: str | None = None
     optimizations: list[Optimization] = field(default_factory=list)
-    simulated: bool = False
     provider: str | None = None
     model: str | None = None
+    timers: dict[str, float] = field(default_factory=dict)  # duration-based local rules
+    view_id: int = 0
+    ai: AIBudget = field(default_factory=AIBudget)
+    last_ai_run: AIRun | None = None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    call_times: deque[float] = field(default_factory=lambda: deque(maxlen=64))
     last_access: float = field(default_factory=time.monotonic)
 
     def allocate_id(self) -> str:
@@ -157,17 +175,12 @@ class ScanSession:
         return finding_id
 
     def resolve_id(self, raw: str) -> TrackedFinding | None:
-        """Find a finding by canonical id (BUG-002, bug_2, ...) or demo rule id."""
+        """Find a finding by canonical id (BUG-002, bug_2, ...)."""
         if not raw:
             return None
         canonical = canonical_bug_id(raw)
         if canonical and canonical in self.findings:
             return self.findings[canonical]
-        if raw.startswith("demo_"):
-            key = raw[5:]
-            for tf in self.findings.values():
-                if tf.demo_key == key:
-                    return tf
         return None
 
     def add_event(self, kind: str, tf: TrackedFinding, now: datetime, note: str | None = None) -> LifecycleEvent:
@@ -184,19 +197,6 @@ class ScanSession:
         self.events.append(event)
         return event
 
-    def check_rate(self, per_minute: int) -> None:
-        now = time.monotonic()
-        while self.call_times and now - self.call_times[0] > 60:
-            self.call_times.popleft()
-        if len(self.call_times) >= per_minute:
-            retry = max(1, int(60 - (now - self.call_times[0])) + 1)
-            raise RateLimitedError(
-                f"Analysis budget reached ({per_minute} AI analyses per minute for one scan).",
-                hint="Local tracking keeps running; the next analysis will start automatically.",
-                code="SCAN_RATE_LIMITED",
-                headers={"Retry-After": str(retry)},
-            )
-        self.call_times.append(now)
 
 
 class ScanStore:
@@ -240,15 +240,18 @@ class ScanStore:
         self._scans.move_to_end(scan_id)
         return session
 
-    def get_or_create(self, scan_id: str | None, personality: Personality) -> ScanSession:
+    def get_or_create(self, scan_id: str | None, personality: Personality | None) -> ScanSession:
+        """The session ``scan_id`` (or a new one if it is missing/expired).
+        ``personality=None`` keeps the session's voice."""
         if scan_id:
             try:
                 session = self.get(scan_id)
-                session.personality = personality
+                if personality is not None:
+                    session.personality = personality
                 return session
             except NotFoundError:
                 pass
-        return self.create(personality)
+        return self.create(personality or Personality.SERIOUS)
 
     def delete(self, scan_id: str) -> bool:
         return self._scans.pop(scan_id, None) is not None

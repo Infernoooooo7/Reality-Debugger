@@ -1,0 +1,102 @@
+{
+  "method": {
+    "value": "bytetrack",
+    "purpose": "Two-stage association (high-score detections first, then low-score detections for unmatched tracks) with a constant-velocity Kalman filter and Hungarian assignment.",
+    "source": "paper",
+    "ref": "Y. Zhang et al., ByteTrack: Multi-Object Tracking by Associating Every Detection Box, ECCV 2022, arXiv:2110.06864; A. Bewley et al., SORT, ICIP 2016, arXiv:1602.00763."
+  },
+  "highScore": {
+    "value": 0.3,
+    "unit": "score",
+    "purpose": "Detections at or above this score take part in the first association.",
+    "source": "empirical",
+    "ref": "ByteTrack's track_thresh is 0.6 for YOLOX; re-derived for this detector as its F1-optimal point on coco128 (detection.json fast.scoreThreshold)."
+  },
+  "lowScore": {
+    "value": 0.15,
+    "unit": "score",
+    "purpose": "Detections between lowScore and highScore are used only in the second association, to keep partly occluded or blurred objects tracked.",
+    "source": "empirical",
+    "ref": "ByteTrack low floor 0.1 transferred by matching precision (detection.json fast.lowScoreFloor)."
+  },
+  "newTrackScore": {
+    "value": 0.35,
+    "unit": "score",
+    "purpose": "Minimum score for an unmatched detection to start a new track.",
+    "source": "empirical",
+    "ref": "ByteTrack uses track_thresh + 0.1; here the point where the fast detector's precision reaches 0.856 on coco128."
+  },
+  "firstMatchIou": {
+    "value": 0.1,
+    "purpose": "Minimum IoU between a Kalman-predicted track box and a high-score detection in the first association.",
+    "source": "paper",
+    "ref": "ByteTrack match_thresh 0.9 on IoU distance (1 - IoU)."
+  },
+  "secondMatchIou": {
+    "value": 0.5,
+    "purpose": "Minimum IoU in the second association with low-score detections (stricter, because low-score boxes are less reliable).",
+    "source": "paper",
+    "ref": "ByteTrack byte_tracker.py: linear_assignment(dists, thresh=0.5) for detections_second."
+  },
+  "unconfirmedMatchIou": {
+    "value": 0.3,
+    "purpose": "Minimum IoU for matching a tentative (not yet confirmed) track.",
+    "source": "paper",
+    "ref": "ByteTrack: linear_assignment(dists, thresh=0.7) for unconfirmed tracks."
+  },
+  "fuseScore": {
+    "value": true,
+    "purpose": "Multiply IoU similarity by detection score in the first association so confident detections win ties.",
+    "source": "paper",
+    "ref": "ByteTrack matching.fuse_score (enabled for non-MOT20 data)."
+  },
+  "duplicateIou": {
+    "value": 0.85,
+    "purpose": "Two tracks overlapping more than this are duplicates; the younger one is removed.",
+    "source": "paper",
+    "ref": "ByteTrack remove_duplicate_stracks: IoU distance < 0.15."
+  },
+  "lostBufferMs": {
+    "value": 1000,
+    "unit": "ms",
+    "purpose": "How long a confirmed track survives without a matching detection before it is removed (the object 'left').",
+    "source": "paper",
+    "ref": "ByteTrack track_buffer = 30 frames at 30 fps; converted to time because our frame rate varies (6-15 fps)."
+  },
+  "confirmHits": {
+    "value": 2,
+    "unit": "detections",
+    "purpose": "Consecutive matched detections before a new track is confirmed.",
+    "source": "paper",
+    "ref": "ByteTrack activates a new track when it is matched again in the next frame (two observations)."
+  },
+  "tentativeMaxMisses": {
+    "value": 1,
+    "unit": "frames",
+    "purpose": "A tentative track missing this many frames is dropped immediately.",
+    "source": "paper",
+    "ref": "ByteTrack removes unconfirmed tracks that are not matched in the next frame."
+  },
+  "kalmanStdWeightPosition": {
+    "value": 0.05,
+    "purpose": "Kalman process/measurement noise for position, as a fraction of box height (1/20).",
+    "source": "paper",
+    "ref": "ByteTrack/DeepSORT kalman_filter.py: _std_weight_position = 1/20."
+  },
+  "kalmanStdWeightVelocity": {
+    "value": 0.00625,
+    "purpose": "Kalman process noise for velocity, as a fraction of box height (1/160).",
+    "source": "paper",
+    "ref": "ByteTrack/DeepSORT kalman_filter.py: _std_weight_velocity = 1/160."
+  },
+  "classCompatibility": {
+    "value": "supercategory",
+    "options": [
+      "exact",
+      "supercategory"
+    ],
+    "purpose": "Detections of a different class can continue a track if both classes share a COCO supercategory (e.g. cup/wine glass); the track label is decided by score-weighted voting.",
+    "source": "paper",
+    "ref": "Detectors mostly confuse similar categories (D. Hoiem, Y. Chodpathumwan, Q. Dai, Diagnosing Error in Object Detectors, ECCV 2012); supercategories come from COCO metadata via config/ontology.generated.json."
+  }
+}

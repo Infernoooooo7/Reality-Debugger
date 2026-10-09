@@ -1,4 +1,17 @@
-"""Vision-AI orchestration: provider selection, prompting, validation, retries."""
+"""Optional AI reasoning layer: provider selection, prompting and validation.
+
+Nothing in the application depends on this layer. Provider selection
+(``AI_PROVIDER``):
+
+* ``none`` - local only; no provider is ever called.
+* ``gemini`` / ``claude`` / ``openai`` - that provider only.
+* ``auto`` (default) - Gemini when ``GEMINI_API_KEY`` is set, otherwise none.
+  A paid provider is never selected implicitly.
+
+``AI_FALLBACK_PROVIDER`` (default ``none``) names a second provider that is
+tried only when the primary fails. It is never used unless configured
+explicitly, so a Gemini failure can never cause an unexpected Claude bill.
+"""
 
 from __future__ import annotations
 
@@ -7,29 +20,35 @@ import json
 import logging
 import re
 import time
-from collections.abc import Sequence
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 from app.config import Settings
-from app.schemas.analysis import AIDiagnosis, LocalContext, MalformedDiagnosisError, parse_diagnosis
+from app.runtime_config import RuntimeConfig
+from app.schemas.analysis import AIDiagnosis, MalformedDiagnosisError, parse_diagnosis
 from app.schemas.common import AnalysisMode, Personality, ScanTrigger
-from app.schemas.diagnostics import AIStatus
-from app.services import demo_reasoner
+from app.schemas.diagnostics import AIState, AIStatus, ErrorInfo
+from app.schemas.scene import SceneModel
 from app.services.ai_providers import (
     AIError,
     AIMalformedError,
     AINotConfiguredError,
     AnthropicProvider,
+    GeminiProvider,
     OpenAICompatibleProvider,
     ProviderImage,
     VisionProvider,
 )
-from app.services.prompts import DIAGNOSIS_SCHEMA, SYSTEM_PROMPT, ActiveFindingBrief, build_user_text
+from app.services.metrics import Metrics
+from app.services.prompts import DIAGNOSIS_SCHEMA, SYSTEM_PROMPT, FindingBrief, RelationBrief, build_user_text
 from app.services.vision_service import PreparedImage
 
 log = logging.getLogger("reality.ai")
 
-DEMO_MODEL = "demo-heuristics-v1"
+PROVIDERS = ("gemini", "claude", "openai")
+_ALIASES = {"anthropic": "claude", "demo": "none"}
+_LABELS = {"gemini": "Gemini", "claude": "Claude", "openai": "OpenAI-compatible model"}
+LIVE_TIMEOUT_CAP_S = 60.0
 
 _REPAIR_NOTE = (
     "IMPORTANT: your previous answer could not be parsed. Respond with a single JSON object that matches the "
@@ -37,20 +56,34 @@ _REPAIR_NOTE = (
 )
 
 
+def resolve_primary(settings: Settings) -> str:
+    choice = _ALIASES.get(settings.ai_provider, settings.ai_provider)
+    if choice == "auto":
+        # Only the provider the user explicitly gave a key for in this release
+        # (Gemini) is picked automatically; Claude/OpenAI need AI_PROVIDER.
+        return "gemini" if settings.gemini_api_key is not None else "none"
+    return choice
+
+
+def resolve_fallback(settings: Settings, primary: str) -> str | None:
+    choice = _ALIASES.get(settings.ai_fallback_provider, settings.ai_fallback_provider)
+    if choice == "none" or choice == primary:
+        return None
+    return choice
+
+
 @dataclass(slots=True)
 class DiagnoseRequest:
     mode: AnalysisMode
     personality: Personality
     images: list[PreparedImage]
-    context: LocalContext | None = None
+    scene: SceneModel | None = None
+    relations: Sequence[RelationBrief] = ()
     trigger: ScanTrigger | None = None
-    active: Sequence[ActiveFindingBrief] = ()
-    # canonical finding id -> demo rule key (demo lifecycle only)
-    active_demo_keys: dict[str, str] = field(default_factory=dict)
-    # video only: (frame_number, t, local context) per image, chronological
-    video_frames: Sequence[tuple[int, float, LocalContext | None]] = ()
-    extra_prompt: str | None = None
-    force_demo: bool = False
+    local_findings: Sequence[FindingBrief] = ()
+    ai_findings: Sequence[FindingBrief] = ()  # earlier AI findings of a live scan (status updates)
+    focus: str | None = None  # finding id the user asked about
+    extra_prompt: str | None = None  # video: keyframe hints and the local timeline
 
 
 @dataclass(slots=True)
@@ -58,9 +91,11 @@ class DiagnoseResult:
     diagnosis: AIDiagnosis
     provider: str
     model: str
-    simulated: bool
     latency_ms: int
     warnings: list[str]
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    fallback_used: bool = False
 
 
 def extract_json(text: str) -> object:
@@ -84,128 +119,202 @@ def extract_json(text: str) -> object:
     raise ValueError("no JSON object found")
 
 
+def error_info(exc: AIError) -> ErrorInfo:
+    return ErrorInfo(code=exc.code, message=exc.message, hint=exc.hint, retryable=exc.retryable)
+
+
 class AIService:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        config: RuntimeConfig,
+        metrics: Metrics | None = None,
+        *,
+        providers: Mapping[str, VisionProvider] | None = None,
+    ) -> None:
         self.settings = settings
+        self.config = config
+        self.metrics = metrics or Metrics()
         self._semaphore = asyncio.Semaphore(max(1, settings.ai_max_concurrency))
-        self._provider: VisionProvider | None = None
-        self._status = self._init_provider()
+        self.primary_name = resolve_primary(settings)
+        self.fallback_name = resolve_fallback(settings, self.primary_name)
+        self._providers: dict[str, VisionProvider] = {}
+        self._problems: dict[str, str] = {}
+        for name in (self.primary_name, self.fallback_name):
+            if not name or name == "none":
+                continue
+            if providers is not None and name in providers:  # injected by tests
+                self._providers[name] = providers[name]
+                continue
+            try:
+                self._providers[name] = self._build(name)
+            except AINotConfiguredError as exc:
+                self._problems[name] = exc.message
+            except Exception as exc:  # pragma: no cover - defensive
+                log.error("Could not initialise AI provider %s: %s", name, type(exc).__name__)
+                self._problems[name] = "The provider could not be initialised."
+        self._state: AIState = "unverified" if self._providers else "off"
+        self._last_error: ErrorInfo | None = None
+        self._served_by_fallback = False
 
-    # -- provider selection --------------------------------------------------
+    # -- providers ---------------------------------------------------------------
 
-    def _init_provider(self) -> AIStatus:
+    def _build(self, name: str) -> VisionProvider:
         s = self.settings
-        choice = s.ai_provider
-        if choice == "auto":
-            if s.anthropic_api_key is not None:
-                choice = "anthropic"
-            elif s.openai_api_key is not None or s.openai_base_url:
-                choice = "openai"
-            else:
-                choice = "demo"
-
-        if choice == "demo":
-            detail = (
-                "DEMO MODE: no AI provider configured. Diagnoses are simulated from on-device detections."
-                if s.ai_provider == "auto"
-                else "DEMO MODE forced by AI_PROVIDER=demo."
+        if name == "gemini":
+            if s.gemini_api_key is None:
+                raise AINotConfiguredError("GEMINI_API_KEY is not set.")
+            return GeminiProvider(
+                s,
+                default_model=str(self.config.get("ai.gemini.defaultModel")),
+                temperature=float(self.config.get("ai.gemini.temperature")),
+                max_output_tokens=int(self.config.get("ai.gemini.maxOutputTokens")),
             )
-            return AIStatus(provider="demo", model=DEMO_MODEL, configured=False, simulated=True, detail=detail)
+        if name == "claude":
+            if s.anthropic_api_key is None:
+                raise AINotConfiguredError("ANTHROPIC_API_KEY is not set.")
+            return AnthropicProvider(s)
+        if name == "openai":
+            if not s.openai_model:
+                raise AINotConfiguredError("OPENAI_MODEL is not set.")
+            if s.openai_api_key is None and not s.openai_base_url:
+                raise AINotConfiguredError("OPENAI_API_KEY or OPENAI_BASE_URL is not set.")
+            return OpenAICompatibleProvider(s)
+        raise AINotConfiguredError(f"Unknown AI provider '{name}'.")
 
-        try:
-            if choice == "anthropic":
-                self._provider = AnthropicProvider(s)
-            else:
-                self._provider = OpenAICompatibleProvider(s)
-        except Exception as exc:  # pragma: no cover - defensive
-            log.error("Could not initialise AI provider %s: %s", choice, type(exc).__name__)
-            return AIStatus(
-                provider=choice, model=None, configured=False, simulated=True, detail="AI provider failed to initialise."
-            )
+    def _order(self) -> list[tuple[str, VisionProvider]]:
+        return [(n, self._providers[n]) for n in (self.primary_name, self.fallback_name) if n in self._providers]
 
-        model = self._provider.model or None
-        if choice == "openai" and not model:
-            return AIStatus(
-                provider=choice, model=None, configured=False, simulated=False, detail="OPENAI_MODEL is not set."
-            )
-        return AIStatus(
-            provider=choice, model=model, configured=True, simulated=False, detail=f"Vision model ready ({model})."
-        )
+    @property
+    def enabled(self) -> bool:
+        """True when at least one provider could be called."""
+        return bool(self._providers)
 
     @property
     def status(self) -> AIStatus:
-        return self._status
+        primary = self.primary_name
+        fallback = self.fallback_name if self.fallback_name in self._providers else None
+        if not self._providers:
+            if primary == "none":
+                detail = (
+                    "Local-only mode (AI_PROVIDER=none). All detection, tracking and diagnostics run locally."
+                    if _ALIASES.get(self.settings.ai_provider, self.settings.ai_provider) == "none"
+                    else "Local-only mode: no GEMINI_API_KEY is configured. AI reasoning is optional."
+                )
+            else:
+                problem = self._problems.get(primary, "not configured")
+                detail = f"{_LABELS.get(primary, primary)} selected, but {problem.rstrip('.')}. Running local-only."
+            return AIStatus(provider=primary, model=None, configured=False, state="off", detail=detail, fallback=None)
 
-    @property
-    def demo_only(self) -> bool:
-        return self._provider is None
-
-    async def check(self) -> None:
-        """Verify credentials / model with a lightweight provider call."""
-        if self._provider is None:
-            raise AINotConfiguredError(
-                "No AI provider is configured - running in DEMO MODE.",
-                hint="Add ANTHROPIC_API_KEY (or OPENAI_* settings) to .env and restart the backend.",
-            )
-        await self._provider.check()
-
-    async def aclose(self) -> None:
-        if self._provider is not None:
-            await self._provider.aclose()
-
-    # -- diagnosis -----------------------------------------------------------
-
-    async def diagnose(self, request: DiagnoseRequest) -> DiagnoseResult:
-        if request.force_demo or self._provider is None:
-            return await self._diagnose_demo(request)
-        return await self._diagnose_ai(request, self._provider)
-
-    async def _diagnose_demo(self, request: DiagnoseRequest) -> DiagnoseResult:
-        started = time.perf_counter()
-        if request.mode == AnalysisMode.VIDEO:
-            raw = demo_reasoner.diagnose_video(
-                personality=request.personality,
-                frames=[(n, t, list(ctx.objects) if ctx else []) for n, t, ctx in request.video_frames],
-                stats=[img.stats for img in request.images],
-            )
+        name = primary if primary in self._providers else str(fallback)
+        model = self._providers[name].model or None
+        label = _LABELS.get(name, name)
+        if self._state == "unavailable":
+            detail = f"{label} reasoning unavailable: {self._last_error.message if self._last_error else 'last call failed'} Local CV keeps running."
+        elif self._state == "ready":
+            detail = f"{label} reasoning active ({model})." + (" Served by the fallback provider." if self._served_by_fallback else "")
         else:
-            raw = demo_reasoner.diagnose_frame(
-                mode=request.mode,
-                personality=request.personality,
-                context=request.context,
-                stats=request.images[0].stats if request.images else None,
-                active=request.active,
-                active_keys=request.active_demo_keys,
-            )
-        diagnosis, warnings = parse_diagnosis(raw)
-        if self.settings.demo_latency_ms > 0:
-            await asyncio.sleep(self.settings.demo_latency_ms / 1000.0)
-        return DiagnoseResult(
-            diagnosis=diagnosis,
-            provider="demo",
-            model=DEMO_MODEL,
-            simulated=True,
-            latency_ms=int((time.perf_counter() - started) * 1000),
-            warnings=warnings,
+            detail = f"{label} reasoning configured ({model}); not called yet."
+        if primary not in self._providers and primary != "none":
+            detail += f" Primary provider {primary} is not configured ({self._problems.get(primary, 'missing settings')})."
+        return AIStatus(
+            provider=name,
+            model=model,
+            configured=True,
+            state=self._state,
+            detail=detail,
+            fallback=fallback if name != fallback else None,
+            last_error=self._last_error,
         )
 
-    async def _diagnose_ai(self, request: DiagnoseRequest, provider: VisionProvider) -> DiagnoseResult:
+    def _mark_ok(self, *, fallback: bool) -> None:
+        self._state = "ready"
+        self._served_by_fallback = fallback
+        if not fallback:
+            self._last_error = None
+
+    def _mark_failed(self, exc: AIError) -> None:
+        self._state = "unavailable"
+        self._last_error = error_info(exc)
+
+    # -- calls -------------------------------------------------------------------------
+
+    async def check(self) -> str:
+        """Verify credentials/model of the first configured provider; returns its name."""
+        order = self._order()
+        if not order:
+            raise AINotConfiguredError(
+                "AI reasoning is off (local-only mode).",
+                code="AI_OFF",
+                hint="Optional: set GEMINI_API_KEY in .env (or AI_PROVIDER=claude with ANTHROPIC_API_KEY) and restart.",
+            )
+        name, provider = order[0]
+        try:
+            await provider.check()
+        except AIError as exc:
+            self._mark_failed(exc)
+            raise
+        self._mark_ok(fallback=name != self.primary_name)
+        return name
+
+    async def diagnose(self, request: DiagnoseRequest) -> DiagnoseResult:
+        order = self._order()
+        if not order:
+            raise AINotConfiguredError("AI reasoning is off (local-only mode).", code="AI_OFF")
+        last: AIError | None = None
+        for index, (name, provider) in enumerate(order):
+            started = time.perf_counter()
+            try:
+                result = await self._diagnose_with(name, provider, request)
+            except AIError as exc:
+                last = exc
+                self.metrics.record_ai_call(
+                    ok=False,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    trigger=request.trigger.value if request.trigger else request.mode.value,
+                    error_code=exc.code,
+                )
+                log.warning("AI provider %s failed: %s (%s)", name, exc.code, exc.message)
+                continue
+            self.metrics.record_ai_call(
+                ok=True,
+                latency_ms=result.latency_ms,
+                trigger=request.trigger.value if request.trigger else request.mode.value,
+                tokens_in=result.input_tokens,
+                tokens_out=result.output_tokens,
+            )
+            if index > 0:
+                result.fallback_used = True
+                self.metrics.ai_fallback_used += 1
+                if last is not None:
+                    self._last_error = error_info(last)
+            self._mark_ok(fallback=index > 0)
+            return result
+        assert last is not None
+        self._mark_failed(last)
+        raise last
+
+    async def _diagnose_with(self, name: str, provider: VisionProvider, request: DiagnoseRequest) -> DiagnoseResult:
         s = self.settings
         user_text = build_user_text(
             mode=request.mode,
             personality=request.personality,
             trigger=request.trigger,
-            context=request.context,
-            active=request.active,
+            scene=request.scene,
+            relations=request.relations,
+            local_findings=request.local_findings,
+            ai_findings=request.ai_findings,
+            focus=request.focus,
             extra=request.extra_prompt,
+            has_images=bool(request.images),
         )
         images = [ProviderImage(jpeg=img.jpeg, label=img.label) for img in request.images]
         effort = s.ai_effort_live if request.mode == AnalysisMode.LIVE else s.ai_effort_deep
-        timeout = s.ai_timeout_seconds if request.mode != AnalysisMode.LIVE else min(s.ai_timeout_seconds, 90.0)
+        timeout = s.ai_timeout_seconds if request.mode != AnalysisMode.LIVE else min(s.ai_timeout_seconds, LIVE_TIMEOUT_CAP_S)
 
         started = time.perf_counter()
         attempts = 1 + max(0, s.ai_malformed_retries)
-        last_problem = "unknown"
+        tokens_in = tokens_out = 0
         async with self._semaphore:
             for attempt in range(attempts):
                 completion = await provider.complete(
@@ -217,43 +326,64 @@ class AIService:
                     timeout=timeout,
                     max_tokens=s.ai_max_tokens,
                 )
+                tokens_in += completion.input_tokens or 0
+                tokens_out += completion.output_tokens or 0
                 try:
                     data = extract_json(completion.text)
                     diagnosis, warnings = parse_diagnosis(data)
                 except (ValueError, MalformedDiagnosisError) as exc:
-                    last_problem = str(exc)
                     log.warning(
-                        "Malformed AI output (attempt %d/%d, %d chars, stop=%s): %s",
+                        "Malformed AI output from %s (attempt %d/%d, %d chars, stop=%s): %s",
+                        name,
                         attempt + 1,
                         attempts,
                         len(completion.text),
                         completion.stop_reason,
-                        last_problem,
+                        exc,
                     )
                     continue
                 if completion.stop_reason in ("max_tokens", "length"):
-                    warnings.append("The model hit its output limit; the diagnosis may be incomplete.")
+                    warnings.append("The AI model hit its output limit; its reasoning may be incomplete.")
                 log.info(
-                    "AI diagnosis ok: provider=%s model=%s mode=%s images=%d tokens_in=%s tokens_out=%s",
-                    provider.name,
+                    "AI reasoning ok: provider=%s model=%s mode=%s trigger=%s images=%d tokens_in=%s tokens_out=%s",
+                    name,
                     completion.model,
                     request.mode.value,
+                    request.trigger.value if request.trigger else "-",
                     len(images),
                     completion.input_tokens,
                     completion.output_tokens,
                 )
                 return DiagnoseResult(
                     diagnosis=diagnosis,
-                    provider=provider.name,
+                    provider=name,
                     model=completion.model,
-                    simulated=False,
                     latency_ms=int((time.perf_counter() - started) * 1000),
                     warnings=warnings,
+                    input_tokens=tokens_in or None,
+                    output_tokens=tokens_out or None,
                 )
         raise AIMalformedError(
-            "The vision model returned an answer that could not be validated.",
-            hint="Try again. If it keeps happening, try a different model.",
+            "The AI model returned an answer that could not be validated.",
+            hint="Local results are unaffected. Try again, or set a different model.",
         )
 
+    async def aclose(self) -> None:
+        for provider in self._providers.values():
+            try:
+                await provider.aclose()
+            except Exception:  # pragma: no cover - shutdown best effort
+                pass
 
-__all__ = ["AIService", "AIError", "DiagnoseRequest", "DiagnoseResult", "extract_json"]
+
+__all__ = [
+    "AIService",
+    "AIError",
+    "DiagnoseRequest",
+    "DiagnoseResult",
+    "PROVIDERS",
+    "error_info",
+    "extract_json",
+    "resolve_fallback",
+    "resolve_primary",
+]

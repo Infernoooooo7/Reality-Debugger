@@ -64,7 +64,7 @@ class AnalysisMode(str, Enum):
 
 
 class ScanTrigger(str, Enum):
-    """Why the client decided a frame deserved vision-model attention."""
+    """Why the client sent an observation or asked for AI reasoning."""
 
     FIRST_LOOK = "first_look"
     NEW_OBJECT = "new_object"
@@ -75,6 +75,12 @@ class ScanTrigger(str, Enum):
     DEEP_SCAN = "deep_scan"
     FREEZE = "freeze"
     MANUAL = "manual"
+    # Local-first triggers (v2): the local engine runs on every observation;
+    # these say why the optional AI layer was asked for reasoning.
+    OBSERVE = "observe"
+    USER_EXPLAIN = "user_explain"
+    CONFIRMED_FINDING = "confirmed_finding"
+    AMBIGUOUS = "ambiguous"
 
 
 class Box(BaseModel):

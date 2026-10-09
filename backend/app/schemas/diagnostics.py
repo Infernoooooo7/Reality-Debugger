@@ -17,9 +17,11 @@ from app.schemas.common import (
     Severity,
     SystemStatus,
 )
+from app.schemas.scene import SceneModel
 
-Source = Literal["ai", "demo"]
+Source = Literal["local", "ai"]
 LifecycleEventType = Literal["DISCOVERED", "CONFIRMED", "TRACKING", "RESOLVED", "REOPENED"]
+MeasurementValue = float | int | str
 
 
 class StatusChange(BaseModel):
@@ -34,7 +36,7 @@ class Finding(BaseModel):
     severity: Severity
     category: Category
     title: str
-    evidence: str = Field(description="What is directly visible (observation).")
+    evidence: str = Field(description="What was measured or observed.")
     inference: str = Field(description="What the evidence suggests (interpretation).")
     impact: str
     recommendation: str
@@ -43,7 +45,11 @@ class Finding(BaseModel):
     status: FindingStatus
     box: Box | None = None
     related_objects: list[str] = Field(default_factory=list)
-    source: Source = "ai"
+    source: Source = Field(default="local", description="local = measured by the local CV engine; ai = AI reasoning.")
+    rule: str | None = Field(default=None, description="Local rule that produced the finding.")
+    measurements: dict[str, MeasurementValue] = Field(default_factory=dict, description="Numbers behind a local finding.")
+    ai_note: str | None = Field(default=None, description="AI explanation attached to a local finding (separate from the measurement).")
+    ai_agrees: bool | None = Field(default=None, description="False when the AI layer thinks a local finding is a false alarm.")
     sightings: int = 1
     out_of_view: bool = False
     first_seen_at: datetime | None = None
@@ -59,7 +65,8 @@ class DetectedObject(BaseModel):
     label: str
     confidence: float = Field(ge=0, le=1)
     box: Box | None = None
-    source: Literal["ai", "local"] = "ai"
+    source: Literal["fast", "deep", "fused", "ai"] = "fast"
+    verified: bool = False
 
 
 class Relationship(BaseModel):
@@ -67,6 +74,7 @@ class Relationship(BaseModel):
     relation: str
     object: str
     observation: str = ""
+    source: Source = "local"
 
 
 class Optimization(BaseModel):
@@ -99,14 +107,38 @@ class ImageMeta(BaseModel):
     bytes_sent: int | None = None
 
 
+class ErrorInfo(BaseModel):
+    code: str
+    message: str
+    hint: str | None = None
+    retryable: bool = False
+
+
+AIRunStatus = Literal["off", "ok", "cached", "skipped", "unavailable"]
+
+
+class AIRun(BaseModel):
+    """What the optional AI reasoning layer did for one request."""
+
+    status: AIRunStatus = Field(description="off = no provider; ok/cached = reasoning attached; skipped = not needed or throttled; unavailable = provider failed (local results still valid).")
+    provider: str | None = None
+    model: str | None = None
+    latency_ms: int | None = None
+    trigger: str | None = None
+    reason: str | None = Field(default=None, description="Why reasoning was skipped, if it was.")
+    error: ErrorInfo | None = None
+
+
 class DiagnosticReport(BaseModel):
     report_id: str
     created_at: datetime
     mode: AnalysisMode
     personality: Personality
-    provider: str
+    provider: str = Field(description="'local' when only the local engine produced the report, else the AI provider.")
     model: str
-    simulated: bool = Field(description="True when produced by DEMO MODE, not a vision model.")
+    engine: str = Field(description="Version of the local diagnostic engine.")
+    detectors: list[str] = Field(default_factory=list, description="Local detectors whose output was used.")
+    ai: AIRun
     latency_ms: int
     system_name: str = Field(description="e.g. WORKSPACE_v3.1")
     scene: SceneInfo
@@ -139,7 +171,8 @@ class ScanState(BaseModel):
     created_at: datetime
     updated_at: datetime
     personality: Personality
-    analyses: int
+    analyses: int = Field(description="AI reasoning passes in this session.")
+    observations: int = Field(default=0, description="Local observations evaluated in this session.")
     status: SystemStatus
     system_score: int | None = None
     system_name: str | None = None
@@ -149,21 +182,46 @@ class ScanState(BaseModel):
     optimizations: list[Optimization] = Field(default_factory=list)
     counts: Counts
     events: list[LifecycleEvent] = Field(default_factory=list)
-    simulated: bool = False
-    provider: str | None = None
-    model: str | None = None
+    ai: AIRun | None = Field(default=None, description="Most recent AI reasoning attempt in this session.")
+    engine: str | None = None
+
+
+class AISuggestion(BaseModel):
+    """The backend's hint that sending the current frame for AI reasoning is worthwhile now."""
+
+    trigger: ScanTrigger
+    reason: str
+    finding_ids: list[str] = Field(default_factory=list)
 
 
 class ScanAnalysisResponse(BaseModel):
-    """Returned by /api/analyze/frame and /api/scan/deep."""
+    """Returned by /api/scan/observe, /api/analyze/frame and /api/scan/deep."""
 
     scan: ScanState
     report: DiagnosticReport
-    events: list[LifecycleEvent] = Field(description="Lifecycle transitions caused by this analysis.")
+    events: list[LifecycleEvent] = Field(description="Lifecycle transitions caused by this request.")
+    ai_suggestion: AISuggestion | None = Field(
+        default=None, description="Observe only: send a frame to /api/analyze/frame with this trigger (AI configured and allowed now)."
+    )
 
 
 class CreateScanRequest(BaseModel):
     personality: Personality = Personality.SERIOUS
+
+
+class ObserveRequest(BaseModel):
+    """A local observation: the scene model only, no image."""
+
+    scan_id: str | None = None
+    personality: Personality | None = None
+    scene: SceneModel
+
+
+class SceneAnalysisRequest(BaseModel):
+    """One-shot local analysis of a scene model (Image Debug without AI)."""
+
+    personality: Personality = Personality.SERIOUS
+    scene: SceneModel
 
 
 TimelineKind = Literal[
@@ -185,7 +243,7 @@ class TimelineEvent(BaseModel):
     severity: Severity
     finding_id: str | None = None
     text: str
-    source: Literal["ai", "demo", "local"]
+    source: Source
 
 
 class VideoKeyframe(BaseModel):
@@ -210,6 +268,7 @@ class VideoSamplingStats(BaseModel):
     scenes: int
     redundant_removed: int
     keyframes: int
+    tracked_objects: int = 0
 
 
 class VideoReport(BaseModel):
@@ -220,12 +279,25 @@ class VideoReport(BaseModel):
     keyframes: list[VideoKeyframe]
 
 
+AIState = Literal["off", "ready", "unverified", "unavailable"]
+
+
 class AIStatus(BaseModel):
-    provider: str
+    provider: str = Field(description="none, gemini, claude or openai.")
     model: str | None
     configured: bool
-    simulated: bool
+    state: AIState = Field(description="off = local-only; unverified = configured, not called yet; ready = last call worked; unavailable = last call failed.")
     detail: str
+    fallback: str | None = Field(default=None, description="Explicitly configured fallback provider, if any.")
+    last_error: ErrorInfo | None = None
+
+
+class LocalStatus(BaseModel):
+    engine: str
+    rules: list[str]
+    labels: int = Field(description="Object classes known to the ontology.")
+    attributes: list[str]
+    detectors: list[str]
 
 
 class HealthResponse(BaseModel):
@@ -233,6 +305,7 @@ class HealthResponse(BaseModel):
     version: str
     time: datetime
     ai: AIStatus
+    local: LocalStatus
     limits: dict[str, int]
     features: dict[str, bool]
 
@@ -242,5 +315,11 @@ class AICheckResponse(BaseModel):
     provider: str
     model: str | None
     latency_ms: int
-    simulated: bool
-    error: dict | None = None
+    error: ErrorInfo | None = None
+
+
+class MetricsResponse(BaseModel):
+    uptime_s: int
+    sessions: int
+    local: dict[str, object]
+    ai: dict[str, object]
