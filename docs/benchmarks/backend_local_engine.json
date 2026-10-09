@@ -1,0 +1,58 @@
+{
+ "description": "Backend local diagnostic pipeline, in-process (FastAPI TestClient), AI_PROVIDER=none. Synthetic scenes (random boxes, COCO labels). Request timings include JSON parsing, validation and response serialisation but no network.",
+ "machine": "Linux x86_64, 4 CPUs, Python 3.13.16",
+ "runs_per_size": 200,
+ "results": [
+  {
+   "objects": 2,
+   "scene_json_bytes": 717,
+   "rule_engine_ms": {
+    "p50": 0.07,
+    "p95": 0.12
+   },
+   "analyze_scene_ms": {
+    "p50": 1.67,
+    "p95": 2.88
+   },
+   "observe_ms": {
+    "p50": 1.98,
+    "p95": 2.5
+   },
+   "findings": 0
+  },
+  {
+   "objects": 10,
+   "scene_json_bytes": 2475,
+   "rule_engine_ms": {
+    "p50": 4.93,
+    "p95": 6.32
+   },
+   "analyze_scene_ms": {
+    "p50": 7.19,
+    "p95": 9.47
+   },
+   "observe_ms": {
+    "p50": 7.31,
+    "p95": 10.56
+   },
+   "findings": 3
+  },
+  {
+   "objects": 25,
+   "scene_json_bytes": 5791,
+   "rule_engine_ms": {
+    "p50": 8.7,
+    "p95": 10.87
+   },
+   "analyze_scene_ms": {
+    "p50": 12.15,
+    "p95": 15.13
+   },
+   "observe_ms": {
+    "p50": 12.32,
+    "p95": 19.77
+   },
+   "findings": 9
+  }
+ ]
+}

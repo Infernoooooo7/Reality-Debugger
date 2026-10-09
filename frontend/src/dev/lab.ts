@@ -4,8 +4,9 @@
  *   npm run dev  ->  /vision-lab.html?images=a.jpg,b.jpg&runs=5&deep=1&tracker=1
  *
  * Images are read from public/test-media/ (git-ignored). Results are printed
- * and exposed as `window.__lab` (the Playwright benchmark reads them and
- * writes docs/benchmarks/). Nothing here is used by the app itself.
+ * and exposed as `window.__lab`; scripts/vision-lab.mjs runs this page in
+ * headless Chromium and saves them (docs/benchmarks/browser_bench.json was
+ * assembled from such runs). Nothing here is used by the app itself.
  */
 import { DETECTION } from '../config'
 import { vision } from '../vision/client'

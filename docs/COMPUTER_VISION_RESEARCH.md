@@ -177,6 +177,16 @@ The clutter rule counts loose objects and their union area. That is a deliberate
 - If the camera moved to another view, or an involved object left through the frame edge, the finding is *out of view*, not resolved.
 - Track-id changes (lost and re-acquired) are bridged by the same rule + same labels + overlapping box.
 
+**Cost of the local engine** (`tools/bench_local_engine.py`, in-process, 4-core x86 container; `docs/benchmarks/backend_local_engine.json`):
+
+| Objects in scene | Scene model | Rule engine (p50) | `/api/scan/observe` incl. lifecycle (p50) |
+|---|---|---|---|
+| 2 | 0.7 KB | 0.07 ms | 2.0 ms |
+| 10 | 2.5 KB | 4.9 ms | 7.3 ms |
+| 25 | 5.8 KB | 8.7 ms | 12.3 ms |
+
+Live Scan sends one such observation every 1.5 s instead of an image.
+
 ---
 
 ## 6. Frame signals and video

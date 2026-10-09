@@ -18,7 +18,7 @@
       "unit": "frames/s",
       "purpose": "Upper bound on detector frames per second (user-selectable in Instrument settings).",
       "source": "empirical",
-      "ref": "Measured 75-110 ms per frame for the CPU (WASM) delegate in headless Chromium; 10 fps keeps the main thread free on phones."
+      "ref": "Measured 63-113 ms per frame for the CPU (WASM) delegate in headless Chromium on a 4-core CPU (docs/benchmarks/browser_bench.json); 10 fps keeps the main thread free on phones."
     },
     "grabWidth": {
       "value": 480,
@@ -40,7 +40,7 @@
       "options": ["auto", "off"],
       "purpose": "auto = load on first use (Image Debug, Deep Scan, video keyframes, live ambiguity checks); off = never download it.",
       "source": "heuristic",
-      "ref": "Model (35.9 MB) + ONNX Runtime WebAssembly (28.3 MB) are only fetched when needed."
+      "ref": "Model (35.9 MB) + ONNX Runtime (14.2 MB WebAssembly build, or 26.8 MB WebGPU build) are only fetched when needed."
     },
     "backend": {
       "value": "auto",

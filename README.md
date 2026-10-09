@@ -200,7 +200,7 @@ default `http://127.0.0.1:8000`), `PORT` (5173), `HTTPS_CERT`/`HTTPS_KEY`,
 `VITE_API_BASE` (call a backend directly instead of the proxy).
 
 **Cost:** without a key there is none. With AI on, one live-scan call is one
-≤ 1280 px JPEG plus the scene model as text. Automatic calls are limited in
+frame (downscaled to ≤ 1024 px for the model) plus the scene model as text. Automatic calls are limited in
 four ways:
 - a 15 s cooldown;
 - at most 6 per minute per scan;
@@ -319,9 +319,12 @@ python tools/fetch_models.py --check
 **Benchmarks.** `npm run dev`, then open
 `/vision-lab.html?images=a.jpg,b.jpg&runs=5` with images placed in
 `frontend/public/test-media/` (git-ignored). It times both detectors and the
-tracker in your browser and exposes the results as `window.__lab`. Recorded
-results are in [`docs/benchmarks/`](docs/benchmarks/). The detector accuracy
-evaluation is `tools/eval_detectors.py`; see its docstring.
+tracker in your browser and exposes the results as `window.__lab`;
+`node scripts/vision-lab.mjs "<that URL>" out.json` (in `frontend/`) runs it in
+headless Chromium and saves them. Recorded results are in
+[`docs/benchmarks/`](docs/benchmarks/). The backend's local engine is
+timed by `tools/bench_local_engine.py`, and the detector accuracy evaluation is
+`tools/eval_detectors.py`; see their docstrings.
 
 ---
 
