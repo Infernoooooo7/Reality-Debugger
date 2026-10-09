@@ -285,6 +285,20 @@ def test_unknown_route_uses_error_envelope(client: TestClient) -> None:
     assert res.json()["error"]["code"] == "NOT_FOUND"
 
 
+def test_serves_built_frontend_when_configured(tmp_path) -> None:
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("<!doctype html><title>Reality Debugger</title>")
+    (tmp_path / "assets" / "vision.wasm").write_bytes(b"\0asm\x01\0\0\0")
+    with TestClient(create_app(make_settings(frontend_dist=tmp_path))) as client:
+        page = client.get("/")
+        assert page.status_code == 200 and "<title>Reality Debugger</title>" in page.text
+        assert client.get("/assets/vision.wasm").headers["content-type"] == "application/wasm"
+        assert client.get("/api/health").json()["status"] == "ok"
+        missing = client.get("/api/nope")
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "NOT_FOUND"
+
+
 def test_no_stack_traces_leak(monkeypatch) -> None:
     async def boom(*args, **kwargs):
         raise RuntimeError("secret internal detail")

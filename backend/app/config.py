@@ -98,6 +98,11 @@ class Settings(BaseSettings):
     # Allow any localhost / private-LAN origin (phones on the same Wi-Fi).
     cors_allow_lan: bool = True
 
+    # --- Single-service deployment -----------------------------------------
+    # Built frontend (frontend/dist). When set, this server also serves the
+    # app itself, so one process and one URL host everything (see Dockerfile).
+    frontend_dist: Path | None = None
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
@@ -112,7 +117,7 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("openai_base_url", "openai_model", "anthropic_base_url", mode="before")
+    @field_validator("openai_base_url", "openai_model", "anthropic_base_url", "frontend_dist", mode="before")
     @classmethod
     def _blank_str_is_none(cls, value: object) -> object:
         if isinstance(value, str) and not value.strip():

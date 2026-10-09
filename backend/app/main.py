@@ -7,12 +7,14 @@ Interactive API docs: http://localhost:8000/api/docs
 from __future__ import annotations
 
 import logging
+import mimetypes
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api import analyze, health, image, scan, video
@@ -21,6 +23,11 @@ from app.errors import register_exception_handlers
 from app.middleware import AccessLogMiddleware, BodySizeLimitMiddleware
 from app.services.ai_service import AIService
 from app.services.scan_store import ScanStore
+
+# Slim container images ship without /etc/mime.types; browsers need these to
+# compile WebAssembly while streaming and to run module workers.
+mimetypes.add_type("application/wasm", ".wasm")
+mimetypes.add_type("text/javascript", ".js")
 
 _SECRET_RE = re.compile(r"(sk-[A-Za-z0-9_\-]{8,}|sk-ant-[A-Za-z0-9_\-]{8,})")
 
@@ -100,14 +107,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     for router in (health.router, analyze.router, image.router, video.router, scan.router):
         app.include_router(router, prefix="/api")
 
-    @app.get("/", include_in_schema=False)
-    async def root() -> dict[str, str]:
-        return {
-            "name": "Reality Debugger API",
-            "docs": "/api/docs",
-            "health": "/api/health",
-            "frontend": "Run the frontend (npm run dev) and open http://localhost:5173",
-        }
+    dist = settings.frontend_dist
+    if dist is not None and (dist / "index.html").is_file():
+        # Single-service deployment: the built frontend shares this origin, so
+        # /api needs no CORS and the camera works on the same HTTPS URL.
+        app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")
+        log.info("Serving the frontend from %s", dist)
+    else:
+
+        @app.get("/", include_in_schema=False)
+        async def root() -> dict[str, str]:
+            return {
+                "name": "Reality Debugger API",
+                "docs": "/api/docs",
+                "health": "/api/health",
+                "frontend": "Run the frontend (npm run dev) and open http://localhost:5173",
+            }
 
     return app
 

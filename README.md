@@ -116,6 +116,25 @@ Notes:
 
 ---
 
+## Deploy (one public HTTPS URL)
+
+The root `Dockerfile` builds the frontend and serves it from the backend
+(`FRONTEND_DIST`), so the whole app is one service on one origin: no CORS, and
+the camera works because the host provides HTTPS.
+
+```bash
+docker build -t reality-debugger .
+docker run -p 8000:8000 --env-file .env reality-debugger   # http://localhost:8000
+```
+
+On **Render**: New → Web Service → this repository → runtime **Docker**. Add
+`ANTHROPIC_API_KEY` under Environment for real diagnostics (otherwise DEMO
+MODE). Free instances sleep when idle, so the first visit can take about a
+minute. Anyone with the URL can use the app, so keep it private once a key is
+set: every analysis is billed to that key.
+
+---
+
 ## What you can do
 
 | Mode | What happens |
