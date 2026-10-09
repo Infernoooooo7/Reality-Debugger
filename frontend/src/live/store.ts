@@ -6,6 +6,8 @@ export type Phase = 'booting' | 'running' | 'paused' | 'deep' | 'error' | 'ended
 
 export type Living =
   | 'STABLE'
+  | 'LIMITED'
+  | 'INCONCLUSIVE'
   | 'MONITORING'
   | 'ANOMALY'
   | 'INVESTIGATING'
@@ -154,6 +156,8 @@ export const useLive = create<LiveStore>((set) => ({
 
 export const LIVING_TEXT: Record<Living, string> = {
   STABLE: 'System stable',
+  LIMITED: 'Limited inspection',
+  INCONCLUSIVE: 'Inconclusive',
   MONITORING: 'Monitoring',
   ANOMALY: 'Anomaly detected',
   INVESTIGATING: 'AI reasoning…',

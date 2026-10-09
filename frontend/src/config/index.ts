@@ -35,6 +35,7 @@ export interface VisionConfig {
     liveCooldownMs: number
     liveMaxLatencyMs: number
     videoBudgetMs: number
+    tiling: { enabled: boolean; minLongSide: number; maxGrid: number; overlap: number; mergeIou: number; timeBudgetMs: number }
   }
   capture: {
     aiFrameMaxEdge: number

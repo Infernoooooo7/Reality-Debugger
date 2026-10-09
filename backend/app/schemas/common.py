@@ -45,9 +45,14 @@ class FindingStatus(str, Enum):
 
 
 class SystemStatus(str, Enum):
+    """Headline status. STABLE ("no issues found") needs sufficient inspection coverage;
+    LIMITED and INCONCLUSIVE say that the inspection cannot support an all-clear."""
+
     STABLE = "STABLE"
     DEGRADED = "DEGRADED"
     CRITICAL = "CRITICAL"
+    LIMITED = "LIMITED"
+    INCONCLUSIVE = "INCONCLUSIVE"
 
 
 class Personality(str, Enum):

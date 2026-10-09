@@ -260,13 +260,15 @@ export function Home() {
             </div>
             <div className="world__row">
               <span className="world__score" style={{ color: scoreColor(latest?.score) }}>
-                {latest ? pad2(latest.score) : '—'}
+                {latest?.score != null ? pad2(latest.score) : '—'}
               </span>
               <div className="world__meter">
-                <Meter value={latest ? latest.score / 100 : null} color={scoreColor(latest?.score)} label="World status" />
+                <Meter value={latest?.score != null ? latest.score / 100 : null} color={scoreColor(latest?.score)} label="World status" />
                 <span className="t-data">
                   {latest
-                    ? critical
+                    ? latest.score === null
+                      ? `LAST SCAN UNRATED · ${latest.status === 'LIMITED' ? 'LIMITED INSPECTION' : latest.status}`
+                      : critical
                       ? `${critical} CRITICAL FAILURE${critical > 1 ? 'S' : ''} ON RECORD`
                       : 'NO CRITICAL FAILURES'
                     : 'NO SCANS YET · RUN ONE TO CALIBRATE'}
@@ -277,8 +279,8 @@ export function Home() {
               <ol className="history">
                 {history.slice(0, 5).map((h) => (
                   <li key={h.id}>
-                    <span className="t-data history__score" style={{ color: scoreColor(h.score) }}>
-                      {pad2(h.score)}
+                    <span className="t-data history__score" style={{ color: scoreColor(h.score) }} title={h.score === null ? `unrated (${h.status})` : undefined}>
+                      {h.score === null ? '--' : pad2(h.score)}
                     </span>
                     <span className="history__name">{h.systemName}</span>
                     <span className="t-data t-muted">

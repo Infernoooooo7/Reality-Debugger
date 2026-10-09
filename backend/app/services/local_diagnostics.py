@@ -103,6 +103,8 @@ class LocalDiagnosticEngine:
         self.near_gap = float(config.get("diagnostics.proximity.nearRelativeGap"))
         self.occluded_fraction = float(config.get("temporal.occlusion.occludedFraction"))
         self.persistence_full_ms = float(config.get("diagnostics.confidence.persistenceFullMs"))
+        self.min_evidence = {"fast": float(config.get("diagnostics.confidence.minEvidenceFast")),
+                             "deep": float(config.get("diagnostics.confidence.minEvidenceDeep"))}
         self._rules: list[tuple[str, Callable[..., list[LocalFinding]]]] = [
             ("spill_risk", self._spill_risk),
             ("food_near_electronics", self._food_near_electronics),
@@ -111,9 +113,10 @@ class LocalDiagnosticEngine:
             ("edge_placement", self._edge_placement),
             ("animal_near_equipment", self._animal_near_equipment),
             ("cable_congestion", self._cable_congestion),
-            ("clutter", self._clutter),
+            ("dense_region", self._dense_region),
             ("surface_congestion", self._surface_congestion),
-            ("overlap_stack", self._overlap_stack),
+            ("overlap_cluster", self._overlap_cluster),
+            ("keep_clear_zone", self._keep_clear_zone),
             ("persistent_occlusion", self._persistent_occlusion),
             ("view_obstruction", self._view_obstruction),
             ("lighting", self._lighting),
@@ -186,6 +189,7 @@ class LocalDiagnosticEngine:
     ) -> list[LocalFinding]:
         """Run every enabled rule. ``timers`` (live sessions) remembers since when
         a duration-based condition has held; one-shot analyses pass ``None``."""
+        scene, _ = self.evidence(scene, mode)
         findings: list[LocalFinding] = []
         for name, rule in self._rules:
             if not self._p(name, "enabled", True):
@@ -193,6 +197,20 @@ class LocalDiagnosticEngine:
             findings.extend(rule(scene, mode=mode, personality=personality, timers=timers))
         findings.sort(key=lambda f: (-_severity_rank(f.severity), -f.confidence))
         return findings
+
+    def evidence(self, scene: SceneModel, mode: AnalysisMode) -> tuple[SceneModel, list[SceneObject]]:
+        """The scene the rules may use as evidence, and the objects set aside.
+
+        A single photo has no temporal confirmation, so its objects support a finding only when their
+        detections are more likely right than wrong on held-out data (config diagnostics.confidence
+        minEvidence*). Tracked scenes (live, deep scan, video) keep every object: persistence is their evidence.
+        """
+        if mode in TEMPORAL_MODES:
+            return scene, []
+        weak = [o for o in scene.objects if o.confidence < self.min_evidence["fast" if o.source == "fast" else "deep"]]
+        if not weak:
+            return scene, []
+        return scene.model_copy(update={"objects": [o for o in scene.objects if o not in weak]}), weak
 
     # -- helpers ----------------------------------------------------------------
 
@@ -217,7 +235,7 @@ class LocalDiagnosticEngine:
         return round(min(1.0, base * factor), 3)
 
     def _countable(self, scene: SceneModel) -> list[SceneObject]:
-        excluded = set(self._p("clutter", "excludeAttributes", []))  # type: ignore[arg-type]
+        excluded = set(self._p("dense_region", "excludeAttributes", []))  # type: ignore[arg-type]
         return [o for o in scene.objects if not (self.ontology.attributes(o.label) & excluded)]
 
     def _closest(self, obj: SceneObject, others: Sequence[SceneObject]) -> tuple[SceneObject, geo.Proximity] | None:
@@ -485,31 +503,53 @@ class LocalDiagnosticEngine:
 
     # -- density / layout ----------------------------------------------------------------
 
-    def _clutter(self, scene: SceneModel, *, mode: AnalysisMode, personality: Personality, **_: object) -> list[LocalFinding]:
+    def _dense_region(self, scene: SceneModel, *, mode: AnalysisMode, personality: Personality, **_: object) -> list[LocalFinding]:
+        """Several recognised loose objects within a small radius: a measured concentration, not a
+        verdict on tidiness (a count alone says nothing about arrangement)."""
         items = self._countable(scene)
-        low = int(self._p("clutter", "minCountLow"))  # type: ignore[arg-type]
-        medium = int(self._p("clutter", "minCountMedium"))  # type: ignore[arg-type]
-        if len(items) < low:
+        need = int(self._p("dense_region", "minObjects"))  # type: ignore[arg-type]
+        radius = float(self._p("dense_region", "radius"))  # type: ignore[arg-type]
+        if len(items) < need:
             return []
-        occ = geo.occupancy([o.box for o in items])
-        labels = sorted({o.label for o in items})
+        w, h = float(scene.width or 1), float(scene.height or 1)
+        diag = (w * w + h * h) ** 0.5
+        centres = [geo.center(o.box) for o in items]
+
+        def dist(i: int, j: int) -> float:
+            return (((centres[i][0] - centres[j][0]) * w) ** 2 + ((centres[i][1] - centres[j][1]) * h) ** 2) ** 0.5 / diag
+
+        best: list[int] = []
+        for i in range(len(items)):
+            group = [j for j in range(len(items)) if dist(i, j) <= radius]
+            if len(group) > len(best):
+                best = group
+        if len(best) < need:
+            return []
+        group = [items[j] for j in best]
+        region = geo.union_box([o.box for o in group])
+        share = geo.area(region) if region else 0.0
+        labels = sorted({o.label for o in group})
         return [LocalFinding(
-            key="clutter:scene",
-            rule="clutter",
-            severity=Severity.MEDIUM if len(items) >= medium else Severity.LOW,
+            key="dense_region:" + "+".join(sorted(o.id for o in group)),
+            rule="dense_region",
+            severity=self._sev("dense_region"),
             category=Category.ORGANIZATION,
-            title=_voice(personality, f"Cluttered area: {len(items)} loose items", f"{len(items)} items, zero strategy", f"MEMORY LEAK: {len(items)} objects allocated, none freed"),
-            evidence=f"{len(items)} loose objects are tracked in view ({', '.join(labels[:6])}{'...' if len(labels) > 6 else ''}); "
-                     f"together they cover {pct(occ)} of the frame.",
-            inference="Many small items share one area.",
-            impact="Harder to find things and to keep the surface clean.",
-            recommendation="Clear everything not needed for the current task and give the rest a fixed place.",
-            confidence=self._confidence(items, mode),
-            quip=_quip(personality, "Organised chaos, minus the organised.", "Garbage collector not found."),
-            box=geo.union_box([o.box for o in items]),
-            object_ids=[o.id for o in items],
+            title=_voice(personality, f"{len(group)} recognised items concentrated in one area",
+                         f"{len(group)} things fighting for the same patch of space", f"HOTSPOT: {len(group)} processes on one core"),
+            evidence=f"{len(group)} of the {len(items)} recognised loose objects ({', '.join(labels[:6])}{'...' if len(labels) > 6 else ''}) "
+                     f"have their centres within {radius * 100:.0f}% of the frame diagonal of each other; together they span "
+                     f"{pct(share)} of the frame.",
+            inference="Items are concentrated in this area. Whether that is a problem depends on how the space is used; "
+                      "unrecognised items are not counted.",
+            impact="Items in a crowded area are harder to reach and easier to knock over.",
+            recommendation="If these items are not all in use, give some of them a place elsewhere.",
+            confidence=self._confidence(group, mode),
+            quip=_quip(personality, "Prime real estate, fully booked.", "Load balancer not found."),
+            box=region,
+            object_ids=[o.id for o in group],
             related_objects=labels[:8],
-            measurements={"objects": len(items), "occupancy": round(occ, 3)},
+            measurements={"objects_in_region": len(group), "recognised_loose_objects": len(items),
+                          "radius_of_diagonal": round(radius, 3), "region_share": round(share, 3)},
         )]
 
     def _surface_congestion(self, scene: SceneModel, *, mode: AnalysisMode, personality: Personality, **_: object) -> list[LocalFinding]:
@@ -545,36 +585,92 @@ class LocalDiagnosticEngine:
             ))
         return out
 
-    def _overlap_stack(self, scene: SceneModel, *, mode: AnalysisMode, personality: Personality, **_: object) -> list[LocalFinding]:
+    def _overlap_cluster(self, scene: SceneModel, *, mode: AnalysisMode, personality: Personality, **_: object) -> list[LocalFinding]:
+        """Groups of recognised objects whose boxes overlap each other (connected by intersection over
+        the smaller box). In a 2-D photo, overlap can mean stacked, touching or merely in front of."""
         items = self._countable(scene)
-        min_iou = float(self._p("overlap_stack", "minIou"))  # type: ignore[arg-type]
-        need = int(self._p("overlap_stack", "minPairs"))  # type: ignore[arg-type]
-        pairs = []
+        min_ios = float(self._p("overlap_cluster", "minIntersectionOverSmaller"))  # type: ignore[arg-type]
+        need = int(self._p("overlap_cluster", "minObjects"))  # type: ignore[arg-type]
+        parent = list(range(len(items)))
+
+        def find(i: int) -> int:
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = parent[i]
+            return i
+
+        strongest: dict[int, float] = {}
         for i, a in enumerate(items):
-            for b in items[i + 1:]:
-                v = geo.iou(a.box, b.box)
-                if v >= min_iou:
-                    pairs.append((a, b, v))
-        if len(pairs) < need:
-            return []
-        involved = {o.id: o for a, b, _ in pairs for o in (a, b)}
-        return [LocalFinding(
-            key="overlap_stack:scene",
-            rule="overlap_stack",
-            severity=self._sev("overlap_stack"),
-            category=Category.ORGANIZATION,
-            title=_voice(personality, "Items stacked on top of each other", "Stack overflow, physical edition", "STACK OVERFLOW at 0xDESK"),
-            evidence=f"{len(pairs)} pairs of objects overlap with IoU >= {min_iou:.2f} (max {max(v for *_, v in pairs):.2f}).",
-            inference="Items are piled or pushed against each other.",
-            impact="Things get knocked over or buried.",
-            recommendation="Spread the items out or give them a container.",
-            confidence=self._confidence(list(involved.values()), mode),
-            quip=_quip(personality, "Tetris, but nobody is winning.", "Recursion depth exceeded."),
-            box=geo.union_box([o.box for o in involved.values()]),
-            object_ids=list(involved),
-            related_objects=sorted({o.label for o in involved.values()})[:6],
-            measurements={"overlapping_pairs": len(pairs), "max_iou": round(max(v for *_, v in pairs), 3)},
-        )]
+            for j in range(i + 1, len(items)):
+                b = items[j]
+                ios = max(geo.containment(a.box, b.box), geo.containment(b.box, a.box))
+                if ios >= min_ios:
+                    parent[find(i)] = find(j)
+                    strongest[i] = max(strongest.get(i, 0.0), ios)
+                    strongest[j] = max(strongest.get(j, 0.0), ios)
+        groups: dict[int, list[int]] = {}
+        for i in range(len(items)):
+            groups.setdefault(find(i), []).append(i)
+        out = []
+        for members in groups.values():
+            if len(members) < need:
+                continue
+            group = [items[i] for i in members]
+            region = geo.union_box([o.box for o in group])
+            labels = sorted({o.label for o in group})
+            out.append(LocalFinding(
+                key="overlap_cluster:" + "+".join(sorted(o.id for o in group)),
+                rule="overlap_cluster",
+                severity=self._sev("overlap_cluster"),
+                category=Category.ORGANIZATION,
+                title=_voice(personality, f"{len(group)} recognised items overlap each other", "Stack overflow, physical edition",
+                             "STACK OVERFLOW at 0xDESK"),
+                evidence=f"{len(group)} recognised objects ({', '.join(labels[:6])}) form one group of overlapping boxes "
+                         f"(each overlaps another by at least {min_ios * 100:.0f}% of the smaller box); the group spans "
+                         f"{pct(geo.area(region) if region else 0.0)} of the frame.",
+                inference="In a single photo, overlap can mean the items are stacked, touching or just in front of each "
+                          "other; the image alone cannot tell which.",
+                impact="If the items are piled up, things get knocked over or buried.",
+                recommendation="If these items are stacked, give them separate places or a container.",
+                confidence=self._confidence(group, mode),
+                quip=_quip(personality, "Tetris, but nobody is winning.", "Recursion depth exceeded."),
+                box=region,
+                object_ids=[o.id for o in group],
+                related_objects=labels[:6],
+                measurements={"objects": len(group), "max_overlap_of_smaller": round(max(strongest[i] for i in members), 3)},
+            ))
+        return out
+
+    def _keep_clear_zone(self, scene: SceneModel, *, mode: AnalysisMode, personality: Personality, **_: object) -> list[LocalFinding]:
+        """Recognised objects inside an area the user asked to keep clear."""
+        inside_min = float(self._p("keep_clear_zone", "minInsideFraction"))  # type: ignore[arg-type]
+        out = []
+        for zone in scene.zones:
+            inside = [o for o in scene.objects if geo.containment(o.box, zone.box) >= inside_min]
+            if not inside:
+                continue
+            covered = geo.occupancy([o.box for o in inside], within=zone.box)
+            labels = sorted({o.label for o in inside})
+            out.append(LocalFinding(
+                key=f"keep_clear_zone:{zone.id}",
+                rule="keep_clear_zone",
+                severity=self._sev("keep_clear_zone"),
+                category=Category.ORGANIZATION,
+                title=_voice(personality, f"Items inside the keep-clear area \"{zone.name}\"",
+                             f"\"{zone.name}\" was supposed to be empty", f"ACCESS VIOLATION in reserved region \"{zone.name}\""),
+                evidence=f"{len(inside)} recognised object(s) ({', '.join(labels[:6])}) lie at least {inside_min * 100:.0f}% inside the area "
+                         f"\"{zone.name}\" and cover {pct(covered)} of it.",
+                inference="The area you marked to stay clear is occupied. Unrecognised items in it are not counted.",
+                impact="The space you reserved is not available for its purpose.",
+                recommendation=f"Move {', '.join(labels[:3])} out of \"{zone.name}\".",
+                confidence=self._confidence(inside, mode),
+                quip=_quip(personality, "Reserved means reserved.", "Segmentation fault: wrong memory region."),
+                box=zone.box,
+                object_ids=[o.id for o in inside],
+                related_objects=labels[:6],
+                measurements={"objects_inside": len(inside), "zone_covered": round(covered, 3)},
+            ))
+        return out
 
     # -- temporal / signal rules ------------------------------------------------------------
 
@@ -785,8 +881,9 @@ def scene_name(scene: SceneModel, ontology: Ontology) -> str:
     return "SCENE" if scene.objects else "UNKNOWN_SPACE"
 
 
-def version_for(score: int) -> str:
-    return f"{1 + score // 25}.{score % 10}"
+def version_for(score: int | None) -> str:
+    """Cosmetic 'system version' shown next to the scene name; '?' while the scene is unrated."""
+    return "?" if score is None else f"{1 + score // 25}.{score % 10}"
 
 
 def summary_text(scene: SceneModel, finding_count: int) -> str:
@@ -802,19 +899,49 @@ def summary_text(scene: SceneModel, finding_count: int) -> str:
     )
 
 
-def final_diagnosis(personality: Personality, findings: Sequence[LocalFinding], object_count: int) -> str:
+_REASON_ORDER = ("detection_failed", "detection_not_run", "nothing_recognised", "detector_not_used", "fast_detector_only",
+                 "runs_unreported", "too_dark", "too_blurred", "downscaled", "low_confidence", "unexplained_structure",
+                 "structure_unmeasured", "closed_vocabulary")
+
+
+def _main_reasons(inspection: object, limit: int = 2) -> str:
+    reasons = sorted(getattr(inspection, "reasons", []), key=lambda r: _REASON_ORDER.index(r.code) if r.code in _REASON_ORDER else 99)
+    return " ".join(r.message for r in reasons[:limit])
+
+
+def final_diagnosis(personality: Personality, findings: Sequence[LocalFinding], object_count: int, inspection: object | None = None) -> str:
+    """The one-paragraph conclusion. The facts (counts, coverage, reasons) are the same in every
+    personality; only the opening line changes."""
     active = [f for f in findings if f.severity != Severity.INFO]
-    if not active:
-        return _voice(
+    status = getattr(inspection, "analysis_status", "complete") if inspection is not None else "complete"
+    categories = len(getattr(inspection, "categories", []) or [])
+    if status == "detection_failed":
+        opener = _voice(personality, "Detection failed.", "The detectors never got a look in.", "SEGFAULT in the vision stack.")
+        return f"{opener} {_main_reasons(inspection)} Nothing in this scene was examined, so no conclusion is possible."
+    if status == "inconclusive":
+        opener = _voice(personality, "Inconclusive.", "Can't call this one.", "TEST RESULT: UNDEFINED.")
+        lead = f"{len(active)} issue(s) were found, but " if active else ""
+        return f"{opener} {lead}{_main_reasons(inspection)} There is not enough evidence to judge the scene."
+    if active:
+        top = active[0]
+        text = _voice(
             personality,
-            "No measurable issues found by the local checks." if object_count else "No objects detected - nothing to measure.",
-            "Suspiciously clean. The local checks found nothing to roast." if object_count else "Nothing detected. Either it's spotless or the lens cap is on.",
-            "ALL TESTS PASSED (local suite). Ship it." if object_count else "NULL SCENE: zero objects returned.",
+            f"{len(active)} open issue(s). Start with: {top.title[0].lower() + top.title[1:]}.",
+            f"{len(active)} issue(s). Fix this first: {top.title[0].lower() + top.title[1:]}.",
+            f"{len(active)} FAILING TEST(S). First failure: {top.title}.",
         )
-    top = active[0]
+        if status == "limited":
+            text += f" The inspection is limited, so other issues may exist: {_main_reasons(inspection, 1)}"
+        return text
+    if status == "limited":
+        opener = _voice(personality, "No issues found among the recognised objects - but this is not an all-clear.",
+                        "Nothing to roast among what I could actually recognise. That's not much of a compliment.",
+                        "0 FAILURES in a partial test run. Coverage report attached.")
+        what = f"{object_count} object(s) in {categories} categor{'y' if categories == 1 else 'ies'} were recognised." if object_count else "No object was recognised."
+        return f"{opener} {what} {_main_reasons(inspection)}"
     return _voice(
         personality,
-        f"{len(active)} open issue(s). Start with: {top.title[0].lower() + top.title[1:]}.",
-        f"{len(active)} issue(s). Fix this first: {top.title[0].lower() + top.title[1:]}.",
-        f"{len(active)} FAILING TEST(S). First failure: {top.title}.",
+        "No measurable issues found by the local checks." if object_count else "No objects detected - nothing to measure.",
+        "Suspiciously clean. The local checks found nothing to roast." if object_count else "Nothing detected. Either it's spotless or the lens cap is on.",
+        "ALL TESTS PASSED (local suite). Ship it." if object_count else "NULL SCENE: zero objects returned.",
     )

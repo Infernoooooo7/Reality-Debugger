@@ -1,0 +1,132 @@
+{
+ "schema_version": 1,
+ "task": "detection-mosaic-tiling",
+ "date": "2026-10-09T17:47:54Z",
+ "model": {
+  "id": "yolox_s",
+  "name": "YOLOX-S",
+  "version": "0.1.1rc0",
+  "weights_sha256": "c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063"
+ },
+ "dataset": {
+  "id": "coco_val2017",
+  "split": "first 360 images by id as 40 3x3 mosaics (1920x1920)",
+  "images": 40,
+  "instances": 2666
+ },
+ "config": {
+  "detector": "deployed (config/detection.json deep.*)",
+  "grid": 3,
+  "tile_px": 739,
+  "overlap": 0.2,
+  "operating_threshold": 0.3
+ },
+ "config_name": "grid3",
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v80",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "3"
+ },
+ "metrics": {
+  "full": {
+   "coco": {
+    "AP": 18.75,
+    "AP50": 28.03,
+    "AP75": 20.2,
+    "APs": 1.86,
+    "APm": 15.84,
+    "APl": 40.22,
+    "AR1": 16.53,
+    "AR10": 21.59,
+    "AR100": 21.7,
+    "ARs": 1.79,
+    "ARm": 18.34,
+    "ARl": 45.49
+   },
+   "at_operating_threshold": {
+    "threshold": 0.3,
+    "precision": 0.7428,
+    "recall": 0.2611,
+    "f1": 0.3863,
+    "tp": 696,
+    "fp": 241,
+    "fn": 1970
+   },
+   "detections_at_threshold": 944,
+   "ms_per_image_median": 110.6,
+   "passes": 1
+  },
+  "tiled-nmm": {
+   "coco": {
+    "AP": 31.21,
+    "AP50": 46.86,
+    "AP75": 32.81,
+    "APs": 15.53,
+    "APm": 35.46,
+    "APl": 46.14,
+    "AR1": 25.8,
+    "AR10": 37.7,
+    "AR100": 38.14,
+    "ARs": 17.17,
+    "ARm": 41.09,
+    "ARl": 55.97
+   },
+   "at_operating_threshold": {
+    "threshold": 0.3,
+    "precision": 0.6587,
+    "recall": 0.4857,
+    "f1": 0.5592,
+    "tp": 1295,
+    "fp": 671,
+    "fn": 1371
+   },
+   "detections_at_threshold": 2109,
+   "ms_per_image_median": 1121.0,
+   "passes": null
+  },
+  "tiled-nms": {
+   "coco": {
+    "AP": 36.86,
+    "AP50": 52.62,
+    "AP75": 38.94,
+    "APs": 18.91,
+    "APm": 40.54,
+    "APl": 53.38,
+    "AR1": 28.11,
+    "AR10": 43.68,
+    "AR100": 44.56,
+    "ARs": 21.05,
+    "ARm": 48.15,
+    "ARl": 62.9
+   },
+   "at_operating_threshold": {
+    "threshold": 0.3,
+    "precision": 0.6302,
+    "recall": 0.5529,
+    "f1": 0.589,
+    "tp": 1474,
+    "fp": 865,
+    "fn": 1192
+   },
+   "detections_at_threshold": 2502,
+   "ms_per_image_median": 1164.5,
+   "passes": null
+  }
+ },
+ "notes": [
+  "Mosaics put held-out images at native resolution side by side, so a single whole-image pass sees every object at 1/3 scale;",
+  "tiles of the planned browser tiling see them at tile_px/640 of native scale."
+ ],
+ "git_commit": "177afa7+uncommitted"
+}

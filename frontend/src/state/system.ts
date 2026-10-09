@@ -13,7 +13,8 @@ export interface HistoryEntry {
   at: string
   mode: Report['mode']
   systemName: string
-  score: number
+  /** null = UNRATED: the inspection could not justify a scene score */
+  score: number | null
   status: Report['status']
   bugs: number
   topIssue: string | null
@@ -73,7 +74,7 @@ export const useSystem = create<SystemStore>((set, get) => ({
       at: report.created_at,
       mode: report.mode,
       systemName: report.system_name,
-      score: report.system_score,
+      score: report.system_score ?? null,
       status: report.status,
       bugs: report.counts.active_bugs,
       topIssue: top?.title ?? null,

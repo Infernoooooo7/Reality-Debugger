@@ -1,0 +1,130 @@
+{
+ "schema_version": 1,
+ "task": "detection-confidence-bands",
+ "date": "2026-10-09T18:17:00Z",
+ "model": {
+  "id": "efficientdet_lite0,yolox_s",
+  "name": "deployed fast and deep detectors",
+  "version": "deployed"
+ },
+ "dataset": {
+  "id": "coco_val2017",
+  "split": "val2017"
+ },
+ "config": {
+  "detection_threshold": 0.3,
+  "agreement": "same class, IoU >= 0.3 with a fast-detector box",
+  "match": "same class, IoU >= 0.5, greedy by score"
+ },
+ "config_name": "default",
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v80",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "metrics": {
+  "efficientdet_lite0": {
+   "0.3-0.4": {
+    "detections": 5731,
+    "precision": 0.386
+   },
+   "0.4-0.5": {
+    "detections": 3098,
+    "precision": 0.606
+   },
+   "0.5-0.6": {
+    "detections": 3148,
+    "precision": 0.765
+   },
+   "0.6-0.7": {
+    "detections": 2636,
+    "precision": 0.886
+   },
+   "0.7-1.0": {
+    "detections": 5045,
+    "precision": 0.97
+   }
+  },
+  "yolox_s": {
+   "0.3-0.4": {
+    "detections": 4495,
+    "precision": 0.321
+   },
+   "0.4-0.5": {
+    "detections": 3608,
+    "precision": 0.42
+   },
+   "0.5-0.6": {
+    "detections": 3281,
+    "precision": 0.554
+   },
+   "0.6-0.7": {
+    "detections": 3514,
+    "precision": 0.657
+   },
+   "0.7-1.0": {
+    "detections": 15200,
+    "precision": 0.906
+   }
+  },
+  "yolox_s_confirmed_by_both": {
+   "0.3-0.4": {
+    "detections": 821,
+    "precision": 0.408
+   },
+   "0.4-0.5": {
+    "detections": 933,
+    "precision": 0.465
+   },
+   "0.5-0.6": {
+    "detections": 1119,
+    "precision": 0.625
+   },
+   "0.6-0.7": {
+    "detections": 1525,
+    "precision": 0.698
+   },
+   "0.7-1.0": {
+    "detections": 12386,
+    "precision": 0.93
+   }
+  },
+  "yolox_s_deep_only": {
+   "0.3-0.4": {
+    "detections": 3674,
+    "precision": 0.302
+   },
+   "0.4-0.5": {
+    "detections": 2675,
+    "precision": 0.405
+   },
+   "0.5-0.6": {
+    "detections": 2162,
+    "precision": 0.518
+   },
+   "0.6-0.7": {
+    "detections": 1989,
+    "precision": 0.626
+   },
+   "0.7-1.0": {
+    "detections": 2814,
+    "precision": 0.799
+   }
+  }
+ },
+ "notes": [
+  "Precision is a lower bound where COCO leaves objects unannotated."
+ ],
+ "git_commit": "177afa7+uncommitted"
+}

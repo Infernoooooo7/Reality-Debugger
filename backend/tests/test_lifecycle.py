@@ -98,12 +98,15 @@ def test_deep_scan_with_both_detectors_confirms_immediately(client: TestClient) 
 
 
 def test_scores_follow_open_findings(client: TestClient) -> None:
+    # No findings among the recognised objects is not an all-clear: unrated, and the status says why.
     clean = observe(client, None, LAPTOP, at_ms=0)
-    assert clean["scan"]["system_score"] == 100
-    assert clean["scan"]["status"] == "STABLE"
+    assert clean["scan"]["system_score"] is None and clean["scan"]["issue_score"] is None
+    assert clean["scan"]["status"] == "LIMITED"
+    assert clean["scan"]["inspection"]["coverage"] == "limited"
     risky = observe(client, clean["scan"]["scan_id"], LAPTOP, CUP, at_ms=1000)
-    assert risky["scan"]["system_score"] < 100
-    assert risky["scan"]["status"] == "DEGRADED"  # an open HIGH finding
+    assert risky["scan"]["system_score"] is None  # the scene is still not rated (coverage limited)...
+    assert risky["scan"]["issue_score"] < 100  # ...but the measured issues are
+    assert risky["scan"]["status"] == "DEGRADED"  # an open HIGH finding is reported whatever the coverage
     assert risky["report"]["system_name"].endswith(risky["report"]["scene"]["version"])
 
 

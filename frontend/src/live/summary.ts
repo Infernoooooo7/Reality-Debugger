@@ -16,9 +16,12 @@ export function scanToReport(scan: ScanState): Report {
     system_name: scan.system_name ?? 'UNKNOWN_SPACE_v0',
     scene: scan.scene ?? { name: 'UNKNOWN_SPACE', version: '0', summary: '', confidence: 0 },
     status: scan.status,
-    system_score: scan.system_score ?? 0,
+    // null stays null: an unrated scan must not turn into a score of 0 (or 100).
+    system_score: scan.system_score ?? null,
+    issue_score: scan.issue_score ?? null,
     ai_score: null,
     counts: scan.counts,
+    inspection: scan.inspection ?? null,
     objects: [],
     relationships: [],
     findings: scan.findings,

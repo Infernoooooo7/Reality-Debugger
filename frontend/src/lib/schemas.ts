@@ -18,7 +18,12 @@ export const CategorySchema = z.enum([
   'ABSURD',
 ])
 export const FindingStatusSchema = z.enum(['DISCOVERED', 'CONFIRMED', 'TRACKING', 'RESOLVED'])
-export const SystemStatusSchema = z.enum(['STABLE', 'DEGRADED', 'CRITICAL'])
+/**
+ * Headline status (backend/app/schemas/common.py SystemStatus). CRITICAL/DEGRADED come from findings;
+ * LIMITED and INCONCLUSIVE say that the inspection cannot support an all-clear; STABLE needs both no
+ * serious finding and sufficient coverage (docs/SCORING.md).
+ */
+export const SystemStatusSchema = z.enum(['STABLE', 'LIMITED', 'INCONCLUSIVE', 'DEGRADED', 'CRITICAL'])
 export const PersonalitySchema = z.enum(['serious', 'brutal', 'unhinged'])
 export const ModeSchema = z.enum(['live', 'deep', 'image', 'video'])
 export const TriggerSchema = z.enum([
@@ -133,6 +138,49 @@ export const AIRunSchema = z.object({
   error: ErrorBodySchema.nullish(),
 })
 
+export const InspectionReasonSchema = z.object({
+  code: z.string(),
+  level: z.enum(['limited', 'insufficient']),
+  message: z.string(),
+  evidence: z.record(z.string(), z.union([z.number(), z.string(), z.null()])).default({}),
+})
+
+export const DetectorReportSchema = z.object({
+  model: z.string(),
+  role: z.string(),
+  status: z.string(),
+  boxes: z.number().default(0),
+  ms: z.number().nullish(),
+  input_size: z.number().nullish(),
+  passes: z.number().default(1),
+  tile_px: z.number().nullish(),
+  incomplete: z.boolean().default(false),
+  effective_scale: z.number().nullish(),
+  vocabulary: z.number().nullish(),
+  note: z.string().nullish(),
+})
+
+/** What a scan examined and whether that supports a conclusion (backend/app/services/inspection.py). */
+export const InspectionSchema = z.object({
+  analysis_status: z.enum(['complete', 'limited', 'inconclusive', 'detection_failed']),
+  coverage: z.enum(['sufficient', 'limited', 'insufficient']),
+  detection: z.enum(['ok', 'partial', 'failed', 'not_run']),
+  findings: z.enum(['findings', 'no_findings']),
+  reasons: z.array(InspectionReasonSchema).default([]),
+  detectors: z.array(DetectorReportSchema).default([]),
+  objects: z.number().default(0),
+  categories: z.array(z.string()).default([]),
+  confidence: z.record(z.string(), z.number()).nullish(),
+  image: z.record(z.string(), z.number()).nullish(),
+  structure: z.record(z.string(), z.number().nullable()).nullish(),
+  quality: z.record(z.string(), z.number().nullable()).nullish(),
+  vocabulary: z.string().default(''),
+  checks_run: z.array(z.string()).default([]),
+  skipped: z.array(z.object({ analysis: z.string(), reason: z.string() })).default([]),
+  score_rated: z.boolean().default(false),
+  basis: z.string().default('docs/SCORING.md'),
+})
+
 export const ReportSchema = z.object({
   report_id: z.string(),
   created_at: z.string(),
@@ -147,9 +195,13 @@ export const ReportSchema = z.object({
   system_name: z.string(),
   scene: SceneSchema,
   status: SystemStatusSchema,
-  system_score: z.number(),
+  /** Scene condition score; null = UNRATED (the inspection cannot justify a number). */
+  system_score: z.number().nullish(),
+  /** 100 minus the penalties of the open findings; null when there is no finding. */
+  issue_score: z.number().nullish(),
   ai_score: z.number().nullish(),
   counts: CountsSchema,
+  inspection: InspectionSchema.nullish(),
   objects: z.array(DetectedObjectSchema).default([]),
   relationships: z.array(RelationshipSchema).default([]),
   findings: z.array(FindingSchema).default([]),
@@ -187,6 +239,8 @@ export const ScanStateSchema = z.object({
   observations: z.number().default(0),
   status: SystemStatusSchema,
   system_score: z.number().nullish(),
+  issue_score: z.number().nullish(),
+  inspection: InspectionSchema.nullish(),
   system_name: z.string().nullish(),
   scene: SceneSchema.nullish(),
   final_diagnosis: z.string().nullish(),
@@ -305,6 +359,9 @@ export type DetectedObject = z.infer<typeof DetectedObjectSchema>
 export type Relationship = z.infer<typeof RelationshipSchema>
 export type Optimization = z.infer<typeof OptimizationSchema>
 export type Report = z.infer<typeof ReportSchema>
+export type Inspection = z.infer<typeof InspectionSchema>
+export type InspectionReason = z.infer<typeof InspectionReasonSchema>
+export type DetectorReport = z.infer<typeof DetectorReportSchema>
 export type LifecycleEvent = z.infer<typeof LifecycleEventSchema>
 export type ScanState = z.infer<typeof ScanStateSchema>
 export type ScanAnalysis = z.infer<typeof ScanAnalysisSchema>

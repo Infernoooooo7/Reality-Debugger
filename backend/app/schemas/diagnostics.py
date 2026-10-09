@@ -130,6 +130,55 @@ class AIRun(BaseModel):
     error: ErrorInfo | None = None
 
 
+class InspectionReason(BaseModel):
+    code: str
+    level: Literal["limited", "insufficient"]
+    message: str
+    evidence: dict[str, float | int | str | None] = Field(default_factory=dict)
+
+
+class DetectorReport(BaseModel):
+    model: str
+    role: str
+    status: str
+    boxes: int = 0
+    ms: float | None = None
+    input_size: int | None = None
+    passes: int = 1
+    tile_px: int | None = None
+    incomplete: bool = False
+    effective_scale: float | None = Field(default=None, description="Network pixels per source pixel (1 = full detail).")
+    vocabulary: int | None = None
+    note: str | None = None
+
+
+class SkippedAnalysis(BaseModel):
+    analysis: str
+    reason: str
+
+
+class InspectionReport(BaseModel):
+    """What the scan examined and whether that supports a conclusion (docs/SCORING.md)."""
+
+    analysis_status: Literal["complete", "limited", "inconclusive", "detection_failed"]
+    coverage: Literal["sufficient", "limited", "insufficient"]
+    detection: Literal["ok", "partial", "failed", "not_run"]
+    findings: Literal["findings", "no_findings"]
+    reasons: list[InspectionReason] = Field(default_factory=list)
+    detectors: list[DetectorReport] = Field(default_factory=list)
+    objects: int = 0
+    categories: list[str] = Field(default_factory=list)
+    confidence: dict[str, float | int] | None = Field(default=None, description="min / median / max and how many are below 0.5.")
+    image: dict[str, int] | None = None
+    structure: dict[str, float | None] | None = None
+    quality: dict[str, float | None] | None = None
+    vocabulary: str = ""
+    checks_run: list[str] = Field(default_factory=list)
+    skipped: list[SkippedAnalysis] = Field(default_factory=list)
+    score_rated: bool = False
+    basis: str = "docs/SCORING.md"
+
+
 class DiagnosticReport(BaseModel):
     report_id: str
     created_at: datetime
@@ -144,9 +193,11 @@ class DiagnosticReport(BaseModel):
     system_name: str = Field(description="e.g. WORKSPACE_v3.1")
     scene: SceneInfo
     status: SystemStatus
-    system_score: int = Field(ge=0, le=100)
+    system_score: int | None = Field(default=None, ge=0, le=100, description="Scene condition score; null = UNRATED (inspection not sufficient to rate the scene).")
+    issue_score: int | None = Field(default=None, ge=0, le=100, description="100 minus the severity-weighted penalties of the open findings; null when there is no finding.")
     ai_score: int | None = None
     counts: Counts
+    inspection: InspectionReport | None = None
     objects: list[DetectedObject] = Field(default_factory=list)
     relationships: list[Relationship] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
@@ -176,6 +227,8 @@ class ScanState(BaseModel):
     observations: int = Field(default=0, description="Local observations evaluated in this session.")
     status: SystemStatus
     system_score: int | None = None
+    issue_score: int | None = None
+    inspection: InspectionReport | None = None
     system_name: str | None = None
     scene: SceneInfo | None = None
     final_diagnosis: str | None = None

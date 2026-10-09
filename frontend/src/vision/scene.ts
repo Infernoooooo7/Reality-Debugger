@@ -5,6 +5,7 @@
  * signals. Matches backend/app/schemas/scene.py.
  */
 import { TEMPORAL } from '../config'
+import type { StructureStats } from './coverage'
 import type { FusedObject } from './fusion'
 import { roundBox } from './geometry'
 import { isVisible, type FrameResult, type FrameSignals, type NBox, type Track } from './types'
@@ -54,11 +55,57 @@ export interface ScenePayload {
     tentative_tracks: number
     mean_confidence: number | null
     detectors: string[]
+    /** Objects recognised before the payload cap, when more than were sent. */
+    objects_total?: number
+    /** What each detector actually did (status, boxes, resolution); the backend's coverage rules read it. */
+    runs?: DetectorRunPayload[]
+    /** Visible structure the recognised objects explain (vision/coverage.ts). */
+    coverage?: CoveragePayload | null
+  }
+  /** User-defined areas that should stay clear. */
+  zones?: ZonePayload[]
+}
+
+export interface DetectorRunPayload {
+  model: string
+  role: 'fast' | 'deep' | 'server'
+  status: 'ok' | 'failed' | 'skipped' | 'unavailable'
+  boxes: number
+  ms: number | null
+  input_size: number | null
+  passes: number
+  tile_px: number | null
+  /** true when a tiled pass stopped before covering every tile (time budget) */
+  incomplete?: boolean
+  vocabulary: number | null
+  note: string | null
+}
+
+export interface CoveragePayload {
+  edge_density: number
+  unexplained_share: number | null
+  box_coverage: number
+}
+
+export interface ZonePayload {
+  id: string
+  name: string
+  kind: 'keep_clear'
+  box: NBox
+}
+
+export function coveragePayload(stats: StructureStats): CoveragePayload {
+  return {
+    edge_density: r4(stats.edgeDensity),
+    unexplained_share: stats.unexplainedShare === null ? null : r4(stats.unexplainedShare),
+    box_coverage: r4(stats.boxCoverage),
   }
 }
 
-const MAX_OBJECTS = 60
+/** The backend accepts up to 80 objects (backend/app/schemas/scene.py); the most confident are sent. */
+const MAX_OBJECTS = 80
 const r3 = (n: number) => Math.round(n * 1000) / 1000
+const r4 = (n: number) => Math.round(n * 10000) / 10000
 
 export function trackObject(t: Track, now: number): SceneObjectPayload {
   const age = Math.max(0, now - t.firstSeen)
@@ -98,9 +145,19 @@ function signalsPayload(s: FrameSignals): ScenePayload['signals'] {
 
 export function liveScene(
   result: FrameResult,
-  opts: { atMs: number; width: number | null; height: number | null; fps: number | null; events: SceneEventPayload[]; detectors: string[] },
+  opts: {
+    atMs: number
+    width: number | null
+    height: number | null
+    fps: number | null
+    events: SceneEventPayload[]
+    detectors: string[]
+    runs?: DetectorRunPayload[]
+    coverage?: CoveragePayload | null
+  },
 ): ScenePayload {
-  const tracks = visibleTracks(result.tracks).sort((a, b) => b.score - a.score).slice(0, MAX_OBJECTS)
+  const visible = visibleTracks(result.tracks)
+  const tracks = [...visible].sort((a, b) => b.score - a.score).slice(0, MAX_OBJECTS)
   const objects = tracks.map((t) => trackObject(t, result.timestamp))
   const mean = objects.length ? objects.reduce((n, o) => n + o.confidence, 0) / objects.length : null
   return {
@@ -117,16 +174,28 @@ export function liveScene(
       tentative_tracks: result.tracks.filter((t) => t.state === 'tentative').length,
       mean_confidence: mean === null ? null : r3(mean),
       detectors: opts.detectors,
+      objects_total: visible.length,
+      runs: opts.runs ?? [],
+      coverage: opts.coverage ?? null,
     },
   }
 }
 
 export function stillScene(
   objects: FusedObject[],
-  signals: FrameSignals,
-  opts: { width: number | null; height: number | null; detectors: string[]; atMs?: number; viewId?: number },
+  signals: FrameSignals | null,
+  opts: {
+    width: number | null
+    height: number | null
+    detectors: string[]
+    atMs?: number
+    viewId?: number
+    runs?: DetectorRunPayload[]
+    coverage?: CoveragePayload | null
+    zones?: ZonePayload[]
+  },
 ): ScenePayload {
-  const list = objects.slice(0, MAX_OBJECTS).map<SceneObjectPayload>((o) => ({
+  const list = [...objects].sort((a, b) => b.confidence - a.confidence).slice(0, MAX_OBJECTS).map<SceneObjectPayload>((o) => ({
     id: o.id,
     label: o.label,
     confidence: r3(o.confidence),
@@ -151,8 +220,17 @@ export function stillScene(
     width: opts.width,
     height: opts.height,
     objects: list,
-    signals: signalsPayload(signals),
+    signals: signals ? signalsPayload(signals) : { motion: null, brightness: null, sharpness: null, scene_change: null, motion_box: null },
     events: [],
-    stats: { fps: null, tentative_tracks: 0, mean_confidence: mean === null ? null : r3(mean), detectors: opts.detectors },
+    stats: {
+      fps: null,
+      tentative_tracks: 0,
+      mean_confidence: mean === null ? null : r3(mean),
+      detectors: opts.detectors,
+      objects_total: objects.length,
+      runs: opts.runs ?? [],
+      coverage: opts.coverage ?? null,
+    },
+    zones: opts.zones ?? [],
   }
 }

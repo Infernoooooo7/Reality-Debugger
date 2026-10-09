@@ -74,6 +74,35 @@ class SceneSignals(BaseModel):
     motion_box: Annotated[Box | None, BeforeValidator(coerce.box)] = None
 
 
+class DetectorRun(BaseModel):
+    """What one detector actually did for this scene (reported by the client, never assumed)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    model: Annotated[str, _text(48)]
+    role: Literal["fast", "deep", "server"] = "fast"
+    status: Literal["ok", "failed", "skipped", "unavailable"] = "ok"
+    boxes: int = Field(default=0, ge=0, le=100000, description="Boxes the detector returned (before fusion).")
+    ms: float | None = Field(default=None, ge=0)
+    input_size: int | None = Field(default=None, ge=1, le=16384, description="Network input side in pixels.")
+    passes: int = Field(default=1, ge=0, le=1000, description="Network passes: 1 = whole image, more = tiles + whole image.")
+    tile_px: int | None = Field(default=None, ge=1, le=16384, description="Tile side in source pixels when tiled.")
+    incomplete: bool = Field(default=False, description="A tiled pass stopped before covering every tile (time budget).")
+    vocabulary: int | None = Field(default=None, ge=0, le=100000, description="Number of categories the model can output.")
+    note: Annotated[str | None, _text(160)] = None
+
+
+class SceneCoverage(BaseModel):
+    """How much of the image's visible structure the recognised objects account for
+    (app/vision/coverage.py and frontend/src/vision/coverage.ts)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    edge_density: OptUnit = None
+    unexplained_share: OptUnit = None
+    box_coverage: OptUnit = None
+
+
 class SceneStats(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -81,6 +110,20 @@ class SceneStats(BaseModel):
     tentative_tracks: int = Field(default=0, ge=0)
     mean_confidence: OptUnit = None
     detectors: list[Annotated[str, _text(48)]] = Field(default_factory=list, max_length=4)
+    objects_total: int | None = Field(default=None, ge=0, le=100000, description="Objects recognised before the client's payload cap.")
+    runs: list[DetectorRun] = Field(default_factory=list, max_length=8)
+    coverage: SceneCoverage | None = None
+
+
+class SceneZone(BaseModel):
+    """A user-defined area, e.g. a part of the desk that should stay clear."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: Annotated[str, _text(40)]
+    name: Annotated[str, _text(48)] = "keep-clear area"
+    kind: Literal["keep_clear"] = "keep_clear"
+    box: Annotated[Box, BeforeValidator(_box)]
 
 
 class SceneModel(BaseModel):
@@ -95,6 +138,7 @@ class SceneModel(BaseModel):
     signals: SceneSignals = Field(default_factory=SceneSignals)
     events: list[SceneEvent] = Field(default_factory=list, max_length=40)
     stats: SceneStats = Field(default_factory=SceneStats)
+    zones: list[SceneZone] = Field(default_factory=list, max_length=8)
 
     @field_validator("objects", mode="before")
     @classmethod

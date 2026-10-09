@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image
 
 from app.runtime_config import RuntimeConfig
-from app.services.vision_service import gray_signals, thumbnail_gray
+from app.vision.signals import gray_signals, thumbnail_gray
 
 
 @dataclass(slots=True)

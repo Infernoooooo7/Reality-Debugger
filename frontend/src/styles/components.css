@@ -242,6 +242,20 @@
   color: var(--amber);
 }
 
+/* The inspection cannot support an all-clear (docs/SCORING.md). */
+.chip--LIMITED {
+  color: var(--steel);
+}
+
+.chip--INCONCLUSIVE {
+  color: var(--chalk-2);
+}
+
+.chip--INCONCLUSIVE::before {
+  background: none;
+  border: 1px solid currentColor;
+}
+
 .chip--CRITICAL {
   color: var(--critical);
 }

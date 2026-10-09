@@ -36,22 +36,28 @@
       "edgeMargin": { "value": 0.08, "unit": "x surface width", "purpose": "Distance from the container's base centre to the surface's left, right or front (bottom) edge that counts as 'at the edge'.", "source": "heuristic", "ref": "About a hand's width on a typical desk." },
       "severity": { "value": "MEDIUM", "purpose": "Severity.", "source": "heuristic", "ref": "Knock-off risk." }
     },
-    "clutter": {
-      "enabled": { "value": true, "purpose": "Many small objects in view (workspace density).", "source": "heuristic", "ref": "Object-count proxy for visual clutter; perceptual clutter measures such as Feature Congestion (Rosenholtz et al., J. Vision 2007) need pixel statistics we do not model." },
-      "excludeAttributes": { "value": ["furniture", "appliance", "person", "animal", "surface"], "purpose": "Large or living things are not counted as clutter.", "source": "heuristic", "ref": "Clutter means loose items." },
-      "minCountLow": { "value": 8, "unit": "objects", "purpose": "LOW severity from this many countable objects.", "source": "heuristic", "ref": "A tidy desk shows 3-6 detectable items." },
-      "minCountMedium": { "value": 12, "unit": "objects", "purpose": "MEDIUM severity from this many countable objects.", "source": "heuristic", "ref": "See minCountLow." }
-    },
     "surface_congestion": {
       "enabled": { "value": true, "purpose": "Objects cover most of a detected surface (blocked work area).", "source": "heuristic", "ref": "Union of object boxes inside the surface box / surface box area (rasterised)." },
       "minOccupancy": { "value": 0.6, "unit": "fraction of surface", "purpose": "Occupancy that counts as congested.", "source": "heuristic", "ref": "Less than 40% free surface leaves no clear work area." },
       "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Workflow issue, not a hazard." }
     },
-    "overlap_stack": {
-      "enabled": { "value": true, "purpose": "Several countable objects heavily overlapping each other (stacked or piled items).", "source": "heuristic", "ref": "Pairwise IoU between countable objects." },
-      "minIou": { "value": 0.3, "purpose": "IoU above which two objects count as stacked/overlapping.", "source": "heuristic", "ref": "Same value as the fusion/unconfirmed association gate." },
-      "minPairs": { "value": 2, "unit": "pairs", "purpose": "Number of overlapping pairs before the finding is raised.", "source": "heuristic", "ref": "One overlap is normal (a cup in front of a laptop)." },
-      "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Organisation issue." }
+    "dense_region": {
+      "enabled": { "value": true, "purpose": "Several recognised loose objects concentrated within a small radius (a measured concentration, not a verdict on tidiness).", "source": "heuristic", "ref": "Replaces the former count-only clutter rule: an object count says nothing about arrangement and was not evidence of clutter." },
+      "excludeAttributes": { "value": ["furniture", "appliance", "person", "animal", "surface"], "purpose": "Large or living things are not counted as loose items.", "source": "heuristic", "ref": "Loose items only." },
+      "radius": { "value": 0.12, "unit": "fraction of the frame diagonal", "purpose": "Neighbourhood radius around an object's centre.", "source": "heuristic", "ref": "About a hand span on a desk photographed from arm's length." },
+      "minObjects": { "value": 5, "unit": "objects", "purpose": "Recognised loose objects within the radius before the observation is reported.", "source": "heuristic", "ref": "Two to four items close together is ordinary use." },
+      "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Organisation observation." }
+    },
+    "overlap_cluster": {
+      "enabled": { "value": true, "purpose": "Groups of recognised objects whose boxes overlap each other (stacked, touching or in front of each other).", "source": "heuristic", "ref": "Replaces the pairwise-IoU stack rule; intersection over the smaller box also catches a small item on a large one." },
+      "minIntersectionOverSmaller": { "value": 0.3, "purpose": "Two boxes overlap when their intersection covers at least this share of the smaller box.", "source": "heuristic", "ref": "Same value as the former stack IoU gate, applied to the smaller box." },
+      "minObjects": { "value": 3, "unit": "objects", "purpose": "Objects in one connected overlap group before it is reported.", "source": "heuristic", "ref": "One overlap is normal (a cup in front of a laptop)." },
+      "severity": { "value": "LOW", "purpose": "Severity.", "source": "heuristic", "ref": "Organisation observation." }
+    },
+    "keep_clear_zone": {
+      "enabled": { "value": true, "purpose": "Recognised objects inside an area the user marked to stay clear.", "source": "heuristic", "ref": "User-defined expectation." },
+      "minInsideFraction": { "value": 0.5, "purpose": "An object counts as inside when at least this share of its box lies in the area.", "source": "heuristic", "ref": "Majority of the object." },
+      "severity": { "value": "MEDIUM", "purpose": "Severity.", "source": "heuristic", "ref": "The user asked for this area to stay clear." }
     },
     "animal_near_equipment": {
       "enabled": { "value": true, "purpose": "An animal touching or near electronics.", "source": "heuristic", "ref": "Attributes animal and electronic." },
@@ -107,7 +113,17 @@
       "purpose": "Local finding confidence = mean detection confidence of the involved objects x (0.7 + 0.3 x min(1, persistence / this)).",
       "source": "heuristic",
       "ref": "Objects seen for longer are more trustworthy (temporal evidence)."
-    }
+    },
+    "minEvidenceFast": { "value": 0.4, "unit": "score", "purpose": "Single-photo analyses (Image Debug) use a fast-detector-only object as evidence for a finding only at or above this score: below it, most such detections are wrong.", "source": "empirical", "ref": "EfficientDet-Lite0 precision on COCO val2017 (deployed settings): 0.39 for scores 0.3-0.4, 0.61 for 0.4-0.5 (detection-confidence-bands record)." },
+    "minEvidenceDeep": { "value": 0.5, "unit": "score", "purpose": "Same, for deep-detector and fused objects.", "source": "empirical", "ref": "YOLOX-S precision on COCO val2017: 0.32 / 0.42 / 0.55 for scores 0.3-0.4 / 0.4-0.5 / 0.5-0.6; 0.41 / 0.47 / 0.63 when the fast detector agrees (detection-confidence-bands record)." }
+  },
+  "inspection": {
+    "minEffectiveScale": { "value": 0.5, "unit": "network px per source px", "purpose": "Below this effective resolution (detector input / image long side, or / tile side when tiled) the inspection is reported as limited: small objects are likely missed.", "source": "heuristic", "ref": "Objects shrink more than 2x below the scale the detectors were evaluated at (COCO images, ~640 px). Measured on 118 held-out COCO desk scenes at full detail: YOLOX-S recall 27% for small vs 76% for large objects." },
+    "maxUnexplainedShare": { "value": 0.5, "unit": "share of structure pixels", "purpose": "Report when most of the image's visible detail lies outside every recognised object (descriptive indicator).", "source": "heuristic", "ref": "Descriptive majority threshold. It is not a recall estimate: on 4978 COCO val2017 images the unexplained-structure share correlates only weakly with the share of annotated objects (COCO + LVIS) left unrecognised (Spearman 0.10; docs/benchmarks/records/inspection-coverage-*.json)." },
+    "minEdgeDensityForContent": { "value": 0.02, "unit": "share of pixels", "purpose": "With no recognised object, an image with at least this much structure is reported as inconclusive (something is there that was not recognised); below it the image is treated as nearly featureless.", "source": "heuristic", "ref": "2% of pixels with an intensity step >= 5% per pixel at 256 px. COCO val2017 images in which neither detector found anything had a median edge density of 0.29 and a median of 3 annotated objects (inspection-coverage record)." },
+    "lowConfidence": { "value": 0.5, "unit": "score", "purpose": "Detections below this score are counted as low-confidence recognitions.", "source": "empirical", "ref": "YOLOX-S precision on COCO val2017 (deployed settings): 0.32 for scores 0.3-0.4, 0.42 for 0.4-0.5, 0.61 for 0.5-0.7, 0.91 above 0.7 (inspection-coverage record)." },
+    "maxLowConfidenceShare": { "value": 0.5, "unit": "share of recognised objects", "purpose": "When more than this share of recognised objects is low-confidence, the inspection is reported as limited.", "source": "heuristic", "ref": "Majority rule: below 0.5 most detections are wrong (lowConfidence ref), so a scene described mostly by such detections is weakly supported." },
+    "closedVocabularyUnrecognisedMedian": { "value": 0.5, "unit": "share of annotated objects", "purpose": "Measured share of annotated objects (COCO + LVIS) that the deployed detectors do not recognise in the median image; quoted in the closed-vocabulary limitation.", "source": "empirical", "ref": "4978 COCO val2017 images with LVIS v1 minival annotations: median unrecognised share 0.50 (0.44-0.57 across deciles of every image-level measure tried); LVIS is federated, so a lower bound." }
   },
   "score": {
     "severityWeights": {

@@ -22,7 +22,9 @@ import { vision } from '../vision/client'
 import { deepDetector } from '../vision/deep/client'
 import { union } from '../vision/geometry'
 import { spatialRelations } from '../vision/relations'
-import { liveScene, type SceneEventPayload, type ScenePayload } from '../vision/scene'
+import { measureCoverage } from '../vision/coverage'
+import { detectorRun, modelFacts, type ModelFacts } from '../vision/runs'
+import { coveragePayload, liveScene, type CoveragePayload, type DetectorRunPayload, type SceneEventPayload, type ScenePayload } from '../vision/scene'
 import { isCoasting, isVisible, type FrameResult, type Track } from '../vision/types'
 import { CameraController } from './camera'
 import { FrameGrabber, JpegCapturer } from './capture'
@@ -72,7 +74,10 @@ export class LiveSession {
   private aiBusy = false
   private deepBusy = false
   private lastDeepCheckAt = 0
+  private lastDeepBoxes = 0
   private observeFailures = 0
+  private fastFacts: ModelFacts = { inputSize: null, vocabulary: null }
+  private deepFacts: ModelFacts = { inputSize: null, vocabulary: null }
   private readonly onVisibility = () => {
     if (document.hidden) this.lastFrameAt = performance.now() + 500
   }
@@ -84,6 +89,8 @@ export class LiveSession {
     this.camera = new CameraController(video)
     this.overlay = new OverlayRenderer(canvas, video)
     document.addEventListener('visibilitychange', this.onVisibility)
+    void modelFacts(VISION.fast.model).then((facts) => (this.fastFacts = facts))
+    void modelFacts(VISION.deep.model).then((facts) => (this.deepFacts = facts))
   }
 
   private get store() {
@@ -250,16 +257,43 @@ export class LiveSession {
     return anchors
   }
 
-  private scene(result: FrameResult, events: SceneEventPayload[]): ScenePayload {
-    const detectors = [vision.getSnapshot().info?.modelId ?? VISION.fast.model]
-    if (deepDetector.getSnapshot().runs > 0) detectors.push(VISION.deep.model)
+  /**
+   * The scene model for the backend, with what each detector actually did (stats.runs) and,
+   * when `measure` is set, how much of the frame's visible detail the tracked objects explain
+   * (vision/coverage.ts). `deep` overrides the deep detector's run report (Deep Scan).
+   */
+  private scene(
+    result: FrameResult,
+    events: SceneEventPayload[],
+    opts: { measure?: boolean; deep?: Pick<DetectorRunPayload, 'status' | 'boxes' | 'ms' | 'note'> } = {},
+  ): ScenePayload {
+    const fastModel = vision.getSnapshot().info?.modelId ?? VISION.fast.model
+    const runs: DetectorRunPayload[] = [detectorRun(fastModel, 'fast', 'ok', this.fastFacts, { boxes: result.detections, ms: result.inferenceMs })]
+    const deepSnap = deepDetector.getSnapshot()
+    if (opts.deep) runs.push(detectorRun(VISION.deep.model, 'deep', opts.deep.status, this.deepFacts, opts.deep))
+    else if (deepSnap.runs > 0) {
+      runs.push(
+        detectorRun(VISION.deep.model, 'deep', 'ok', this.deepFacts, { boxes: this.lastDeepBoxes, ms: deepSnap.lastMs, note: 'periodic verification of the live tracks' }),
+      )
+    }
+    let coverage: CoveragePayload | null = null
+    if (opts.measure && this.video.videoWidth) {
+      try {
+        const boxes = result.tracks.filter(isVisible).map((t) => t.box)
+        coverage = coveragePayload(measureCoverage(this.video, this.video.videoWidth, this.video.videoHeight, boxes))
+      } catch {
+        coverage = null // reported by the backend as "structure not measured"
+      }
+    }
     return liveScene(result, {
       atMs: this.atMs(result.timestamp),
       width: this.video.videoWidth || null,
       height: this.video.videoHeight || null,
       fps: this.fpsEma || null,
       events,
-      detectors,
+      detectors: runs.filter((r) => r.status === 'ok').map((r) => r.model),
+      runs,
+      coverage,
     })
   }
 
@@ -269,7 +303,7 @@ export class LiveSession {
     if (this.observing || !this.running) return
     const sinceLast = now - this.lastObserveAt
     if (sinceLast < TEMPORAL.observe.intervalMs) return
-    const scene = this.scene(result, this.pendingEvents)
+    const scene = this.scene(result, this.pendingEvents, { measure: true })
     const key = sceneKey(scene)
     const changed = key !== this.lastObservedKey || this.pendingEvents.length > 0
     if (!changed && sinceLast < TEMPORAL.observe.heartbeatMs) return
@@ -348,7 +382,7 @@ export class LiveSession {
       const response = await analyzeFrame(shot.blob, {
         scanId: this.scanId,
         trigger,
-        scene: this.scene(result, []),
+        scene: this.scene(result, [], { measure: true }),
         personality: useSettings.getState().personality,
         focus,
       })
@@ -408,6 +442,7 @@ export class LiveSession {
       if (!bitmap) return
       const at = performance.now()
       const result = await deepDetector.detect(bitmap)
+      this.lastDeepBoxes = result.detections.length
       const fused = await vision.fuse(result.detections, at, VISION.deep.liveCooldownMs)
       const dev = this.store.dev
       this.store.set({
@@ -446,7 +481,15 @@ export class LiveSession {
       state = 'MONITORING'
       const top = scan.findings.find((f) => f.status !== 'RESOLVED' && f.severity !== 'INFO')
       detail = top ? `top: ${top.id} · ${top.title}` : null
-    } else state = 'STABLE'
+    } else if (scan?.status === 'STABLE') state = 'STABLE'
+    else if (scan?.status === 'LIMITED') {
+      // No findings, but the inspection cannot support an all-clear (backend inspection report).
+      state = 'LIMITED'
+      detail = scan.inspection?.reasons[0]?.message ?? null
+    } else {
+      state = scan ? 'INCONCLUSIVE' : 'MONITORING'
+      detail = scan ? (scan.inspection?.reasons.find((r) => r.level === 'insufficient')?.message ?? null) : 'waiting for the first analysis'
+    }
     if (state !== living.state || detail !== living.detail) this.store.set({ living: { state, detail, until: 0 } })
   }
 
@@ -552,11 +595,14 @@ export class LiveSession {
     this.refreshLiving()
     try {
       let result = this.lastResult
+      let deepRun: Pick<DetectorRunPayload, 'status' | 'boxes' | 'ms' | 'note'> = { status: 'skipped', boxes: 0, ms: null, note: 'switched off in settings' }
       if (deepDetector.enabled && result) {
         try {
           const bitmap = await createImageBitmap(shot.blob)
           const at = performance.now()
           const deep = await deepDetector.detect(bitmap)
+          this.lastDeepBoxes = deep.detections.length
+          deepRun = { status: 'ok', boxes: deep.detections.length, ms: deep.totalMs, note: null }
           const fused = await vision.fuse(deep.detections, at, VISION.deep.liveCooldownMs)
           result = { ...result, tracks: fused.tracks, timestamp: at }
           const dev = this.store.dev
@@ -565,6 +611,7 @@ export class LiveSession {
           })
         } catch (error) {
           console.warn('[live] deep detector unavailable for this scan', error)
+          deepRun = { status: 'failed', boxes: 0, ms: null, note: toApiError(error).message }
         }
       }
       if (!result) throw new ApiError('NO_FRAME', 'No analysed frame is available yet.', { hint: 'Wait for the camera preview, then retry.' })
@@ -574,7 +621,7 @@ export class LiveSession {
       const response = await deepScan(this.aiOn ? shot.blob : null, {
         scanId: this.scanId,
         trigger: frozenBefore ? 'freeze' : 'deep_scan',
-        scene: this.scene(result, []),
+        scene: this.scene(result, [], { measure: true, deep: deepRun }),
         personality: useSettings.getState().personality,
       })
       if (this.disposed) return

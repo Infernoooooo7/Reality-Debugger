@@ -1,7 +1,9 @@
 import type { FindingStatus, Personality, Severity, SystemStatus } from '../lib/schemas'
 
+const STATUS_TEXT: Partial<Record<FindingStatus | SystemStatus, string>> = { LIMITED: 'LIMITED INSPECTION' }
+
 export function StatusChip({ status }: { status: FindingStatus | SystemStatus }) {
-  return <span className={`chip chip--${status}`}>{status}</span>
+  return <span className={`chip chip--${status}`}>{STATUS_TEXT[status] ?? status}</span>
 }
 
 export function SeverityTag({ severity }: { severity: Severity }) {

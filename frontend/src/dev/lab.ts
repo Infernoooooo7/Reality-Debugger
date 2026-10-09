@@ -11,7 +11,8 @@
 import { DETECTION } from '../config'
 import { vision } from '../vision/client'
 import { deepDetector } from '../vision/deep/client'
-import { fuseStill } from '../vision/fusion'
+import { detectTiled, TILING_DEFAULTS } from '../vision/deep/tiling'
+import { fuseStill, type FusedObject } from '../vision/fusion'
 import { Tracker } from '../vision/tracker'
 import { isVisible, type Detection } from '../vision/types'
 
@@ -105,6 +106,48 @@ async function benchDeep(): Promise<void> {
 }
 
 /**
+ * The Image Debug detection pipeline on stills, with the tiled deep pass on and off:
+ * fast detector, deep detector (whole image / whole image + tiles), and their fusion.
+ * Boxes are normalised; scripts/still-eval.mjs scores them against ground truth.
+ */
+async function benchStill(): Promise<void> {
+  state.results.fastInfo = await vision.init()
+  state.results.deepInfo = await deepDetector.init()
+  const inputSize = DETECTION.deep.inputSize
+  const pack = (dets: Detection[]) => dets.map((d) => ({ label: d.label, score: +d.score.toFixed(4), box: d.box }))
+  const packFused = (objs: FusedObject[]) => objs.map((o) => ({ label: o.label, score: +o.confidence.toFixed(4), box: o.box, source: o.source, verified: o.verified }))
+  const results: Record<string, unknown> = {}
+  state.results.still = results
+  for (const name of images) {
+    const source = await loadBitmap(name)
+    const fast = await vision.analyzeStill(await createImageBitmap(source))
+    const whole = await detectTiled(source, (b) => deepDetector.detect(b), inputSize, { ...TILING_DEFAULTS, enabled: false })
+    const tiled = await detectTiled(source, (b) => deepDetector.detect(b), inputSize, TILING_DEFAULTS)
+    results[name] = {
+      width: source.width,
+      height: source.height,
+      fast: { ms: fast.inferenceMs, detections: pack(fast.detections) },
+      deepWhole: { ms: Math.round(whole.totalMs), passes: whole.passes, detections: pack(whole.detections) },
+      deepTiled: {
+        ms: Math.round(tiled.totalMs),
+        passes: tiled.passes,
+        tilePx: tiled.tilePx,
+        incomplete: tiled.incomplete,
+        boxesBeforeMerge: tiled.boxesBeforeMerge,
+        detections: pack(tiled.detections),
+      },
+      fusedWhole: packFused(fuseStill(fast.detections, whole.detections)),
+      fusedTiled: packFused(fuseStill(fast.detections, tiled.detections)),
+    }
+    log(
+      `  ${name} ${source.width}x${source.height}: fast ${fast.detections.length} · deep whole ${whole.detections.length} (${Math.round(whole.totalMs)} ms) · ` +
+        `deep tiled ${tiled.detections.length} in ${tiled.passes} passes of ${tiled.tilePx ?? '-'} px (${Math.round(tiled.totalMs)} ms)`,
+    )
+    source.close()
+  }
+}
+
+/**
  * Tracker speed estimates on synthetic sequences built from a real photo and
  * the real fast detector: identical frames, a static camera with ±jitter
  * (hand tremor), and the photo panned at known speeds. Used to calibrate
@@ -180,6 +223,11 @@ async function run(): Promise<void> {
     hardwareConcurrency: navigator.hardwareConcurrency,
     userAgent: navigator.userAgent,
     webgpu: 'gpu' in navigator,
+  }
+  if (params.get('still') === '1') {
+    await benchStill()
+    log('DONE')
+    return
   }
   await benchFast()
   if (params.get('deep') !== '0') await benchDeep()

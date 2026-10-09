@@ -136,18 +136,37 @@ Images and videos use the same engine:
 - An image is a single observation, so its findings report as CONFIRMED.
 - A video replays its samples through the lifecycle with video time as the clock.
 
-## 6. Score and status
+## 6. Score, status and inspection coverage
+
+The full definition, with the evidence behind every threshold, is in
+[`SCORING.md`](SCORING.md). In short:
 
 ```
-penalty   = Σ over open findings  weight(severity) × (0.5 + 0.5 × confidence)
-            weight: CRITICAL 30 · HIGH 16 · MEDIUM 8 · LOW 3 · INFO 0
-computed  = max(5, 100 − penalty)
-score     = computed                                  (local only)
-          = round(0.5 × ai_score + 0.5 × computed)    (when the AI gave a holistic score)
-status    = CRITICAL if score < 45 or a CRITICAL is open
-            DEGRADED if score < 80 or a HIGH is open
-            STABLE   otherwise
+penalty      = Σ over open findings  weight(severity) × (0.5 + 0.5 × confidence)
+               weight: CRITICAL 30 · HIGH 16 · MEDIUM 8 · LOW 3 · INFO 0
+issue_score  = max(5, 100 − penalty)   (blended 50/50 with an AI score when present)
+             = null when no finding is open: an empty list is not evidence of a perfect scene
+scene score  = the same formula, only when inspection coverage is "sufficient" and an object was
+               recognised; otherwise null, shown as UNRATED
+status       = CRITICAL      open CRITICAL, or issue_score < 45
+               DEGRADED      open HIGH, or issue_score < 80
+               INCONCLUSIVE  coverage insufficient (detection failed, nothing recognised in a detailed image)
+               LIMITED       coverage limited ("LIMITED INSPECTION")
+               STABLE        otherwise
 ```
+
+`backend/app/services/inspection.py` builds the inspection record from what the
+client reports. It covers:
+
+- each detector's status, boxes, input size and tiling;
+- the share of visible structure outside every recognised box;
+- confidence;
+- image quality;
+- the detectors' vocabulary.
+
+The record also lists the checks that ran and the analyses that did not run.
+Every detection scan is at least "limited", because the detectors recognise
+only 80 categories.
 
 ## 7. Optional AI layer (`backend/app/services`)
 

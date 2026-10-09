@@ -1,0 +1,147 @@
+{
+ "schema_version": 1,
+ "task": "inspection-coverage",
+ "date": "2026-10-09T17:33:40Z",
+ "model": {
+  "id": "efficientdet_lite0+yolox_s",
+  "name": "deployed fast + deep detectors (fused boxes)",
+  "version": "deployed"
+ },
+ "dataset": {
+  "id": "coco_val2017+lvis_v1_minival",
+  "split": "val2017"
+ },
+ "config": {
+  "structure_side_px": 256,
+  "edge_threshold": 0.05,
+  "detection_threshold": 0.3,
+  "recognised": "COCO object: same-class detection IoU>=0.5; LVIS non-COCO object: any detection IoU>=0.5"
+ },
+ "config_name": "default",
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v80",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "metrics": {
+  "images": 5000,
+  "with_structure_and_annotations": 4978,
+  "spearman_unexplained_vs_unrecognised": {
+   "rho": 0.1,
+   "p": 1.8743706323677512e-12
+  },
+  "deciles": [
+   {
+    "unexplained_from": 0.0,
+    "unexplained_to": 0.015,
+    "images": 498,
+    "unrecognised_share_median": 0.449,
+    "share_of_images_with_most_objects_unrecognised": 0.345
+   },
+   {
+    "unexplained_from": 0.015,
+    "unexplained_to": 0.085,
+    "images": 498,
+    "unrecognised_share_median": 0.5,
+    "share_of_images_with_most_objects_unrecognised": 0.44
+   },
+   {
+    "unexplained_from": 0.085,
+    "unexplained_to": 0.178,
+    "images": 498,
+    "unrecognised_share_median": 0.5,
+    "share_of_images_with_most_objects_unrecognised": 0.452
+   },
+   {
+    "unexplained_from": 0.178,
+    "unexplained_to": 0.29,
+    "images": 497,
+    "unrecognised_share_median": 0.5,
+    "share_of_images_with_most_objects_unrecognised": 0.473
+   },
+   {
+    "unexplained_from": 0.29,
+    "unexplained_to": 0.405,
+    "images": 498,
+    "unrecognised_share_median": 0.5,
+    "share_of_images_with_most_objects_unrecognised": 0.462
+   },
+   {
+    "unexplained_from": 0.405,
+    "unexplained_to": 0.511,
+    "images": 498,
+    "unrecognised_share_median": 0.55,
+    "share_of_images_with_most_objects_unrecognised": 0.544
+   },
+   {
+    "unexplained_from": 0.511,
+    "unexplained_to": 0.622,
+    "images": 497,
+    "unrecognised_share_median": 0.556,
+    "share_of_images_with_most_objects_unrecognised": 0.527
+   },
+   {
+    "unexplained_from": 0.622,
+    "unexplained_to": 0.738,
+    "images": 498,
+    "unrecognised_share_median": 0.559,
+    "share_of_images_with_most_objects_unrecognised": 0.538
+   },
+   {
+    "unexplained_from": 0.738,
+    "unexplained_to": 0.859,
+    "images": 498,
+    "unrecognised_share_median": 0.5,
+    "share_of_images_with_most_objects_unrecognised": 0.474
+   },
+   {
+    "unexplained_from": 0.859,
+    "unexplained_to": 1.0,
+    "images": 498,
+    "unrecognised_share_median": 0.571,
+    "share_of_images_with_most_objects_unrecognised": 0.518
+   }
+  ],
+  "unexplained_threshold": 0.859,
+  "unexplained_threshold_rule": "lowest decile start from which every higher decile has median unrecognised share > 0.5",
+  "images_without_any_detection": {
+   "count": 27,
+   "median_edge_density": 0.2858,
+   "median_annotated_objects": 3.0
+  },
+  "yolox_s_precision_by_confidence": {
+   "0.3-0.4": {
+    "detections": 4495,
+    "precision": 0.321
+   },
+   "0.4-0.5": {
+    "detections": 3608,
+    "precision": 0.42
+   },
+   "0.5-0.7": {
+    "detections": 6795,
+    "precision": 0.608
+   },
+   "0.7-1.0": {
+    "detections": 15200,
+    "precision": 0.906
+   }
+  }
+ },
+ "notes": [
+  "LVIS is federated: unrecognised shares are lower bounds.",
+  "The measure is evidence of unexplained image structure, not an estimate of recall."
+ ],
+ "git_commit": "177afa7+uncommitted"
+}

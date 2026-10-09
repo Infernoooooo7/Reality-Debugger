@@ -76,6 +76,14 @@
       "purpose": "Total time budget for deep detection on video keyframes; stops early on slow devices.",
       "source": "heuristic",
       "ref": "Keeps Video Debug responsive; keyframes beyond the budget keep fast-detector results only."
+    },
+    "tiling": {
+      "enabled": { "value": true, "purpose": "Run the deep detector on overlapping tiles plus the whole image for large stills (Image Debug, video keyframes), so small objects keep their pixels.", "source": "empirical", "ref": "40 held-out COCO 3x3 mosaics (1920x1920), YOLOX-S deployed: whole-image pass AP 18.8 / recall@0.3 0.26 / precision 0.74; tiles+whole merged by NMS AP 36.9 / recall 0.55 / precision 0.63 (detection-mosaic-tiling-* record)." },
+      "minLongSide": { "value": 960, "unit": "px", "purpose": "Tile only images whose long side exceeds this (smaller images already fit the 640-px input).", "source": "heuristic", "ref": "1.5x the deep input: below it a whole-image pass keeps at least two thirds of the resolution." },
+      "maxGrid": { "value": 3, "unit": "tiles per side", "purpose": "Tiles are sized so that at most this many (with overlap) cover the long side; bounds the number of passes to about grid x grid + 1.", "source": "heuristic", "ref": "Measured in headless Chromium (WebAssembly, 4 cores): 10 passes took 6.1 s on 1920x1440 and 3840x2880 desk composites, against 0.55-0.72 s for one whole-image pass (still-pipeline record)." },
+      "overlap": { "value": 0.2, "unit": "fraction", "purpose": "Overlap between neighbouring tiles.", "source": "paper", "ref": "SAHI default overlap ratio (Akyon et al., ICIP 2022)." },
+      "mergeIou": { "value": 0.5, "purpose": "Class-aware NMS IoU used to merge tile and whole-image detections.", "source": "empirical", "ref": "NMS beat SAHI's greedy merging (IoS 0.5) on the mosaic benchmark: AP 36.9 vs 31.2 on the test mosaics, chosen on separate tune mosaics (see docs/SCORING.md)." },
+      "timeBudgetMs": { "value": 20000, "unit": "ms", "purpose": "Stop tiling after this time; the report then says the high-resolution pass was incomplete.", "source": "heuristic", "ref": "Keeps Image Debug responsive on slow devices." }
     }
   },
   "capture": {

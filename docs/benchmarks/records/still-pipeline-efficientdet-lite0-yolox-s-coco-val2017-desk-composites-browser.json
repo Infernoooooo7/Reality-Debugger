@@ -1,0 +1,684 @@
+{
+  "schema_version": 1,
+  "task": "still-pipeline",
+  "date": "2026-10-09T18:15:32Z",
+  "model": {
+    "id": "efficientdet_lite0+yolox_s",
+    "name": "Image Debug detection pipeline in the browser",
+    "version": "deployed"
+  },
+  "dataset": {
+    "id": "coco_val2017-desk-composites",
+    "split": "desk_photo_0.jpg,desk_photo_1.jpg,desk_composite_2x2.jpg,desk_composite_3x3.jpg,desk_composite_6x6.jpg"
+  },
+  "config": {
+    "display_threshold": 0.3,
+    "match": "same label, IoU >= 0.5, greedy by score; crowd regions ignored; COCO size buckets 32^2 / 96^2 px (in composite pixels)",
+    "pipelines": {
+      "fast": "fast detector alone",
+      "deepWhole": "deep detector, one whole-image pass",
+      "deepTiled": "deep detector, whole image + tiles (NMS)",
+      "fusedWhole": "Image Debug before: fast + deep whole-image pass, fused",
+      "fusedTiled": "Image Debug now: fast + deep tiled pass, fused"
+    },
+    "tiling": "config/vision.json deep.tiling",
+    "composites": "tools/evaluate.py composite (COCO val2017 desk scenes, never upscaled)"
+  },
+  "config_name": "default",
+  "environment": {
+    "runtime": "browser (vision-lab.html)",
+    "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+    "cores": 4,
+    "cross_origin_isolated": true,
+    "fast": {
+      "delegate": "CPU",
+      "runtime": "worker"
+    },
+    "deep": {
+      "backend": "wasm",
+      "threads": 4
+    }
+  },
+  "metrics": {
+    "desk_photo_0.jpg": {
+      "width": 640,
+      "height": 480,
+      "source_photos": 1,
+      "annotated_objects": 6,
+      "timing_ms": {
+        "fast": 217.2,
+        "deep_whole": 614,
+        "deep_tiled": 609
+      },
+      "tiling": {
+        "passes": 1,
+        "tile_px": null,
+        "incomplete": false,
+        "boxes_before_merge": 7
+      },
+      "fast": {
+        "detections": 5,
+        "true_positives": 2,
+        "false_positives": 3,
+        "missed": 4,
+        "precision": 0.4,
+        "recall": 0.333,
+        "recall_by_size": {
+          "small": {
+            "objects": 0,
+            "recall": null
+          },
+          "medium": {
+            "objects": 4,
+            "recall": 0.25
+          },
+          "large": {
+            "objects": 2,
+            "recall": 0.5
+          }
+        }
+      },
+      "deepWhole": {
+        "detections": 7,
+        "true_positives": 3,
+        "false_positives": 4,
+        "missed": 3,
+        "precision": 0.429,
+        "recall": 0.5,
+        "recall_by_size": {
+          "small": {
+            "objects": 0,
+            "recall": null
+          },
+          "medium": {
+            "objects": 4,
+            "recall": 0.5
+          },
+          "large": {
+            "objects": 2,
+            "recall": 0.5
+          }
+        }
+      },
+      "deepTiled": {
+        "detections": 7,
+        "true_positives": 3,
+        "false_positives": 4,
+        "missed": 3,
+        "precision": 0.429,
+        "recall": 0.5,
+        "recall_by_size": {
+          "small": {
+            "objects": 0,
+            "recall": null
+          },
+          "medium": {
+            "objects": 4,
+            "recall": 0.5
+          },
+          "large": {
+            "objects": 2,
+            "recall": 0.5
+          }
+        }
+      },
+      "fusedWhole": {
+        "detections": 7,
+        "true_positives": 3,
+        "false_positives": 4,
+        "missed": 3,
+        "precision": 0.429,
+        "recall": 0.5,
+        "recall_by_size": {
+          "small": {
+            "objects": 0,
+            "recall": null
+          },
+          "medium": {
+            "objects": 4,
+            "recall": 0.5
+          },
+          "large": {
+            "objects": 2,
+            "recall": 0.5
+          }
+        }
+      },
+      "fusedTiled": {
+        "detections": 7,
+        "true_positives": 3,
+        "false_positives": 4,
+        "missed": 3,
+        "precision": 0.429,
+        "recall": 0.5,
+        "recall_by_size": {
+          "small": {
+            "objects": 0,
+            "recall": null
+          },
+          "medium": {
+            "objects": 4,
+            "recall": 0.5
+          },
+          "large": {
+            "objects": 2,
+            "recall": 0.5
+          }
+        }
+      }
+    },
+    "desk_photo_1.jpg": {
+      "width": 640,
+      "height": 480,
+      "source_photos": 1,
+      "annotated_objects": 15,
+      "timing_ms": {
+        "fast": 155.6,
+        "deep_whole": 585,
+        "deep_tiled": 756
+      },
+      "tiling": {
+        "passes": 1,
+        "tile_px": null,
+        "incomplete": false,
+        "boxes_before_merge": 11
+      },
+      "fast": {
+        "detections": 7,
+        "true_positives": 5,
+        "false_positives": 2,
+        "missed": 10,
+        "precision": 0.714,
+        "recall": 0.333,
+        "recall_by_size": {
+          "small": {
+            "objects": 4,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 7,
+            "recall": 0.286
+          },
+          "large": {
+            "objects": 4,
+            "recall": 0.75
+          }
+        }
+      },
+      "deepWhole": {
+        "detections": 11,
+        "true_positives": 7,
+        "false_positives": 4,
+        "missed": 8,
+        "precision": 0.636,
+        "recall": 0.467,
+        "recall_by_size": {
+          "small": {
+            "objects": 4,
+            "recall": 0.25
+          },
+          "medium": {
+            "objects": 7,
+            "recall": 0.429
+          },
+          "large": {
+            "objects": 4,
+            "recall": 0.75
+          }
+        }
+      },
+      "deepTiled": {
+        "detections": 11,
+        "true_positives": 7,
+        "false_positives": 4,
+        "missed": 8,
+        "precision": 0.636,
+        "recall": 0.467,
+        "recall_by_size": {
+          "small": {
+            "objects": 4,
+            "recall": 0.25
+          },
+          "medium": {
+            "objects": 7,
+            "recall": 0.429
+          },
+          "large": {
+            "objects": 4,
+            "recall": 0.75
+          }
+        }
+      },
+      "fusedWhole": {
+        "detections": 12,
+        "true_positives": 9,
+        "false_positives": 3,
+        "missed": 6,
+        "precision": 0.75,
+        "recall": 0.6,
+        "recall_by_size": {
+          "small": {
+            "objects": 4,
+            "recall": 0.25
+          },
+          "medium": {
+            "objects": 7,
+            "recall": 0.571
+          },
+          "large": {
+            "objects": 4,
+            "recall": 1
+          }
+        }
+      },
+      "fusedTiled": {
+        "detections": 12,
+        "true_positives": 9,
+        "false_positives": 3,
+        "missed": 6,
+        "precision": 0.75,
+        "recall": 0.6,
+        "recall_by_size": {
+          "small": {
+            "objects": 4,
+            "recall": 0.25
+          },
+          "medium": {
+            "objects": 7,
+            "recall": 0.571
+          },
+          "large": {
+            "objects": 4,
+            "recall": 1
+          }
+        }
+      }
+    },
+    "desk_composite_2x2.jpg": {
+      "width": 1280,
+      "height": 960,
+      "source_photos": 4,
+      "annotated_objects": 35,
+      "timing_ms": {
+        "fast": 132.3,
+        "deep_whole": 723,
+        "deep_tiled": 4415
+      },
+      "tiling": {
+        "passes": 7,
+        "tile_px": 640,
+        "incomplete": false,
+        "boxes_before_merge": 68
+      },
+      "fast": {
+        "detections": 2,
+        "true_positives": 2,
+        "false_positives": 0,
+        "missed": 33,
+        "precision": 1,
+        "recall": 0.057,
+        "recall_by_size": {
+          "small": {
+            "objects": 10,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 17,
+            "recall": 0
+          },
+          "large": {
+            "objects": 8,
+            "recall": 0.25
+          }
+        }
+      },
+      "deepWhole": {
+        "detections": 9,
+        "true_positives": 5,
+        "false_positives": 4,
+        "missed": 30,
+        "precision": 0.556,
+        "recall": 0.143,
+        "recall_by_size": {
+          "small": {
+            "objects": 10,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 17,
+            "recall": 0.059
+          },
+          "large": {
+            "objects": 8,
+            "recall": 0.5
+          }
+        }
+      },
+      "deepTiled": {
+        "detections": 35,
+        "true_positives": 16,
+        "false_positives": 19,
+        "missed": 19,
+        "precision": 0.457,
+        "recall": 0.457,
+        "recall_by_size": {
+          "small": {
+            "objects": 10,
+            "recall": 0.4
+          },
+          "medium": {
+            "objects": 17,
+            "recall": 0.353
+          },
+          "large": {
+            "objects": 8,
+            "recall": 0.75
+          }
+        }
+      },
+      "fusedWhole": {
+        "detections": 7,
+        "true_positives": 4,
+        "false_positives": 3,
+        "missed": 31,
+        "precision": 0.571,
+        "recall": 0.114,
+        "recall_by_size": {
+          "small": {
+            "objects": 10,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 17,
+            "recall": 0.059
+          },
+          "large": {
+            "objects": 8,
+            "recall": 0.375
+          }
+        }
+      },
+      "fusedTiled": {
+        "detections": 27,
+        "true_positives": 15,
+        "false_positives": 12,
+        "missed": 20,
+        "precision": 0.556,
+        "recall": 0.429,
+        "recall_by_size": {
+          "small": {
+            "objects": 10,
+            "recall": 0.4
+          },
+          "medium": {
+            "objects": 17,
+            "recall": 0.294
+          },
+          "large": {
+            "objects": 8,
+            "recall": 0.75
+          }
+        }
+      }
+    },
+    "desk_composite_3x3.jpg": {
+      "width": 1920,
+      "height": 1440,
+      "source_photos": 9,
+      "annotated_objects": 101,
+      "timing_ms": {
+        "fast": 126.7,
+        "deep_whole": 591,
+        "deep_tiled": 6143
+      },
+      "tiling": {
+        "passes": 10,
+        "tile_px": 739,
+        "incomplete": false,
+        "boxes_before_merge": 148
+      },
+      "fast": {
+        "detections": 8,
+        "true_positives": 7,
+        "false_positives": 1,
+        "missed": 94,
+        "precision": 0.875,
+        "recall": 0.069,
+        "recall_by_size": {
+          "small": {
+            "objects": 36,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 43,
+            "recall": 0
+          },
+          "large": {
+            "objects": 22,
+            "recall": 0.318
+          }
+        }
+      },
+      "deepWhole": {
+        "detections": 18,
+        "true_positives": 11,
+        "false_positives": 7,
+        "missed": 90,
+        "precision": 0.611,
+        "recall": 0.109,
+        "recall_by_size": {
+          "small": {
+            "objects": 36,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 43,
+            "recall": 0
+          },
+          "large": {
+            "objects": 22,
+            "recall": 0.5
+          }
+        }
+      },
+      "deepTiled": {
+        "detections": 86,
+        "true_positives": 37,
+        "false_positives": 49,
+        "missed": 64,
+        "precision": 0.43,
+        "recall": 0.366,
+        "recall_by_size": {
+          "small": {
+            "objects": 36,
+            "recall": 0.083
+          },
+          "medium": {
+            "objects": 43,
+            "recall": 0.395
+          },
+          "large": {
+            "objects": 22,
+            "recall": 0.773
+          }
+        }
+      },
+      "fusedWhole": {
+        "detections": 15,
+        "true_positives": 11,
+        "false_positives": 4,
+        "missed": 90,
+        "precision": 0.733,
+        "recall": 0.109,
+        "recall_by_size": {
+          "small": {
+            "objects": 36,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 43,
+            "recall": 0
+          },
+          "large": {
+            "objects": 22,
+            "recall": 0.5
+          }
+        }
+      },
+      "fusedTiled": {
+        "detections": 64,
+        "true_positives": 34,
+        "false_positives": 30,
+        "missed": 67,
+        "precision": 0.531,
+        "recall": 0.337,
+        "recall_by_size": {
+          "small": {
+            "objects": 36,
+            "recall": 0.083
+          },
+          "medium": {
+            "objects": 43,
+            "recall": 0.349
+          },
+          "large": {
+            "objects": 22,
+            "recall": 0.727
+          }
+        }
+      }
+    },
+    "desk_composite_6x6.jpg": {
+      "width": 3840,
+      "height": 2880,
+      "source_photos": 36,
+      "annotated_objects": 437,
+      "timing_ms": {
+        "fast": 197,
+        "deep_whole": 549,
+        "deep_tiled": 6071
+      },
+      "tiling": {
+        "passes": 10,
+        "tile_px": 1477,
+        "incomplete": false,
+        "boxes_before_merge": 298
+      },
+      "fast": {
+        "detections": 5,
+        "true_positives": 5,
+        "false_positives": 0,
+        "missed": 432,
+        "precision": 1,
+        "recall": 0.011,
+        "recall_by_size": {
+          "small": {
+            "objects": 128,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 184,
+            "recall": 0
+          },
+          "large": {
+            "objects": 125,
+            "recall": 0.04
+          }
+        }
+      },
+      "deepWhole": {
+        "detections": 26,
+        "true_positives": 21,
+        "false_positives": 5,
+        "missed": 416,
+        "precision": 0.808,
+        "recall": 0.048,
+        "recall_by_size": {
+          "small": {
+            "objects": 128,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 184,
+            "recall": 0
+          },
+          "large": {
+            "objects": 125,
+            "recall": 0.168
+          }
+        }
+      },
+      "deepTiled": {
+        "detections": 195,
+        "true_positives": 132,
+        "false_positives": 63,
+        "missed": 305,
+        "precision": 0.677,
+        "recall": 0.302,
+        "recall_by_size": {
+          "small": {
+            "objects": 128,
+            "recall": 0.008
+          },
+          "medium": {
+            "objects": 184,
+            "recall": 0.239
+          },
+          "large": {
+            "objects": 125,
+            "recall": 0.696
+          }
+        }
+      },
+      "fusedWhole": {
+        "detections": 22,
+        "true_positives": 18,
+        "false_positives": 4,
+        "missed": 419,
+        "precision": 0.818,
+        "recall": 0.041,
+        "recall_by_size": {
+          "small": {
+            "objects": 128,
+            "recall": 0
+          },
+          "medium": {
+            "objects": 184,
+            "recall": 0
+          },
+          "large": {
+            "objects": 125,
+            "recall": 0.144
+          }
+        }
+      },
+      "fusedTiled": {
+        "detections": 164,
+        "true_positives": 120,
+        "false_positives": 44,
+        "missed": 317,
+        "precision": 0.732,
+        "recall": 0.275,
+        "recall_by_size": {
+          "small": {
+            "objects": 128,
+            "recall": 0.008
+          },
+          "medium": {
+            "objects": 184,
+            "recall": 0.185
+          },
+          "large": {
+            "objects": 125,
+            "recall": 0.68
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Composites are made of real photos; they stand in for a high-resolution photo of a cluttered desk (the reported failure image is not available).",
+    "COCO annotations are incomplete, so some \"false positives\" are real, unannotated objects."
+  ],
+  "git_commit": "177afa7+uncommitted"
+}

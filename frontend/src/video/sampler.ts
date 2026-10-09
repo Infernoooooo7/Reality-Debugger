@@ -13,7 +13,9 @@ import { DETECTION, TEMPORAL, VISION } from '../config'
 import { ApiError } from '../lib/api'
 import { FrameGrabber, JpegCapturer } from '../live/capture'
 import { vision } from '../vision/client'
-import { trackObject, visibleTracks, type SceneObjectPayload } from '../vision/scene'
+import { measureCoverage } from '../vision/coverage'
+import { detectorRun, modelFacts } from '../vision/runs'
+import { coveragePayload, trackObject, visibleTracks, type CoveragePayload, type DetectorRunPayload, type SceneObjectPayload } from '../vision/scene'
 import { SignalAnalyzer, signatureDistance } from '../vision/signals'
 import type { Signature, TrackEvent } from '../vision/types'
 
@@ -31,6 +33,10 @@ export interface Sample {
   motion: number
   objects: SceneObjectPayload[]
   events: TrackEvent[]
+  /** What each detector did on this frame (the deep run is added when a keyframe is verified). */
+  runs: DetectorRunPayload[]
+  /** Visible detail the tracked objects explain (vision/coverage.ts); null when not measured. */
+  coverage: CoveragePayload | null
 }
 
 export interface Keyframe {
@@ -142,6 +148,7 @@ export async function sampleVideo(
   const samples: Sample[] = []
   const seen = new Set<string>()
   let scenes = 1
+  const fastFacts = await modelFacts(VISION.fast.model)
   try {
     for (let i = 0; i < total; i++) {
       if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
@@ -153,6 +160,12 @@ export async function sampleVideo(
       if (useEngine) {
         const result = await vision.processFrame(bitmap, t * 1000)
         const objects = visibleTracks(result.tracks).map((track) => trackObject(track, t * 1000))
+        let coverage: CoveragePayload | null = null
+        try {
+          coverage = coveragePayload(measureCoverage(video, video.videoWidth, video.videoHeight, objects.map((o) => o.box)))
+        } catch {
+          coverage = null
+        }
         sample = {
           t,
           signature: result.signature,
@@ -161,11 +174,23 @@ export async function sampleVideo(
           motion: result.signals.motion,
           objects,
           events: result.events,
+          runs: [detectorRun(VISION.fast.model, 'fast', 'ok', fastFacts, { boxes: result.detections, ms: result.inferenceMs })],
+          coverage,
         }
       } else {
         const { signals, signature } = analyzer!.analyze(bitmap)
         bitmap.close()
-        sample = { t, signature, sharpness: signals.sharpness, brightness: signals.brightness, motion: signals.motion, objects: [], events: [] }
+        sample = {
+          t,
+          signature,
+          sharpness: signals.sharpness,
+          brightness: signals.brightness,
+          motion: signals.motion,
+          objects: [],
+          events: [],
+          runs: [detectorRun(VISION.fast.model, 'fast', 'unavailable', fastFacts, { note: 'the on-device detector could not be loaded' })],
+          coverage: null,
+        }
       }
       const prev = samples[samples.length - 1]
       if (prev && signatureDistance(sample.signature, prev.signature) > V.sceneBoundary) scenes++
@@ -324,7 +349,9 @@ export function buildManifest(
       brightness: s.brightness,
       sharpness: s.sharpness,
       motion: s.motion,
-      detectors,
+      detectors: s.runs.filter((r) => r.status === 'ok').map((r) => r.model),
+      runs: s.runs,
+      coverage: s.coverage,
     })),
     frames: selection.keyframes.map((k, i) => ({
       index: i,

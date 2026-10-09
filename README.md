@@ -5,7 +5,11 @@
 Reality Debugger treats the physical world like software. Point your phone at a
 desk, a kitchen or a gaming setup — or upload a photo or a video — and get a
 debugging report for it: bugs with severity, evidence, impact and a fix, a
-system score, and a final diagnosis. In Live Scan the findings have a lifecycle
+score, and a final diagnosis. Every report also says what the scan could and
+could not examine: which detectors ran, how much detail they saw, and what
+they cannot recognise. "No findings" is never presented as an all-clear when
+the inspection was limited, and no score is invented when it cannot be
+justified (UNRATED, see [`docs/SCORING.md`](docs/SCORING.md)). In Live Scan the findings have a lifecycle
 — **DISCOVERED → CONFIRMED → TRACKING → RESOLVED** — so when you move the mug
 away from the laptop, the bug closes in front of you.
 

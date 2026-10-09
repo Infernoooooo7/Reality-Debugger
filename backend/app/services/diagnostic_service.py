@@ -38,6 +38,7 @@ from app.schemas.diagnostics import (
     DiagnosticReport,
     Finding,
     ImageMeta,
+    InspectionReport,
     LifecycleEvent,
     Optimization,
     Relationship,
@@ -47,6 +48,7 @@ from app.schemas.diagnostics import (
 )
 from app.schemas.scene import SceneModel, SceneObject
 from app.services import geometry as geo
+from app.services import inspection
 from app.services.ai_service import DiagnoseResult
 from app.services.local_diagnostics import (
     ENGINE_VERSION,
@@ -190,13 +192,37 @@ class DiagnosticService:
             return int(round(computed))
         return int(round(self.ai_blend * ai_score + (1 - self.ai_blend) * computed))
 
-    def status_for(self, score: int, findings: Sequence[Finding | TrackedFinding]) -> SystemStatus:
+    def issue_score(self, ai_score: int | None, findings: Sequence[Finding | TrackedFinding]) -> int | None:
+        """Severity-weighted burden of the open findings (100 minus penalties); None when there is no
+        open finding - an empty list is not evidence of a perfect scene."""
+        if not any(f.status != FindingStatus.RESOLVED for f in findings):
+            return None
+        return self.score(ai_score, findings)
+
+    def status_for(self, issue_score: int | None, findings: Sequence[Finding | TrackedFinding], coverage: str = "sufficient") -> SystemStatus:
+        """Headline status. Measured severe (or many) findings are reported whatever the coverage; an
+        all-clear (STABLE) needs sufficient coverage, otherwise the status says the inspection was
+        limited or inconclusive (docs/SCORING.md)."""
         active = [f for f in findings if f.status != FindingStatus.RESOLVED]
-        if score < self.critical_below or any(f.severity == Severity.CRITICAL for f in active):
+        if any(f.severity == Severity.CRITICAL for f in active) or (issue_score is not None and issue_score < self.critical_below):
             return SystemStatus.CRITICAL
-        if score < self.degraded_below or any(f.severity == Severity.HIGH for f in active):
+        if any(f.severity == Severity.HIGH for f in active) or (issue_score is not None and issue_score < self.degraded_below):
             return SystemStatus.DEGRADED
+        if coverage == "insufficient":
+            return SystemStatus.INCONCLUSIVE
+        if coverage == "limited":
+            return SystemStatus.LIMITED
         return SystemStatus.STABLE
+
+    def inspect(self, scene: SceneModel | None, mode: AnalysisMode, findings: Sequence[Finding | TrackedFinding]) -> InspectionReport:
+        active = [f for f in findings if f.status != FindingStatus.RESOLVED]
+        set_aside = len(self.engine.evidence(scene, mode)[1]) if scene is not None else 0
+        return inspection.assess(scene, mode=mode, config=self.config, findings=len(active), vocabulary_size=len(self.ontology.labels),
+                                 armed_rules=self.engine.armed_rules(), all_rules=self.engine.rule_names, set_aside=set_aside)
+
+    def rated_score(self, ai_score: int | None, findings: Sequence[Finding | TrackedFinding], report: InspectionReport) -> int | None:
+        """The scene condition score: only when the inspection is sufficient to rate the scene (else UNRATED)."""
+        return self.score(ai_score, findings) if report.score_rated else None
 
     # -- local engine ------------------------------------------------------------------
 
@@ -225,7 +251,7 @@ class DiagnosticService:
             for r in self.engine.relations(scene, 12)
         ]
 
-    def local_scene_info(self, scene: SceneModel | None, finding_count: int, score: int) -> SceneInfo:
+    def local_scene_info(self, scene: SceneModel | None, finding_count: int, score: int | None) -> SceneInfo:
         if scene is None:
             return SceneInfo(name="UNKNOWN_SPACE", version=version_for(score), summary="No scene model.", confidence=0.0)
         confidences = [o.confidence for o in scene.objects]
@@ -383,6 +409,7 @@ class DiagnosticService:
                 self._transition(session, tf, FindingStatus.RESOLVED, now, note, events)
 
         session.observations += 1
+        session.last_inspection = self.inspect(scene, mode, list(session.findings.values()))
         self.metrics.observations += 1
         self.metrics.record_events([e.type for e in events])
         session.updated_at = now
@@ -401,6 +428,7 @@ class DiagnosticService:
                 session.personality,
                 [tf for tf in sorted(open_local, key=_sort_key)],  # type: ignore[arg-type]
                 len(scene.objects),
+                session.last_inspection,
             )
         session.system_name = system_name(session.scene)
 
@@ -701,17 +729,22 @@ class DiagnosticService:
         scored = score_findings if score_findings is not None else findings
         diagnosis = ai.diagnosis if ai is not None else None
         ai_score = diagnosis.system_score if diagnosis is not None else None
-        score = self.score(ai_score, scored)
+        inspected = self.inspect(scene, mode, scored)
+        score = self.rated_score(ai_score, scored, inspected)
+        issues = self.issue_score(ai_score, scored)
         if scene_info is None:
             if diagnosis is not None:
                 scene_info = ai_scene_info(diagnosis)
             else:
                 open_count = sum(1 for f in scored if f.status != FindingStatus.RESOLVED)
-                scene_info = self.local_scene_info(scene, open_count, score)
+                scene_info = self.local_scene_info(scene, open_count, score if score is not None else issues)
         object_count = len(scene.objects) if scene is not None else 0
-        final_text = final or (diagnosis.final_diagnosis if diagnosis is not None else "") or final_diagnosis(
-            personality, list(local), object_count
-        )
+        local_text = final_diagnosis(personality, list(local), object_count, inspected)
+        ai_text = diagnosis.final_diagnosis if diagnosis is not None else ""
+        if ai_text and inspected.analysis_status != "complete":
+            # The AI's conclusion is kept, but never without the measured inspection limits.
+            ai_text = f"{ai_text} (Local inspection: {inspected.analysis_status.replace('_', ' ')} - {local_text})"
+        final_text = final or ai_text or local_text
         optimizations = optimizations_from(diagnosis) if diagnosis is not None else []
         return DiagnosticReport(
             report_id=f"rpt_{secrets.token_hex(6)}",
@@ -726,10 +759,12 @@ class DiagnosticService:
             latency_ms=latency_ms,
             system_name=system_name(scene_info),
             scene=scene_info,
-            status=self.status_for(score, scored),
+            status=self.status_for(issues, scored, inspected.coverage),
             system_score=score,
+            issue_score=issues,
             ai_score=ai_score,
             counts=count(scored, optimizations),
+            inspection=inspected,
             objects=objects_from_scene(scene) + (ai_objects(diagnosis) if diagnosis is not None else []),
             relationships=self.relations(scene) + (ai_relationships(diagnosis) if diagnosis is not None else []),
             findings=sorted(findings, key=_sort_key),
@@ -752,13 +787,16 @@ class DiagnosticService:
 
     def scan_state(self, session: ScanSession) -> ScanState:
         tracked = sorted(session.findings.values(), key=_sort_key)
-        if session.observations or session.analyses:
+        inspected = session.last_inspection
+        if (session.observations or session.analyses) and inspected is not None:
             ai_score = session.last_ai_score if session.ai_scene_view == session.view_id else None
-            score: int | None = self.score(ai_score, tracked)
-            status = self.status_for(score, tracked)
+            score: int | None = self.rated_score(ai_score, tracked, inspected)
+            issues = self.issue_score(ai_score, tracked)
+            status = self.status_for(issues, tracked, inspected.coverage)
         else:
-            score = None
-            status = SystemStatus.STABLE
+            # Nothing has been observed yet: there is no evidence either way.
+            score = issues = None
+            status = SystemStatus.INCONCLUSIVE
         return ScanState(
             scan_id=session.scan_id,
             created_at=session.created_at,
@@ -768,6 +806,7 @@ class DiagnosticService:
             observations=session.observations,
             status=status,
             system_score=score,
+            issue_score=issues,
             system_name=session.system_name,
             scene=session.scene,
             final_diagnosis=session.final_diagnosis,
@@ -777,4 +816,5 @@ class DiagnosticService:
             events=list(session.events)[-40:],
             ai=session.last_ai_run,
             engine=ENGINE_VERSION,
+            inspection=inspected,
         )

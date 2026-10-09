@@ -13,7 +13,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, ValidationError, model_validator
 
 from app.schemas.common import Box, Category, Severity
-from app.schemas.scene import OptUnit, SceneObject
+from app.schemas.scene import DetectorRun, OptUnit, SceneCoverage, SceneObject
 from app.utils import coerce
 
 
@@ -83,6 +83,8 @@ class VideoSample(BaseModel):
     sharpness: OptUnit = None
     motion: OptUnit = None
     detectors: list[Annotated[str, _text(48)]] = Field(default_factory=list, max_length=4)
+    runs: list[DetectorRun] = Field(default_factory=list, max_length=8)
+    coverage: SceneCoverage | None = None
 
     @model_validator(mode="before")
     @classmethod

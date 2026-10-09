@@ -102,7 +102,8 @@ immediately.
 {
   "scan": {
     "scan_id": "scan_…", "personality": "brutal", "observations": 2, "analyses": 0,
-    "status": "STABLE", "system_score": 93, "engine": "local-diagnostics/2",
+    "status": "LIMITED", "system_score": null, "issue_score": 93, "engine": "local-diagnostics/2",
+    "inspection": { "analysis_status": "limited", "coverage": "limited", "…": "see DiagnosticReport" },
     "findings": [ /* Finding, see below */ ], "counts": { … }, "events": [ … ], "ai": null
   },
   "report": { /* DiagnosticReport for this observation */ },
@@ -139,7 +140,7 @@ resolved. A resolved finding that comes back is `REOPENED`.
 
 ### Response: `DiagnosticReport`
 
-This is a real local-only response, abridged:
+A local-only response, abridged (values from real runs):
 
 ```json
 {
@@ -148,7 +149,18 @@ This is a real local-only response, abridged:
   "detectors": ["efficientdet_lite0", "yolox_s"],
   "ai": { "status": "off", "provider": null, "model": null, "trigger": "manual",
           "reason": "Local-only mode: no GEMINI_API_KEY is configured. AI reasoning is optional.", "error": null },
-  "status": "STABLE", "system_score": 93,
+  "status": "LIMITED", "system_score": null, "issue_score": 93,
+  "inspection": {
+    "analysis_status": "limited", "coverage": "limited", "detection": "ok", "findings": "findings",
+    "reasons": [ { "code": "closed_vocabulary", "level": "limited",
+                   "message": "Only 80 object categories can be recognised. …", "evidence": { "categories": 80, "median_unrecognised_share": 0.5 } } ],
+    "detectors": [ { "model": "yolox_s", "role": "deep", "status": "ok", "boxes": 9, "ms": 612.0, "input_size": 640, "passes": 1,
+                     "tile_px": null, "incomplete": false, "effective_scale": 1.0, "vocabulary": 80, "note": null } ],
+    "objects": 2, "categories": ["cup", "laptop"], "confidence": { "min": 0.71, "median": 0.785, "max": 0.86, "below_threshold": 0, "threshold": 0.5 },
+    "structure": { "edge_density": 0.21, "unexplained_share": 0.34, "box_coverage": 0.41 },
+    "checks_run": ["spill_risk", "…"], "skipped": [ { "analysis": "segmentation", "reason": "…" } ],
+    "score_rated": false, "basis": "docs/SCORING.md"
+  },
   "counts": { "active_bugs": 1, "high_priority": 0, "optimizations": 0, "resolved": 0 },
   "objects": [ { "id": "t1", "label": "laptop", "confidence": 0.86, "box": { … }, "source": "fused", "verified": true } ],
   "relationships": [ { "subject": "t2", "relation": "near", "object": "t1", "source": "local",
@@ -169,6 +181,25 @@ This is a real local-only response, abridged:
   "final_diagnosis": "…", "warnings": []
 }
 ```
+
+Score and status fields (definitions and evidence in [`SCORING.md`](SCORING.md)):
+- `status`: `CRITICAL` or `DEGRADED` (from findings), `INCONCLUSIVE` or `LIMITED` (the inspection cannot support an all-clear), `STABLE`.
+- `system_score`: the scene condition score, or `null` (shown as UNRATED) when inspection coverage is not sufficient.
+  An empty findings list never produces 100 on its own.
+- `issue_score`: 100 minus the severity-weighted penalties of the open findings; `null` when there is none.
+- `inspection`: what was examined.
+  - `analysis_status`, `coverage`, `detection` and `findings` summarise it;
+  - `reasons` lists each measured limitation with its evidence;
+  - `detectors` lists every detector run;
+  - it also gives counts, confidence, image size, the structure measure, quality and vocabulary;
+  - `checks_run` and `skipped` list what did and did not run.
+
+The scene model sent by clients (`scene.stats`) reports what each detector did, so that "nothing found" can be told apart from "nothing examined":
+- `runs`: per detector, `model`, `role`, `status` (ok/failed/skipped/unavailable), `boxes`, `ms`, `input_size`, `passes`, `tile_px`, `incomplete`, `vocabulary` and `note`;
+- `coverage`: `edge_density`, `unexplained_share` and `box_coverage`;
+- `objects_total`: objects recognised before the 80-object cap.
+
+Clients that send none of these get a `runs_unreported` limitation.
 
 Field values:
 - `source`: `local` (rule engine) or `ai` (added by the reasoning layer).

@@ -45,7 +45,9 @@ def test_scene_analysis_needs_no_upload(client: TestClient) -> None:
     assert report["system_name"].startswith("DEVICE_AREA_v")
     assert report["objects"][0]["source"] == "fast"
     assert report["relationships"] and report["relationships"][0]["source"] == "local"
-    assert 0 <= report["system_score"] < 100
+    assert report["system_score"] is None  # closed-vocabulary detectors: the scene itself is not rated
+    assert 0 <= report["issue_score"] < 100  # the measured spill risk is
+    assert report["status"] == "DEGRADED" and report["inspection"]["coverage"] == "limited"
 
 
 def test_image_debug_without_ai_uses_the_scene(client: TestClient) -> None:

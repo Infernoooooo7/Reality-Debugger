@@ -102,7 +102,8 @@ def manifest_scenes(manifest: VideoManifest) -> list[SceneModel]:
                     height=manifest.height,
                     objects=sample.objects,
                     signals=SceneSignals(brightness=sample.brightness, sharpness=sample.sharpness, motion=sample.motion),
-                    stats=SceneStats(detectors=sample.detectors or ([manifest.detector] if manifest.detector else [])),
+                    stats=SceneStats(detectors=sample.detectors or ([manifest.detector] if manifest.detector else []),
+                                     runs=sample.runs, coverage=sample.coverage),
                 )
             )
         return scenes

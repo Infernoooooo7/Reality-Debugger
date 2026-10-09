@@ -105,7 +105,7 @@ def test_rules_never_test_label_strings() -> None:
 
 def test_armed_rules_reflect_the_vocabulary() -> None:
     armed = set(ENGINE.armed_rules())
-    assert {"spill_risk", "food_near_electronics", "sharp_exposed", "clutter", "lighting"} <= armed
+    assert {"spill_risk", "food_near_electronics", "sharp_exposed", "dense_region", "overlap_cluster", "lighting"} <= armed
     # No bundled detector has cable or outlet classes.
     assert "cable_congestion" not in armed and "liquid_near_outlet" not in armed
     assert set(RULE_REQUIREMENTS) <= set(ENGINE.rule_names)
@@ -165,20 +165,42 @@ def test_edge_placement_on_surface() -> None:
     assert "edge_placement" not in run(table, obj("t7", "wine glass", 0.45, 0.6, 0.05, 0.12))
 
 
-def test_clutter_counts_loose_items_only() -> None:
-    items = [obj(f"t{i}", "book", 0.05 + 0.1 * (i % 9), 0.1 + 0.1 * (i // 9), 0.06, 0.08) for i in range(9)]
-    found = run(*items)["clutter"][0]
-    assert found.measurements["objects"] == 9 and found.severity == Severity.LOW
-    people = [obj(f"p{i}", "person", 0.1 * i, 0.1, 0.08, 0.3) for i in range(9)]
-    assert "clutter" not in run(*people)
+def test_object_count_alone_is_not_clutter() -> None:
+    # Nine items spread over the whole frame: many objects, but no measured concentration or overlap.
+    spread = [obj(f"t{i}", "book", 0.02 + 0.11 * (i % 9), 0.05 + 0.3 * (i % 3), 0.05, 0.06) for i in range(9)]
+    found = run(*spread)
+    assert "dense_region" not in found and "overlap_cluster" not in found
 
 
-def test_overlap_stack_and_surface_congestion() -> None:
+def test_dense_region_measures_concentration() -> None:
+    cluster = [obj(f"t{i}", "book", 0.40 + 0.03 * (i % 3), 0.40 + 0.04 * (i // 3), 0.025, 0.035) for i in range(6)]
+    far = obj("t9", "cup", 0.05, 0.05, 0.05, 0.08)
+    found = run(*cluster, far)["dense_region"][0]
+    assert found.measurements["objects_in_region"] == 6 and found.measurements["recognised_loose_objects"] == 7
+    assert "t9" not in found.object_ids
+    assert "not counted" in found.inference  # interpretation stays cautious and states the coverage limit
+    people = [obj(f"p{i}", "person", 0.40 + 0.03 * (i % 3), 0.40 + 0.04 * (i // 3), 0.025, 0.035) for i in range(6)]
+    assert "dense_region" not in run(*people)
+
+
+def test_overlap_cluster_and_surface_congestion() -> None:
     stack = [obj("a", "book", 0.4, 0.4, 0.2, 0.2), obj("b", "book", 0.42, 0.42, 0.2, 0.2), obj("c", "book", 0.44, 0.44, 0.2, 0.2)]
-    assert "overlap_stack" in run(*stack)
+    group = run(*stack)["overlap_cluster"][0]
+    assert sorted(group.object_ids) == ["a", "b", "c"] and group.measurements["max_overlap_of_smaller"] > 0.8
+    assert "cannot tell" in group.inference
+    assert "overlap_cluster" not in run(*stack[:2])  # one overlapping pair is normal
     table = obj("t", "dining table", 0.2, 0.4, 0.4, 0.4)
     crowded = [table] + [obj(f"o{i}", "bowl", 0.2 + 0.1 * (i % 4), 0.4 + 0.1 * (i // 4), 0.1, 0.1) for i in range(12)]
     assert "surface_congestion" in run(*crowded)
+
+
+def test_keep_clear_zone_reports_objects_inside_it() -> None:
+    zone = {"id": "z1", "name": "keyboard area", "box": {"x": 0.3, "y": 0.6, "w": 0.4, "h": 0.3}}
+    cup_inside = obj("c1", "cup", 0.4, 0.65, 0.08, 0.12)
+    found = run(LAPTOP, cup_inside, zones=[zone])["keep_clear_zone"][0]
+    assert found.object_ids == ["c1"] and "keyboard area" in found.title
+    assert "keep_clear_zone" not in run(LAPTOP, obj("c1", "cup", 0.85, 0.1, 0.08, 0.12), zones=[zone])
+    assert "keep_clear_zone" not in run(LAPTOP, cup_inside)  # no zone defined, nothing to check
 
 
 def test_signal_rules() -> None:

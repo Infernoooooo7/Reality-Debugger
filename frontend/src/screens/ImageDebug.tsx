@@ -4,7 +4,7 @@ import { AIBadge, LocalBadge, PersonalitySwitch } from '../components/Bits'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Icon } from '../components/Icon'
 import { ReportView } from '../components/ReportView'
-import { VISION } from '../config'
+import { DETECTION, VISION } from '../config'
 import { analyzeImage, analyzeScene, ApiError, isAbort, toApiError } from '../lib/api'
 import { formatBytes, formatMs } from '../lib/format'
 import { navigate } from '../lib/router'
@@ -13,9 +13,13 @@ import { useSettings } from '../state/settings'
 import { aiEnabled, aiMode, providerLabel, useSystem } from '../state/system'
 import { JpegCapturer } from '../live/capture'
 import { vision } from '../vision/client'
+import { measureCoverage } from '../vision/coverage'
 import { deepDetector } from '../vision/deep/client'
+import { detectTiled, planTile, tileWindows, TILING_DEFAULTS, type TiledResult } from '../vision/deep/tiling'
 import { fuseStill, type FusedObject } from '../vision/fusion'
-import { stillScene } from '../vision/scene'
+import { detectorRun, modelFacts } from '../vision/runs'
+import { coveragePayload, stillScene, type CoveragePayload, type DetectorRunPayload } from '../vision/scene'
+import type { StillResult } from '../vision/types'
 import '../styles/debug.css'
 
 // JPG/PNG/WEBP everywhere; HEIC/HEIF/AVIF etc. work wherever the browser can
@@ -104,41 +108,89 @@ export default function ImageDebug() {
         setPicked({ file, url, width: bitmap.width, height: bitmap.height })
         setStage('decode', 'done', `${bitmap.width}×${bitmap.height} · ${formatMs(performance.now() - started)}`)
 
-        // 2. Fast detector (EfficientDet-Lite0).
-        let fast: Awaited<ReturnType<typeof vision.analyzeStill>> | null = null
+        // 2. Fast detector (EfficientDet-Lite0). Every detector reports what it actually did
+        //    (status, boxes, input size, tiling): the backend uses this to tell "nothing found"
+        //    apart from "nothing examined" (backend/app/services/inspection.py).
+        const runs: DetectorRunPayload[] = []
+        const [fastFacts, deepFacts] = await Promise.all([modelFacts(VISION.fast.model), modelFacts(VISION.deep.model)])
+        let fast: StillResult | null = null
         setStage('fast', 'active', vision.ready ? undefined : 'loading model…')
         try {
           fast = await vision.analyzeStill(await createImageBitmap(bitmap))
           setDetections(fuseStill(fast.detections, null))
-          setStage('fast', 'done', `${fast.detections.length} boxes · ${formatMs(fast.inferenceMs)}`)
+          runs.push(detectorRun(VISION.fast.model, 'fast', 'ok', fastFacts, { boxes: fast.detections.length, ms: fast.inferenceMs }))
+          setStage('fast', 'done', `${fast.detections.length} boxes · ${fastFacts.inputSize ?? '?'} px input · ${formatMs(fast.inferenceMs)}`)
         } catch (e) {
-          setStage('fast', 'failed', toApiError(e).message.slice(0, 60))
+          const message = toApiError(e).message
+          runs.push(detectorRun(VISION.fast.model, 'fast', 'failed', fastFacts, { note: message }))
+          setStage('fast', 'failed', message.slice(0, 60))
         }
 
-        // 3. Deep detector (YOLOX-S), loaded on first use; the report still works without it.
-        let deep: Awaited<ReturnType<typeof deepDetector.detect>> | null = null
+        // 3. Deep detector (YOLOX-S), loaded on first use. Large photos are also scanned in
+        //    overlapping tiles so that small objects keep their pixels (vision/deep/tiling.ts).
+        let deep: TiledResult | null = null
         if (deepDetector.enabled) {
           setStage('deep', 'active', deepDetector.ready ? undefined : 'loading model (one-time download)…')
+          const inputSize = deepFacts.inputSize ?? DETECTION.deep.inputSize
+          const tile = TILING_DEFAULTS.enabled === false ? null : planTile(bitmap.width, bitmap.height, inputSize, TILING_DEFAULTS)
+          const planned = tile === null ? 1 : 1 + tileWindows(bitmap.width, bitmap.height, tile, TILING_DEFAULTS.overlap).length
+          let pass = 0
           try {
-            deep = await deepDetector.detect(await createImageBitmap(bitmap))
+            // Load first (one-time download) so that the reported time is detection time only.
+            if (!deepDetector.ready) await deepDetector.init()
+            deep = await detectTiled(
+              bitmap,
+              (b) => {
+                pass++
+                if (planned > 1) setStage('deep', 'active', `pass ${pass} of ${planned} (${tile} px tiles)…`)
+                return deepDetector.detect(b)
+              },
+              inputSize,
+              TILING_DEFAULTS,
+            )
             const info = deepDetector.getSnapshot().info
-            setStage('deep', 'done', `${deep.detections.length} boxes · ${formatMs(deep.totalMs)} · ${info?.backend ?? ''}`)
+            const tiled = deep.tilePx !== null ? ` · ${deep.passes} passes (${deep.tilePx} px tiles${deep.incomplete ? ', stopped early' : ''})` : ''
+            runs.push(
+              detectorRun(VISION.deep.model, 'deep', 'ok', deepFacts, {
+                boxes: deep.detections.length,
+                ms: deep.totalMs,
+                passes: deep.passes,
+                tile_px: deep.tilePx,
+                incomplete: deep.incomplete,
+                note: deep.incomplete ? `time budget reached after ${deep.passes - 1} of ${deep.planned} tiles` : null,
+              }),
+            )
+            setStage('deep', 'done', `${deep.detections.length} boxes${tiled} · ${formatMs(deep.totalMs)} · ${info?.backend ?? ''}`)
           } catch (e) {
-            setStage('deep', 'skipped', toApiError(e).message.slice(0, 70))
+            const message = toApiError(e).message
+            runs.push(detectorRun(VISION.deep.model, 'deep', 'failed', deepFacts, { note: message }))
+            setStage('deep', 'failed', message.slice(0, 70))
           }
         } else {
+          runs.push(detectorRun(VISION.deep.model, 'deep', 'skipped', deepFacts, { note: 'switched off in settings' }))
           setStage('deep', 'skipped', 'switched off in settings')
         }
 
-        // 4. Fusion -> scene model (measured on this device).
+        // 4. Fusion -> scene model (measured on this device). The scene is always built, even
+        //    when a detector failed: the report must say so rather than look clean.
         const fused = fuseStill(fast?.detections ?? [], deep?.detections ?? null)
         setDetections(fused)
-        const detectors = [...(fast ? [VISION.fast.model] : []), ...(deep ? [VISION.deep.model] : [])]
-        const scene = fast
-          ? stillScene(fused, fast.signals, { width: bitmap.width, height: bitmap.height, detectors })
-          : null
+        const detectors = runs.filter((r) => r.status === 'ok').map((r) => r.model)
+        let coverage: CoveragePayload | null = null
+        try {
+          coverage = coveragePayload(measureCoverage(bitmap, bitmap.width, bitmap.height, fused.map((o) => o.box)))
+        } catch {
+          coverage = null // reported by the backend as "structure not measured"
+        }
+        const scene = stillScene(fused, fast?.signals ?? null, { width: bitmap.width, height: bitmap.height, detectors, runs, coverage })
         const verified = fused.filter((o) => o.verified).length
-        setStage('fuse', fast ? 'done' : 'skipped', fast ? `${fused.length} objects · ${verified} confirmed by both` : 'no detections')
+        setStage(
+          'fuse',
+          detectors.length ? 'done' : 'failed',
+          detectors.length
+            ? `${fused.length} objects · ${verified} confirmed by both${coverage?.unexplained_share != null ? ` · ${Math.round(coverage.unexplained_share * 100)}% of detail unexplained` : ''}`
+            : 'no detector produced a result',
+        )
         setImageEl(await loadImage(url))
 
         // 5. Local diagnostics, plus AI reasoning when a provider is configured
@@ -146,7 +198,7 @@ export default function ImageDebug() {
         let result: Report
         setStage('local', 'active')
         const reasonStarted = performance.now()
-        if (withAI || !scene) {
+        if (withAI) {
           capturer.current ??= new JpegCapturer()
           const shot = await capturer.current.capture(bitmap, VISION.capture.deepScanMaxEdge, VISION.capture.deepScanQuality)
           setStage('reason', 'active', `${providerLabel(health?.ai.provider)} · ${formatBytes(shot.blob.size)} JPEG`)

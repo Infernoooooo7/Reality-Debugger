@@ -175,6 +175,33 @@ test('image debug rejects files that are not images', async ({ page }) => {
   await expect(page.locator('.error-panel')).toContainText('Unsupported file')
 })
 
+test('image debug: no findings is not a perfect score', async ({ page }) => {
+  // Regression for the "false 100/100": recognised objects and no finding must not read as an all-clear.
+  await page.goto('/#/image')
+  await page.locator('input[type=file]').first().setInputFiles({ name: 'stop.png', mimeType: 'image/png', buffer: await stopSignPng(page) })
+  await expect(page.locator('.report')).toBeVisible({ timeout: 170_000 })
+  await expect(page.locator('.report .finding')).toHaveCount(0)
+  await expect(page.locator('.report .readout__value')).toHaveText('UNRATED')
+  await expect(page.locator('.report .chip--LIMITED')).toHaveText('LIMITED INSPECTION')
+  await expect(page.locator('.report__diagnosis')).toContainText('not an all-clear')
+  await expect(page.locator('.inspection')).toContainText('Only 80 object categories can be recognised')
+  await expect(page.locator('.inspection')).toContainText('yolox_s')
+})
+
+test('image debug: a detector failure is reported, never as "no issues"', async ({ page }) => {
+  await page.route('**/efficientdet_lite0.tflite', (route) => route.abort())
+  await page.route('**/yolox_s.onnx', (route) => route.abort())
+  await page.goto('/#/image')
+  await page.locator('input[type=file]').first().setInputFiles({ name: 'stop.png', mimeType: 'image/png', buffer: await stopSignPng(page) })
+  await expect(page.locator('.report')).toBeVisible({ timeout: 170_000 })
+  await expect(page.locator('.stages li').nth(1)).toHaveAttribute('data-state', 'failed')
+  await expect(page.locator('.stages li').nth(2)).toHaveAttribute('data-state', 'failed')
+  await expect(page.locator('.report .chip--INCONCLUSIVE')).toBeVisible()
+  await expect(page.locator('.report .readout__value')).toHaveText('UNRATED')
+  await expect(page.locator('.report__diagnosis')).toContainText('No detector produced a result')
+  await expect(page.locator('.report__diagnosis')).not.toContainText('No measurable issues')
+})
+
 test('AI failure keeps the local report and says so', async ({ page }) => {
   // Pretend an AI provider is configured, then make it fail.
   await page.route('**/api/health', async (route) => {

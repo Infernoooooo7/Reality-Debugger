@@ -167,6 +167,10 @@
   --tone: var(--amber);
 }
 
+.plate[data-tone='steel'] {
+  --tone: var(--steel);
+}
+
 .plate__text {
   font-family: var(--font-display);
   font-weight: 800;

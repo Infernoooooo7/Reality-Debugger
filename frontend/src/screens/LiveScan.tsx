@@ -133,7 +133,9 @@ export default function LiveScan() {
         ? 'ok'
         : living.state === 'ANOMALY' || living.state === 'INVESTIGATING'
           ? 'amber'
-          : 'neutral'
+          : living.state === 'LIMITED'
+            ? 'steel'
+            : 'neutral'
   const livingText =
     living.state === 'MONITORING' && scan
       ? `Monitoring ${pad2(scan.counts.active_bugs)} bug${scan.counts.active_bugs === 1 ? '' : 's'}`

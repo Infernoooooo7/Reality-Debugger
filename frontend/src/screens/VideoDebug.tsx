@@ -23,6 +23,7 @@ import {
 } from '../video/sampler'
 import { useVision, vision } from '../vision/client'
 import { deepDetector } from '../vision/deep/client'
+import { detectorRun, modelFacts } from '../vision/runs'
 import { verifyObjects } from '../vision/fusion'
 import '../styles/debug.css'
 
@@ -141,25 +142,35 @@ export default function VideoDebug() {
       first.src = thumbUrls[0]!
       setCardImage({ source: first, width: info.width, height: info.height })
 
-      // Deep detector verifies the keyframes (within the time budget).
+      // Deep detector verifies the keyframes (within the time budget). Each keyframe's sample
+      // records whether the deep pass ran on it, so the report knows what was examined.
       const detectors = [vision.getSnapshot().info?.modelId ?? VISION.fast.model]
       if (deepDetector.enabled) {
         setPhase('verifying')
+        const deepFacts = await modelFacts(VISION.deep.model)
         const started = clock()
         let done = 0
+        let current = -1
         try {
           for (const [i, k] of selection.keyframes.entries()) {
-            if (clock() - started > VISION.deep.videoBudgetMs) break
-            const deep = await deepDetector.detect(await createImageBitmap(blobs[i]!))
             const sample = samples[k.sample]!
+            if (clock() - started > VISION.deep.videoBudgetMs) {
+              sample.runs.push(detectorRun(VISION.deep.model, 'deep', 'skipped', deepFacts, { note: 'video time budget reached' }))
+              continue
+            }
+            current = k.sample
+            const deep = await deepDetector.detect(await createImageBitmap(blobs[i]!))
             sample.objects = verifyObjects(sample.objects, deep.detections, `k${i + 1}d`)
+            sample.runs.push(detectorRun(VISION.deep.model, 'deep', 'ok', deepFacts, { boxes: deep.detections.length, ms: deep.totalMs, note: 'keyframe verification' }))
             done++
           }
           if (done) detectors.push(VISION.deep.model)
           const note = `${done}/${selection.keyframes.length} keyframes · ${formatMs(clock() - started)}`
           setStats((prev) => (prev ? { ...prev, deep: note } : prev))
         } catch (e) {
-          const note = `unavailable: ${toApiError(e).message.slice(0, 60)}`
+          const message = toApiError(e).message
+          if (current >= 0) samples[current]!.runs.push(detectorRun(VISION.deep.model, 'deep', 'failed', deepFacts, { note: message }))
+          const note = `unavailable: ${message.slice(0, 60)}`
           setStats((prev) => (prev ? { ...prev, deep: note } : prev))
         }
       }

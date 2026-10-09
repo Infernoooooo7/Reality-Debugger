@@ -18,7 +18,7 @@ from typing import Any
 from app.errors import NotFoundError
 from app.schemas.analysis import AIFinding
 from app.schemas.common import Box, Category, FindingStatus, Personality, Severity
-from app.schemas.diagnostics import AIRun, Finding, LifecycleEvent, Optimization, SceneInfo, StatusChange
+from app.schemas.diagnostics import AIRun, Finding, InspectionReport, LifecycleEvent, Optimization, SceneInfo, StatusChange
 from app.services.ai_policy import AIBudget
 
 SCAN_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,48}$")
@@ -167,6 +167,7 @@ class ScanSession:
     view_id: int = 0
     ai: AIBudget = field(default_factory=AIBudget)
     last_ai_run: AIRun | None = None
+    last_inspection: InspectionReport | None = None  # coverage of the latest observed scene
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     last_access: float = field(default_factory=time.monotonic)
 

@@ -20,6 +20,7 @@ const COLORS = {
   phosphor: '#63e2a3',
   critical: '#ff3a5e',
   hazard: '#f4d10b',
+  steel: '#8db3cf',
 }
 
 const DISPLAY = '"Big Shoulders Display Variable", "Arial Narrow", sans-serif'
@@ -33,7 +34,18 @@ function scoreColor(score: number): string {
 }
 
 function statusColor(status: Report['status']): string {
-  return status === 'STABLE' ? COLORS.phosphor : status === 'DEGRADED' ? COLORS.amber : COLORS.critical
+  const colors: Record<Report['status'], string> = {
+    STABLE: COLORS.phosphor,
+    LIMITED: COLORS.steel,
+    INCONCLUSIVE: COLORS.chalk2,
+    DEGRADED: COLORS.amber,
+    CRITICAL: COLORS.critical,
+  }
+  return colors[status]
+}
+
+function statusText(status: Report['status']): string {
+  return status === 'LIMITED' ? 'LIMITED INSPECTION' : status
 }
 
 function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxLines: number): string[] {
@@ -177,23 +189,31 @@ export async function renderShareCard(report: Report, image: CardImage | null): 
   ctx.fillText(report.system_name, M, y)
   y += image ? 24 : 40
 
-  // Score block
-  const score = Math.round(report.system_score)
+  // Score block: a number only when the inspection justifies one (docs/SCORING.md)
   const scoreSize = image ? 230 : 300
-  ctx.font = `900 ${scoreSize}px ${DISPLAY}`
-  ctx.fillStyle = scoreColor(score)
   const scoreY = y + scoreSize * 0.78
-  ctx.fillText(String(score), M - 6, scoreY)
-  const scoreW = ctx.measureText(String(score)).width
-  ctx.fillStyle = COLORS.chalk3
-  ctx.font = `700 44px ${DISPLAY}`
-  ctx.fillText('/ 100', M + scoreW + 8, scoreY)
+  let scoreW: number
+  if (report.system_score == null) {
+    ctx.font = `900 ${Math.round(scoreSize * 0.42)}px ${DISPLAY}`
+    ctx.fillStyle = COLORS.chalk2
+    ctx.fillText('UNRATED', M - 4, scoreY)
+    scoreW = ctx.measureText('UNRATED').width - 150
+  } else {
+    const score = Math.round(report.system_score)
+    ctx.font = `900 ${scoreSize}px ${DISPLAY}`
+    ctx.fillStyle = scoreColor(score)
+    ctx.fillText(String(score), M - 6, scoreY)
+    scoreW = ctx.measureText(String(score)).width
+    ctx.fillStyle = COLORS.chalk3
+    ctx.font = `700 44px ${DISPLAY}`
+    ctx.fillText('/ 100', M + scoreW + 8, scoreY)
+  }
 
   // Status + counts column
   const colX = M + scoreW + 190
   ctx.font = `800 54px ${DISPLAY}`
   ctx.fillStyle = statusColor(report.status)
-  ctx.fillText(report.status, colX, scoreY - scoreSize * 0.5)
+  ctx.fillText(statusText(report.status), colX, scoreY - scoreSize * 0.5)
   ctx.font = `400 24px ${DATA}`
   ctx.fillStyle = COLORS.chalk2
   ctx.fillText(`${pad2(report.counts.active_bugs)} ACTIVE BUGS`, colX, scoreY - scoreSize * 0.5 + 50)
@@ -264,8 +284,10 @@ export function reportText(report: Report): string {
     'REALITY DIAGNOSTIC',
     rule,
     row('SYSTEM', report.system_name),
-    row('STATUS', report.status),
-    row('SYSTEM SCORE', `${Math.round(report.system_score)} / 100`),
+    row('STATUS', statusText(report.status)),
+    row('SCENE SCORE', report.system_score == null ? 'UNRATED' : `${Math.round(report.system_score)} / 100`),
+    ...(report.issue_score != null ? [row('ISSUE SCORE', `${report.issue_score} / 100 (open findings only)`)] : []),
+    ...(report.inspection ? [row('ANALYSIS', `${report.inspection.analysis_status.replace('_', ' ')} · coverage ${report.inspection.coverage}`)] : []),
     row('ACTIVE BUGS', pad2(report.counts.active_bugs)),
     row('HIGH PRIORITY', pad2(report.counts.high_priority)),
     row('OPTIMIZATIONS', pad2(report.counts.optimizations)),
@@ -285,6 +307,11 @@ export function reportText(report: Report): string {
   if (report.optimizations.length) {
     lines.push('OPTIMIZATIONS')
     for (const o of report.optimizations) lines.push(`  + ${o.title} (${o.effort.toLowerCase()} effort)`)
+    lines.push('')
+  }
+  if (report.inspection?.reasons.length) {
+    lines.push('INSPECTION LIMITS')
+    for (const r of report.inspection.reasons) lines.push(`  - ${r.message}`)
     lines.push('')
   }
   lines.push('FINAL DIAGNOSIS', `“${report.final_diagnosis}”`, rule)
