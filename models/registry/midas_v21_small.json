@@ -1,0 +1,53 @@
+{
+  "id": "midas_v21_small",
+  "name": "MiDaS v2.1 small (relative depth)",
+  "version": "v2_1 model-small.onnx",
+  "family": "midas",
+  "architecture": "EfficientNet-Lite3 encoder + decoder; relative inverse depth from one image",
+  "tasks": [
+    "relative-depth"
+  ],
+  "vocabulary": {
+    "type": "none"
+  },
+  "paper": "R. Ranftl et al., Towards Robust Monocular Depth Estimation: Mixing Datasets for Zero-shot Cross-dataset Transfer, TPAMI 2022, arXiv:1907.01341",
+  "homepage": "https://github.com/isl-org/MiDaS",
+  "licence": {
+    "code": "MIT",
+    "weights": "MIT",
+    "verified": false
+  },
+  "weights": {
+    "file": "midas_v21_small.onnx",
+    "url": "https://github.com/isl-org/MiDaS/releases/download/v2_1/model-small.onnx",
+    "sha256": "2d8c6cb8f415229daf1eb041024208e2608c9f98e17c81cc7c6ecb449c56fd58",
+    "precision": "fp32",
+    "bytes": 66764249
+  },
+  "runtimes": [
+    {
+      "target": "backend",
+      "engine": "onnxruntime",
+      "providers": [
+        "CPUExecutionProvider"
+      ]
+    }
+  ],
+  "hardware": {
+    "notes": "~66 MB."
+  },
+  "reported": {},
+  "input": {
+    "width": 256,
+    "height": 256,
+    "normalize": "ImageNet mean/std, RGB"
+  },
+  "postprocess": {},
+  "limitations": [
+    "Relative (affine-invariant) inverse depth: no metric distances",
+    "Not evaluated here (no depth ground truth downloaded)"
+  ],
+  "status": "fetchable",
+  "fetch_by_default": false,
+  "evaluations": []
+}

@@ -1,0 +1,21 @@
+{
+  "id": "grounding_dino_swint",
+  "name": "Grounding DINO Swin-T (open-set detection)",
+  "tasks": [
+    "open-vocab-detect"
+  ],
+  "vocabulary": {
+    "type": "open",
+    "note": "text prompts"
+  },
+  "paper": "S. Liu et al., Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object Detection, ECCV 2024, arXiv:2303.05499",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": false
+  },
+  "status": "unavailable",
+  "unavailable_reason": "The checkpoint is reachable (GitHub release, 694 MB) but needs PyTorch and a BERT tokenizer/weights from Hugging Face, which are not reachable; far too slow for live CPU use.",
+  "fetch_by_default": false,
+  "evaluations": []
+}

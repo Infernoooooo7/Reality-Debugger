@@ -1,0 +1,21 @@
+{
+  "id": "clip_vit_b32",
+  "name": "CLIP ViT-B/32 (zero-shot image-text matching)",
+  "tasks": [
+    "zero-shot-classify"
+  ],
+  "vocabulary": {
+    "type": "open",
+    "note": "text prompts"
+  },
+  "paper": "A. Radford et al., Learning Transferable Visual Models From Natural Language Supervision, ICML 2021, arXiv:2103.00020",
+  "licence": {
+    "code": "MIT",
+    "weights": "MIT",
+    "verified": false
+  },
+  "status": "unavailable",
+  "unavailable_reason": "Weights are hosted on openaipublic.azureedge.net / Hugging Face, not reachable here.",
+  "fetch_by_default": false,
+  "evaluations": []
+}

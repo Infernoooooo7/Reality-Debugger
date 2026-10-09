@@ -1,0 +1,21 @@
+{
+  "id": "owlv2_base_patch16",
+  "name": "OWLv2 B/16 (open-vocabulary detection)",
+  "tasks": [
+    "open-vocab-detect"
+  ],
+  "vocabulary": {
+    "type": "open",
+    "note": "text prompts"
+  },
+  "paper": "M. Minderer, A. Gritsenko, N. Houlsby, Scaling Open-Vocabulary Object Detection, NeurIPS 2023, arXiv:2306.09683",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": false
+  },
+  "status": "unavailable",
+  "unavailable_reason": "Weights are distributed through Hugging Face/Google Cloud checkpoints that are not reachable from this environment; an ONNX export would also need PyTorch/JAX.",
+  "fetch_by_default": false,
+  "evaluations": []
+}

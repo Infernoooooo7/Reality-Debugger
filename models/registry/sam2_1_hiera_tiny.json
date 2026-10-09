@@ -1,0 +1,21 @@
+{
+  "id": "sam2_1_hiera_tiny",
+  "name": "SAM 2.1 Hiera-Tiny (promptable image/video segmentation)",
+  "tasks": [
+    "promptable-segment",
+    "video-segment"
+  ],
+  "vocabulary": {
+    "type": "none"
+  },
+  "paper": "N. Ravi et al., SAM 2: Segment Anything in Images and Videos, arXiv:2408.00714",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": false
+  },
+  "status": "unavailable",
+  "unavailable_reason": "Checkpoints are on dl.fbaipublicfiles.com / Hugging Face, not reachable here; ONNX export needs PyTorch.",
+  "fetch_by_default": false,
+  "evaluations": []
+}

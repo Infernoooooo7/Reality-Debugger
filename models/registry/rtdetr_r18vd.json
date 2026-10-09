@@ -1,0 +1,22 @@
+{
+  "id": "rtdetr_r18vd",
+  "name": "RT-DETR R18 (real-time DETR)",
+  "tasks": [
+    "detect"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017",
+    "num_classes": 80
+  },
+  "paper": "W. Lv et al., DETRs Beat YOLOs on Real-time Object Detection, CVPR 2024, arXiv:2304.08069",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": false
+  },
+  "status": "deferred",
+  "unavailable_reason": "PyTorch checkpoint reachable on GitHub releases; ONNX export needs PyTorch (unavailable here). Same COCO-80 vocabulary as YOLOX.",
+  "fetch_by_default": false,
+  "evaluations": []
+}

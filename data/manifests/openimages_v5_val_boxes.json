@@ -1,0 +1,38 @@
+{
+  "id": "openimages_v5_val_boxes",
+  "name": "Open Images V5 validation box annotations",
+  "version": "v5 (boxes) / v7 (class names)",
+  "homepage": "https://storage.googleapis.com/openimages/web/index.html",
+  "paper": "A. Kuznetsova et al., The Open Images Dataset V4, IJCV 2020, arXiv:1811.00982",
+  "tasks": [
+    "vocabulary-analysis"
+  ],
+  "licence": {
+    "annotations": "CC BY 4.0 (Google LLC)",
+    "images": "listed as CC BY 2.0",
+    "commercial_use": "annotations yes (attribution)",
+    "verified": true,
+    "note": ""
+  },
+  "acquisition_note": "Annotations only (no images): used to measure the vocabulary gap of COCO-80 detectors.",
+  "adapter": "openimages",
+  "archives": {
+    "validation-annotations-bbox.csv": {
+      "sha256": "d8bbd59410af14835d7733165a7bb8a3f0213981b22dd5077b0b9f7878991ff2",
+      "bytes": 25105048,
+      "url": "https://storage.googleapis.com/openimages/v5/validation-annotations-bbox.csv"
+    },
+    "oidv7-class-descriptions-boxable.csv": {
+      "sha256": "1839e0e7e84130ae281f7f67413768601b031581c0c42e7fc17527b8e2a99aa9",
+      "bytes": 12064,
+      "url": "https://storage.googleapis.com/openimages/v7/oidv7-class-descriptions-boxable.csv"
+    },
+    "bbox_labels_600_hierarchy.json": {
+      "sha256": "a28f06e83c8378c4285d92d768ceda7568a48cac3c02994b6c346df804e7d612",
+      "bytes": 86291,
+      "url": "https://storage.googleapis.com/openimages/2018_04/bbox_labels_600_hierarchy.json"
+    }
+  },
+  "storage": "data/raw/openimages_v5_val_boxes (git-ignored; RD_DATA_DIR overrides the data root)",
+  "fetched_at": "2026-10-09T13:06:38Z"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "ultralytics_yolov8_11",
+  "name": "Ultralytics YOLOv8 / YOLO11",
+  "tasks": [
+    "detect",
+    "instance-segment"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017",
+    "num_classes": 80
+  },
+  "paper": "No paper (Ultralytics documentation)",
+  "licence": {
+    "code": "AGPL-3.0",
+    "weights": "AGPL-3.0",
+    "verified": false
+  },
+  "status": "rejected",
+  "unavailable_reason": "AGPL-3.0 licence (enterprise licence otherwise) is incompatible with bundling in this project.",
+  "fetch_by_default": false,
+  "evaluations": []
+}

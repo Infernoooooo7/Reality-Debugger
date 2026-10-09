@@ -1,0 +1,44 @@
+{
+  "id": "kitti_tracking",
+  "name": "KITTI object tracking (training split, selected sequences)",
+  "version": "2012",
+  "homepage": "https://www.cvlibs.net/datasets/kitti/eval_tracking.php",
+  "paper": "A. Geiger, P. Lenz, R. Urtasun, Are we ready for Autonomous Driving? The KITTI Vision Benchmark Suite, CVPR 2012",
+  "tasks": [
+    "tracking"
+  ],
+  "licence": {
+    "annotations": "CC BY-NC-SA 3.0",
+    "images": "CC BY-NC-SA 3.0",
+    "commercial_use": "no (non-commercial)",
+    "verified": true,
+    "note": ""
+  },
+  "acquisition_note": "MOTChallenge is not reachable here. KITTI's 15.8 GB image archive is read with HTTP range requests so that only the selected training sequences are downloaded.",
+  "adapter": "kitti_tracking",
+  "archives": {
+    "data_tracking_label_2.zip": {
+      "sha256": "6ad1fa0125e3cddcbe4d182e41cd12a854a11b0c733b26c706595f6db5c254e0",
+      "bytes": 2259128,
+      "files_extracted": 21,
+      "archive_deleted": true,
+      "url": "https://s3.eu-central-1.amazonaws.com/avg-kitti/data_tracking_label_2.zip"
+    },
+    "data_tracking_image_2.zip": {
+      "bytes_total": 15813146295,
+      "bytes_transferred": 717846199,
+      "members": [
+        "training/image_02/0000/",
+        "training/image_02/0002/",
+        "training/image_02/0003/",
+        "training/image_02/0012/",
+        "training/image_02/0016/"
+      ],
+      "files_extracted": 818,
+      "note": "partial extraction via HTTP range requests; member CRCs are checked by zipfile",
+      "url": "https://s3.eu-central-1.amazonaws.com/avg-kitti/data_tracking_image_2.zip"
+    }
+  },
+  "storage": "data/raw/kitti_tracking (git-ignored; RD_DATA_DIR overrides the data root)",
+  "fetched_at": "2026-10-09T12:39:00Z"
+}

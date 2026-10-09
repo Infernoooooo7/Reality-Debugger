@@ -1,0 +1,21 @@
+{
+ "dataset": "coco_val2017",
+ "ok": true,
+ "images": 5000,
+ "unreadable_images": 0,
+ "stray_files": [
+  "raw/coco_val2017/coco/images/.DS_Store"
+ ],
+ "stray_file_count": 1,
+ "invalid_boxes": 0,
+ "invalid_box_examples": [],
+ "boxes_out_of_bounds_clipped": 0,
+ "images_without_annotations": 48,
+ "exact_duplicate_groups": 0,
+ "duplicate_examples": [],
+ "cross_split_near_duplicates": 0,
+ "near_duplicate_examples": [],
+ "classes": 80,
+ "imbalance_max_over_min": 1197.4,
+ "notes": []
+}

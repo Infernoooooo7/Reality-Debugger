@@ -1,0 +1,35 @@
+{
+  "id": "lvis_v1_labels",
+  "name": "LVIS v1 annotations (YOLO-format repackaging) on COCO 2017 images",
+  "version": "v1",
+  "homepage": "https://www.lvisdataset.org/",
+  "paper": "A. Gupta, P. Dollar, R. Girshick, LVIS: A Dataset for Large Vocabulary Instance Segmentation, CVPR 2019, arXiv:1908.03195",
+  "tasks": [
+    "vocabulary-analysis"
+  ],
+  "licence": {
+    "annotations": "CC BY 4.0",
+    "images": "COCO images (Flickr terms)",
+    "commercial_use": "annotations yes (attribution)",
+    "verified": false,
+    "note": ""
+  },
+  "acquisition_note": "dl.fbaipublicfiles.com (official LVIS json) is not reachable here; the Ultralytics repackaging keeps the LVIS category order, names come from its lvis.yaml. Used only to count which annotated objects fall outside the detectors' vocabulary; images are the COCO ones.",
+  "adapter": "yolo",
+  "archives": {
+    "lvis-labels-segments.zip": {
+      "sha256": "3a1d67011fc4a148efdc49555612857235c7d434e0794872d33d4ab76fc99211",
+      "bytes": 520852930,
+      "files_extracted": 119021,
+      "archive_deleted": true,
+      "url": "https://github.com/ultralytics/assets/releases/download/v0.0.0/lvis-labels-segments.zip"
+    },
+    "lvis.yaml": {
+      "sha256": "b7533ca407cc0440def6ac7d0fc7fd68b858da7fddfaa29aa4317949fee3488f",
+      "bytes": 29577,
+      "url": "https://raw.githubusercontent.com/ultralytics/ultralytics/main/ultralytics/cfg/datasets/lvis.yaml"
+    }
+  },
+  "storage": "data/raw/lvis_v1_labels (git-ignored; RD_DATA_DIR overrides the data root)",
+  "fetched_at": "2026-10-09T12:40:22Z"
+}

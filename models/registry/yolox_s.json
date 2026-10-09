@@ -1,0 +1,95 @@
+{
+  "id": "yolox_s",
+  "name": "YOLOX-S",
+  "version": "0.1.1rc0",
+  "family": "yolox",
+  "architecture": "Anchor-free one-stage detector: CSPDarknet backbone, PAFPN neck, decoupled head with objectness; official ONNX export (fp32)",
+  "tasks": [
+    "detect"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017",
+    "num_classes": 80,
+    "labels_from": "yolox/data/datasets/coco_classes.py at tag 0.1.1rc0"
+  },
+  "paper": "Z. Ge, S. Liu, F. Wang, Z. Li, J. Sun, YOLOX: Exceeding YOLO Series in 2021, arXiv:2107.08430",
+  "homepage": "https://github.com/Megvii-BaseDetection/YOLOX",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": true
+  },
+  "weights": {
+    "file": "yolox_s.onnx",
+    "url": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.onnx",
+    "sha256": "c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063",
+    "precision": "fp32"
+  },
+  "runtimes": [
+    {
+      "target": "browser",
+      "engine": "onnxruntime-web",
+      "providers": [
+        "webgpu",
+        "wasm"
+      ]
+    },
+    {
+      "target": "backend",
+      "engine": "onnxruntime",
+      "providers": [
+        "CPUExecutionProvider"
+      ]
+    }
+  ],
+  "hardware": {
+    "notes": "446-528 ms per image with 4 WASM threads in headless Chromium; ~80 ms with ONNX Runtime CPU (4 threads) on the same machine."
+  },
+  "browser": {
+    "role": "deep",
+    "runtime": "onnxruntime-web",
+    "license": "Apache-2.0",
+    "dataset": "COCO 2017 (80 thing categories)",
+    "labels_from": "https://raw.githubusercontent.com/Megvii-BaseDetection/YOLOX/0.1.1rc0/yolox/data/datasets/coco_classes.py"
+  },
+  "reported": {
+    "coco_val2017_map": 40.5,
+    "params_m": 9.0,
+    "gflops": 26.8,
+    "source": "YOLOX README (Standard Models table)"
+  },
+  "input": {
+    "width": 640,
+    "height": 640,
+    "layout": "NCHW",
+    "channel_order": "BGR",
+    "pad_value": 114,
+    "placement": "top-left",
+    "normalize": "none (0-255 floats)",
+    "source": "YOLOX demo/ONNXRuntime/onnx_inference.py + yolox/data/data_augment.py preproc()"
+  },
+  "decode": {
+    "strides": [
+      8,
+      16,
+      32
+    ],
+    "format": "cx,cy,w,h,objectness,80 class scores",
+    "source": "yolox/utils/demo_utils.py demo_postprocess()"
+  },
+  "postprocess": {
+    "pre_nms_score": 0.1,
+    "nms_iou": 0.45,
+    "nms_class_agnostic": true,
+    "display_score": 0.3,
+    "source": "YOLOX ONNX demo: multiclass_nms(nms_thr=0.45, score_thr=0.1), class_agnostic=True; visualisation conf 0.3"
+  },
+  "limitations": [
+    "80 COCO categories only",
+    "640x640 input: large images are downscaled, which loses small objects (see sliced inference)"
+  ],
+  "status": "fetchable",
+  "fetch_by_default": true,
+  "evaluations": []
+}

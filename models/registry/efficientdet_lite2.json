@@ -1,0 +1,66 @@
+{
+  "id": "efficientdet_lite2",
+  "name": "EfficientDet-Lite2 (int8)",
+  "version": "mediapipe-models object_detector/efficientdet_lite2/int8/1",
+  "family": "efficientdet-lite",
+  "architecture": "EfficientNet-Lite2 backbone + BiFPN, 448x448 input, int8 TFLite",
+  "tasks": [
+    "detect"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017",
+    "num_classes": 80,
+    "labels_from": "labels.txt packed in the TFLite metadata"
+  },
+  "paper": "M. Tan, R. Pang, Q. V. Le, EfficientDet: Scalable and Efficient Object Detection, CVPR 2020, arXiv:1911.09070",
+  "homepage": "https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": true
+  },
+  "weights": {
+    "file": "efficientdet_lite2.tflite",
+    "url": "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/int8/1/efficientdet_lite2.tflite",
+    "sha256": "b3f50554cb0ea559e90328845f7d9ba4d13c8bff372914d24e06bc8bb72fa896",
+    "precision": "int8",
+    "bytes": 7515971
+  },
+  "runtimes": [
+    {
+      "target": "browser-candidate",
+      "engine": "mediapipe-tasks-vision"
+    },
+    {
+      "target": "evaluation",
+      "engine": "mediapipe (Python)"
+    }
+  ],
+  "hardware": {
+    "notes": "Candidate replacement for Lite0 if its accuracy gain justifies the latency on phones."
+  },
+  "reported": {
+    "coco_ap": 33.97,
+    "size_mb": 7.2,
+    "latency_ms_pixel4_cpu_4threads": 69,
+    "source": "TensorFlow Lite Model Maker object detection guide (EfficientDet-Lite table)"
+  },
+  "input": {
+    "width": 448,
+    "height": 448,
+    "layout": "NHWC",
+    "source": "MediaPipe model card / TFLite input tensor"
+  },
+  "postprocess": {
+    "nms_iou": 0.3,
+    "nms_class_agnostic": true,
+    "source": "MediaPipe object detector defaults"
+  },
+  "limitations": [
+    "80 COCO categories only"
+  ],
+  "status": "fetchable",
+  "fetch_by_default": false,
+  "evaluations": []
+}

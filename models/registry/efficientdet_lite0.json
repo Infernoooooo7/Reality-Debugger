@@ -1,0 +1,78 @@
+{
+  "id": "efficientdet_lite0",
+  "name": "EfficientDet-Lite0 (int8)",
+  "version": "mediapipe-models object_detector/efficientdet_lite0/int8/1",
+  "family": "efficientdet-lite",
+  "architecture": "EfficientNet-Lite0 backbone + BiFPN + class/box heads (one-stage, anchor-based); int8 post-training quantised TFLite",
+  "tasks": [
+    "detect"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017",
+    "num_classes": 80,
+    "labels_from": "labels.txt packed in the TFLite metadata"
+  },
+  "paper": "M. Tan, R. Pang, Q. V. Le, EfficientDet: Scalable and Efficient Object Detection, CVPR 2020, arXiv:1911.09070",
+  "homepage": "https://ai.google.dev/edge/mediapipe/solutions/vision/object_detector",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": true
+  },
+  "weights": {
+    "file": "efficientdet_lite0.tflite",
+    "url": "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite",
+    "sha256": "0720bf247bd76e6594ea28fa9c6f7c5242be774818997dbbeffc4da460c723bb",
+    "precision": "int8"
+  },
+  "runtimes": [
+    {
+      "target": "browser",
+      "engine": "mediapipe-tasks-vision",
+      "delegates": [
+        "CPU (XNNPACK)",
+        "GPU (WebGL)"
+      ]
+    },
+    {
+      "target": "evaluation",
+      "engine": "mediapipe (Python)"
+    }
+  ],
+  "hardware": {
+    "notes": "Runs on phone CPUs; 63-113 ms per frame measured in headless Chromium on a 4-core x86 CPU (docs/benchmarks/browser_bench.json)."
+  },
+  "browser": {
+    "role": "fast",
+    "runtime": "mediapipe-tasks-vision",
+    "license": "Apache-2.0",
+    "dataset": "COCO 2017 (80 thing categories)",
+    "labels_from": "tflite-metadata"
+  },
+  "reported": {
+    "coco_val2017_ap": 25.69,
+    "size_mb_int8": 4.4,
+    "latency_ms_pixel4_cpu_4threads": 37,
+    "source": "TensorFlow Lite Model Maker object detection guide (EfficientDet-Lite table)"
+  },
+  "input": {
+    "width": 320,
+    "height": 320,
+    "layout": "NHWC",
+    "source": "TFLite input tensor shape [1, 320, 320, 3] (read with the tflite flatbuffer schema)"
+  },
+  "postprocess": {
+    "nms_iou": 0.3,
+    "nms_class_agnostic": true,
+    "source": "MediaPipe object_detector_options.proto defaults (min_suppression_threshold=0.3, multiclass_nms=false); the model has no in-model NMS"
+  },
+  "limitations": [
+    "80 COCO categories only",
+    "320x320 input: objects below ~20 px after resizing are rarely found",
+    "Fixed class-agnostic NMS at IoU 0.3 inside MediaPipe (not configurable through the Tasks API)"
+  ],
+  "status": "bundled",
+  "fetch_by_default": true,
+  "evaluations": []
+}

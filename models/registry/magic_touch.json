@@ -1,0 +1,53 @@
+{
+  "id": "magic_touch",
+  "name": "MediaPipe Interactive Segmenter (MagicTouch)",
+  "version": "mediapipe-models interactive_segmenter/magic_touch/float32/1",
+  "family": "mediapipe-interactive-segmenter",
+  "architecture": "Class-agnostic promptable segmentation: point/region of interest -> foreground mask",
+  "tasks": [
+    "promptable-segment"
+  ],
+  "vocabulary": {
+    "type": "none",
+    "note": "class-agnostic"
+  },
+  "paper": "MediaPipe model card (no paper)",
+  "homepage": "https://ai.google.dev/edge/mediapipe/solutions/vision/interactive_segmenter",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "see model card",
+    "verified": false
+  },
+  "weights": {
+    "file": "magic_touch.tflite",
+    "url": "https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float32/1/magic_touch.tflite",
+    "sha256": "e24338a717c1b7ad8d159666677ef400babb7f33b8ad60c4d96db4ecf694cd25",
+    "precision": "fp32",
+    "bytes": 6227884
+  },
+  "runtimes": [
+    {
+      "target": "browser-candidate",
+      "engine": "mediapipe-tasks-vision"
+    },
+    {
+      "target": "evaluation",
+      "engine": "mediapipe (Python)"
+    }
+  ],
+  "hardware": {
+    "notes": "6 MB."
+  },
+  "reported": {},
+  "input": {
+    "note": "image + keypoint prompt"
+  },
+  "postprocess": {},
+  "limitations": [
+    "One object per prompt",
+    "No class labels"
+  ],
+  "status": "fetchable",
+  "fetch_by_default": false,
+  "evaluations": []
+}

@@ -9,10 +9,11 @@
 # AI_PROVIDER=claude + ANTHROPIC_API_KEY) only adds the optional AI layer.
 
 # Detector weights. The fast model is committed; the deep model (YOLOX-S,
-# 36 MB) is downloaded here and verified against the SHA-256 in tools/fetch_models.py.
+# 36 MB) is downloaded here and verified against the SHA-256 in models/registry/.
 FROM python:3.13-slim AS models
 WORKDIR /src
 COPY tools/fetch_models.py tools/
+COPY models/registry/ models/registry/
 COPY frontend/public/models/ frontend/public/models/
 RUN python tools/fetch_models.py --fetch
 

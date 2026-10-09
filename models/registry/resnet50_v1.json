@@ -1,0 +1,60 @@
+{
+  "id": "resnet50_v1",
+  "name": "ResNet-50 v1 (ONNX Model Zoo, ImageNet-1k)",
+  "version": "onnx/models resnet50-v1-12",
+  "family": "resnet",
+  "architecture": "ResNet-50 v1 image classifier; intermediate stages used as patch features for anomaly detection",
+  "tasks": [
+    "classify",
+    "feature-extract"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "ImageNet-1k",
+    "num_classes": 1000
+  },
+  "paper": "K. He, X. Zhang, S. Ren, J. Sun, Deep Residual Learning for Image Recognition, CVPR 2016, arXiv:1512.03385",
+  "homepage": "https://github.com/onnx/models/tree/main/validated/vision/classification/resnet",
+  "licence": {
+    "code": "Apache-2.0 (onnx/models)",
+    "weights": "as the source repository",
+    "verified": false
+  },
+  "weights": {
+    "file": "resnet50-v1-12.onnx",
+    "url": "https://media.githubusercontent.com/media/onnx/models/main/validated/vision/classification/resnet/model/resnet50-v1-12.onnx",
+    "sha256": "3f03fdef724b22947eed826f1eef1dc5c34151bb4c37d634f1db89dfa2dd1526",
+    "precision": "fp32",
+    "bytes": 102576593
+  },
+  "runtimes": [
+    {
+      "target": "backend",
+      "engine": "onnxruntime",
+      "providers": [
+        "CPUExecutionProvider"
+      ]
+    }
+  ],
+  "hardware": {
+    "notes": "~100 MB fp32."
+  },
+  "reported": {
+    "source": "ONNX Model Zoo (ImageNet top-1, to be confirmed)"
+  },
+  "input": {
+    "width": 224,
+    "height": 224,
+    "layout": "NCHW",
+    "normalize": "ImageNet mean/std, RGB",
+    "source": "ONNX Model Zoo resnet README"
+  },
+  "postprocess": {},
+  "limitations": [
+    "Classifier, not a detector: needs regions from elsewhere",
+    "PatchCore's reference backbone is WideResNet-50, not available here"
+  ],
+  "status": "fetchable",
+  "fetch_by_default": false,
+  "evaluations": []
+}

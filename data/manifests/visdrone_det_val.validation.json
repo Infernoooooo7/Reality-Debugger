@@ -1,0 +1,26 @@
+{
+ "dataset": "visdrone_det_val",
+ "ok": true,
+ "images": 548,
+ "unreadable_images": 0,
+ "stray_files": [
+  "raw/visdrone_det_val/VisDrone2019-DET-val/.DS_Store"
+ ],
+ "stray_file_count": 1,
+ "invalid_boxes": 0,
+ "invalid_box_examples": [],
+ "boxes_out_of_bounds_clipped": 0,
+ "images_without_annotations": 0,
+ "exact_duplicate_groups": 1,
+ "duplicate_examples": [
+  [
+   "0000022_00000_d_0000004",
+   "0000023_00000_d_0000008"
+  ]
+ ],
+ "cross_split_near_duplicates": 0,
+ "near_duplicate_examples": [],
+ "classes": 10,
+ "imbalance_max_over_min": 56.0,
+ "notes": []
+}

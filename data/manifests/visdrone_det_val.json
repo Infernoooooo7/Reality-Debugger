@@ -1,0 +1,31 @@
+{
+  "id": "visdrone_det_val",
+  "name": "VisDrone2019-DET validation",
+  "version": "2019",
+  "homepage": "https://github.com/VisDrone/VisDrone-Dataset",
+  "paper": "P. Zhu et al., Detection and Tracking Meet Drones Challenge, IEEE TPAMI 2021, arXiv:2001.06303",
+  "tasks": [
+    "detection",
+    "small-objects"
+  ],
+  "licence": {
+    "annotations": "VisDrone terms (academic research)",
+    "images": "VisDrone terms (academic research)",
+    "commercial_use": "no (research use) - to be confirmed against the official terms",
+    "verified": false,
+    "note": ""
+  },
+  "acquisition_note": "Official downloads are on Google Drive/Baidu (unreachable here); Ultralytics GitHub-release copy of the original files.",
+  "adapter": "visdrone",
+  "archives": {
+    "VisDrone2019-DET-val.zip": {
+      "sha256": "abeea063037e5d20398837deb11084e652402a34ddf4f207bdf541a6f2a35ef9",
+      "bytes": 81638851,
+      "files_extracted": 1097,
+      "archive_deleted": true,
+      "url": "https://github.com/ultralytics/assets/releases/download/v0.0.0/VisDrone2019-DET-val.zip"
+    }
+  },
+  "storage": "data/raw/visdrone_det_val (git-ignored; RD_DATA_DIR overrides the data root)",
+  "fetched_at": "2026-10-09T12:39:02Z"
+}

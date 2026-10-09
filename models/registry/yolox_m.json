@@ -1,0 +1,81 @@
+{
+  "id": "yolox_m",
+  "name": "YOLOX-M",
+  "family": "yolox",
+  "version": "0.1.1rc0",
+  "tasks": [
+    "detect"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017",
+    "num_classes": 80,
+    "labels_from": "yolox/data/datasets/coco_classes.py at tag 0.1.1rc0"
+  },
+  "paper": "Z. Ge, S. Liu, F. Wang, Z. Li, J. Sun, YOLOX: Exceeding YOLO Series in 2021, arXiv:2107.08430",
+  "homepage": "https://github.com/Megvii-BaseDetection/YOLOX",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": true
+  },
+  "runtimes": [
+    {
+      "target": "backend",
+      "engine": "onnxruntime",
+      "providers": [
+        "CPUExecutionProvider"
+      ]
+    }
+  ],
+  "architecture": "YOLOX medium (CSPDarknet + PAFPN + decoupled head), 640 input (official ONNX export, fp32)",
+  "weights": {
+    "file": "yolox_m.onnx",
+    "url": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_m.onnx",
+    "sha256": "21ff6cfdeb53b013bac2249599e55f00bff3cfdfdab37ed7a4620818c1d15b3f",
+    "precision": "fp32",
+    "bytes": 101259744
+  },
+  "hardware": {
+    "notes": "Backend specialist (CPU); too heavy for live browser use."
+  },
+  "reported": {
+    "coco_val2017_map": 46.9,
+    "params_m": 25.3,
+    "gflops": 73.8,
+    "source": "YOLOX README, Standard Models table (COCO val2017 mAP@[.5:.95])"
+  },
+  "input": {
+    "width": 640,
+    "height": 640,
+    "layout": "NCHW",
+    "channel_order": "BGR",
+    "pad_value": 114,
+    "placement": "top-left",
+    "normalize": "none (0-255 floats)",
+    "source": "YOLOX demo/ONNXRuntime/onnx_inference.py + yolox/data/data_augment.py preproc()"
+  },
+  "decode": {
+    "strides": [
+      8,
+      16,
+      32
+    ],
+    "format": "cx,cy,w,h,objectness,80 class scores",
+    "source": "yolox/utils/demo_utils.py demo_postprocess()"
+  },
+  "postprocess": {
+    "pre_nms_score": 0.1,
+    "nms_iou": 0.45,
+    "nms_class_agnostic": true,
+    "display_score": 0.3,
+    "source": "YOLOX ONNX demo defaults; display threshold to be re-derived per model on held-out data"
+  },
+  "limitations": [
+    "80 COCO categories only",
+    "~100 MB fp32; backend use"
+  ],
+  "status": "fetchable",
+  "fetch_by_default": false,
+  "evaluations": []
+}

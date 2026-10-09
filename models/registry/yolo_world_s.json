@@ -1,0 +1,21 @@
+{
+  "id": "yolo_world_s",
+  "name": "YOLO-World-S (open-vocabulary YOLO)",
+  "tasks": [
+    "open-vocab-detect"
+  ],
+  "vocabulary": {
+    "type": "open",
+    "note": "text prompts"
+  },
+  "paper": "T. Cheng et al., YOLO-World: Real-Time Open-Vocabulary Object Detection, CVPR 2024, arXiv:2401.17270",
+  "licence": {
+    "code": "GPL-3.0",
+    "weights": "GPL-3.0",
+    "verified": false
+  },
+  "status": "rejected",
+  "unavailable_reason": "GPL-3.0 licence is incompatible with bundling in this project.",
+  "fetch_by_default": false,
+  "evaluations": []
+}

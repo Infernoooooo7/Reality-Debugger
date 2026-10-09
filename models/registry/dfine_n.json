@@ -1,0 +1,22 @@
+{
+  "id": "dfine_n",
+  "name": "D-FINE-N (real-time DETR)",
+  "tasks": [
+    "detect"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017 / Objects365",
+    "num_classes": 80
+  },
+  "paper": "Y. Peng et al., D-FINE: Redefine Regression Task in DETRs as Fine-grained Distribution Refinement, arXiv:2410.13842",
+  "licence": {
+    "code": "Apache-2.0 (code); Objects365 weights carry dataset terms",
+    "weights": "Apache-2.0 (code); Objects365 weights carry dataset terms",
+    "verified": false
+  },
+  "status": "deferred",
+  "unavailable_reason": "PyTorch checkpoints only; export needs PyTorch (unavailable here).",
+  "fetch_by_default": false,
+  "evaluations": []
+}

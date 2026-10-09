@@ -1,0 +1,81 @@
+{
+  "id": "yolox_l",
+  "name": "YOLOX-L",
+  "family": "yolox",
+  "version": "0.1.1rc0",
+  "tasks": [
+    "detect"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017",
+    "num_classes": 80,
+    "labels_from": "yolox/data/datasets/coco_classes.py at tag 0.1.1rc0"
+  },
+  "paper": "Z. Ge, S. Liu, F. Wang, Z. Li, J. Sun, YOLOX: Exceeding YOLO Series in 2021, arXiv:2107.08430",
+  "homepage": "https://github.com/Megvii-BaseDetection/YOLOX",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": true
+  },
+  "runtimes": [
+    {
+      "target": "backend",
+      "engine": "onnxruntime",
+      "providers": [
+        "CPUExecutionProvider"
+      ]
+    }
+  ],
+  "architecture": "YOLOX large, 640 input (official ONNX export, fp32)",
+  "weights": {
+    "file": "yolox_l.onnx",
+    "url": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_l.onnx",
+    "sha256": "7860ae79de6c89a3c1eb72ae9a2756c0ccfbe04b7791bb5880afabd97855a411",
+    "precision": "fp32",
+    "bytes": 216746733
+  },
+  "hardware": {
+    "notes": "Backend precision scans on a capable CPU/GPU."
+  },
+  "reported": {
+    "coco_val2017_map": 49.7,
+    "params_m": 54.2,
+    "gflops": 155.6,
+    "source": "YOLOX README, Standard Models table (COCO val2017 mAP@[.5:.95])"
+  },
+  "input": {
+    "width": 640,
+    "height": 640,
+    "layout": "NCHW",
+    "channel_order": "BGR",
+    "pad_value": 114,
+    "placement": "top-left",
+    "normalize": "none (0-255 floats)",
+    "source": "YOLOX demo/ONNXRuntime/onnx_inference.py + yolox/data/data_augment.py preproc()"
+  },
+  "decode": {
+    "strides": [
+      8,
+      16,
+      32
+    ],
+    "format": "cx,cy,w,h,objectness,80 class scores",
+    "source": "yolox/utils/demo_utils.py demo_postprocess()"
+  },
+  "postprocess": {
+    "pre_nms_score": 0.1,
+    "nms_iou": 0.45,
+    "nms_class_agnostic": true,
+    "display_score": 0.3,
+    "source": "YOLOX ONNX demo defaults; display threshold to be re-derived per model on held-out data"
+  },
+  "limitations": [
+    "80 COCO categories only",
+    "~217 MB fp32; slow on CPU; backend precision scans only"
+  ],
+  "status": "fetchable",
+  "fetch_by_default": false,
+  "evaluations": []
+}

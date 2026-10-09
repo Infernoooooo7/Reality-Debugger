@@ -1,0 +1,31 @@
+{
+  "id": "coco_val2017",
+  "name": "COCO 2017 validation (detection)",
+  "version": "2017",
+  "homepage": "https://cocodataset.org/",
+  "paper": "T.-Y. Lin et al., Microsoft COCO: Common Objects in Context, ECCV 2014, arXiv:1405.0312",
+  "tasks": [
+    "detection",
+    "instance-segmentation"
+  ],
+  "licence": {
+    "annotations": "CC BY 4.0 (COCO Consortium)",
+    "images": "Flickr terms of use; the COCO Consortium does not own the image copyrights",
+    "commercial_use": "annotations yes (attribution); images depend on each Flickr licence",
+    "verified": true,
+    "note": ""
+  },
+  "acquisition_note": "images.cocodataset.org is not reachable from the build environment; this is the Ultralytics GitHub-release repackaging of the official val2017 images and instances_val2017.json. Integrity is checked against the official counts (5000 images, 36781 instances, 80 categories).",
+  "adapter": "coco",
+  "archives": {
+    "coco2017val.zip": {
+      "sha256": "a9291310cd3ecd93f05e8c5815ba62a64215646ebab0bb39b7a10ef4af500b1f",
+      "bytes": 818322941,
+      "files_extracted": 9959,
+      "archive_deleted": true,
+      "url": "https://github.com/ultralytics/assets/releases/download/v0.0.0/coco2017val.zip"
+    }
+  },
+  "storage": "data/raw/coco_val2017 (git-ignored; RD_DATA_DIR overrides the data root)",
+  "fetched_at": "2026-10-09T12:39:21Z"
+}

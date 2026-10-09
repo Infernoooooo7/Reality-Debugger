@@ -1,0 +1,20 @@
+{
+  "id": "mobile_sam",
+  "name": "MobileSAM (promptable segmentation)",
+  "tasks": [
+    "promptable-segment"
+  ],
+  "vocabulary": {
+    "type": "none"
+  },
+  "paper": "C. Zhang et al., Faster Segment Anything: Towards Lightweight SAM for Mobile Applications, arXiv:2306.14289",
+  "licence": {
+    "code": "Apache-2.0",
+    "weights": "Apache-2.0",
+    "verified": false
+  },
+  "status": "deferred",
+  "unavailable_reason": "The PyTorch checkpoint is reachable (40 MB) but exporting the image encoder to ONNX needs PyTorch, which cannot be installed from the PyTorch CDN here.",
+  "fetch_by_default": false,
+  "evaluations": []
+}

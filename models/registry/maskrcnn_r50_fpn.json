@@ -1,0 +1,70 @@
+{
+  "id": "maskrcnn_r50_fpn",
+  "name": "Mask R-CNN R-50-FPN (ONNX Model Zoo, MaskRCNN-12)",
+  "version": "onnx/models MaskRCNN-12 (opset 12)",
+  "family": "mask-rcnn",
+  "architecture": "Two-stage detector: ResNet-50-FPN backbone, RPN, RoIAlign box + mask heads (28x28 masks)",
+  "tasks": [
+    "detect",
+    "instance-segment"
+  ],
+  "vocabulary": {
+    "type": "closed",
+    "dataset": "COCO 2017",
+    "num_classes": 80,
+    "labels_from": "COCO 80 categories in contiguous order (label 1..80)"
+  },
+  "paper": "K. He, G. Gkioxari, P. Dollar, R. Girshick, Mask R-CNN, ICCV 2017, arXiv:1703.06870",
+  "homepage": "https://github.com/onnx/models/tree/main/validated/vision/object_detection_segmentation/mask-rcnn",
+  "licence": {
+    "code": "MIT (maskrcnn-benchmark, the source of the export)",
+    "weights": "as the source repository",
+    "verified": false,
+    "note": "Licence of the exported weights to be confirmed on the model zoo page."
+  },
+  "weights": {
+    "file": "MaskRCNN-12.onnx",
+    "url": "https://media.githubusercontent.com/media/onnx/models/main/validated/vision/object_detection_segmentation/mask-rcnn/model/MaskRCNN-12.onnx",
+    "sha256": "5bf940c124d9117f6fae350c4e0d46df180cbb01981832b35fdbed148078b946",
+    "precision": "fp32",
+    "bytes": 177970010
+  },
+  "runtimes": [
+    {
+      "target": "backend",
+      "engine": "onnxruntime",
+      "providers": [
+        "CPUExecutionProvider"
+      ]
+    }
+  ],
+  "hardware": {
+    "notes": "~170 MB fp32; seconds per image on CPU: selective use only (Deep Scan / Image Debug)."
+  },
+  "reported": {
+    "source": "ONNX Model Zoo model page (to be confirmed)"
+  },
+  "input": {
+    "layout": "CHW float32, BGR",
+    "mean_bgr": [
+      102.9801,
+      115.9465,
+      122.7717
+    ],
+    "min_side": 800,
+    "pad_multiple": 32,
+    "source": "ONNX Model Zoo mask-rcnn README preprocessing"
+  },
+  "postprocess": {
+    "mask_threshold": 0.5,
+    "source": "ONNX Model Zoo mask-rcnn README postprocessing"
+  },
+  "limitations": [
+    "80 COCO categories only",
+    "Masks are 28x28 per box, upsampled: coarse boundaries",
+    "Slow on CPU"
+  ],
+  "status": "fetchable",
+  "fetch_by_default": false,
+  "evaluations": []
+}

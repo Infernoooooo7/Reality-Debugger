@@ -1,0 +1,36 @@
+{
+  "id": "visa",
+  "name": "VisA (Visual Anomaly) dataset",
+  "version": "20220922",
+  "homepage": "https://github.com/amazon-science/spot-diff",
+  "paper": "Y. Zou et al., SPot-the-Difference Self-Supervised Pre-training for Anomaly Detection and Segmentation, ECCV 2022, arXiv:2207.14315",
+  "tasks": [
+    "anomaly-detection",
+    "anomaly-segmentation"
+  ],
+  "licence": {
+    "annotations": "CC BY 4.0",
+    "images": "CC BY 4.0",
+    "commercial_use": "yes (attribution)",
+    "verified": true,
+    "note": "LICENSE-DATASET shipped inside the official archive is CC BY 4.0."
+  },
+  "acquisition_note": "Official S3 archive; the official one-class split (1cls.csv) defines train (normal only) and test.",
+  "adapter": "visa",
+  "archives": {
+    "VisA_20220922.tar": {
+      "sha256": "2eb8690c803ab37de0324772964100169ec8ba1fa3f7e94291c9ca673f40f362",
+      "bytes": 1929840640,
+      "files_extracted": 12037,
+      "archive_deleted": true,
+      "url": "https://amazon-visual-anomaly.s3.us-west-2.amazonaws.com/VisA_20220922.tar"
+    },
+    "1cls.csv": {
+      "sha256": "a48557e6033318cb90556f706196bc9d247a776a23ea51aecee5a80dd0332995",
+      "bytes": 660329,
+      "url": "https://raw.githubusercontent.com/amazon-science/spot-diff/main/split_csv/1cls.csv"
+    }
+  },
+  "storage": "data/raw/visa (git-ignored; RD_DATA_DIR overrides the data root)",
+  "fetched_at": "2026-10-09T13:06:00Z"
+}

@@ -1,0 +1,469 @@
+{
+ "schema_version": 1,
+ "task": "vocabulary-coverage",
+ "date": "2026-10-09T13:06:48Z",
+ "model": {
+  "id": "yolox_s",
+  "name": "yolox_s",
+  "version": "0.1.1rc0"
+ },
+ "dataset": {
+  "id": "lvis_v1_minival+openimages_v5_val",
+  "split": "val"
+ },
+ "config": {
+  "display_threshold": 0.3,
+  "localization_iou": 0.5
+ },
+ "config_name": "default",
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v80",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "metrics": {
+  "lvis": {
+   "dataset": "LVIS v1 minival (COCO val2017 images), official json",
+   "categories": {
+    "total": 1203,
+    "outside": 1006,
+    "same": 79,
+    "subtype": 118
+   },
+   "instances_total": 50672,
+   "instance_share": {
+    "same": 0.4014,
+    "subtype": 0.0326,
+    "outside": 0.5659
+   },
+   "localized_rate_by_relation": {
+    "same": 0.4377,
+    "subtype": 0.438,
+    "outside": 0.0998
+   },
+   "by_relation_and_frequency": {
+    "outside/c": {
+     "instances": 2361,
+     "localized": 409,
+     "rate": 0.1732
+    },
+    "outside/f": {
+     "instances": 26070,
+     "localized": 2406,
+     "rate": 0.0923
+    },
+    "outside/r": {
+     "instances": 246,
+     "localized": 48,
+     "rate": 0.1951
+    },
+    "same/f": {
+     "instances": 20342,
+     "localized": 8903,
+     "rate": 0.4377
+    },
+    "subtype/c": {
+     "instances": 668,
+     "localized": 207,
+     "rate": 0.3099
+    },
+    "subtype/f": {
+     "instances": 976,
+     "localized": 508,
+     "rate": 0.5205
+    },
+    "subtype/r": {
+     "instances": 9,
+     "localized": 9,
+     "rate": 1.0
+    }
+   },
+   "most_frequent_outside_categories": [
+    {
+     "category": "pole",
+     "instances": 699,
+     "localized_by_coco_detector": 0.001,
+     "labels_used": {
+      "fire hydrant": 1
+     }
+    },
+    {
+     "category": "magnet",
+     "instances": 592,
+     "localized_by_coco_detector": 0.0,
+     "labels_used": {}
+    },
+    {
+     "category": "wheel",
+     "instances": 549,
+     "localized_by_coco_detector": 0.002,
+     "labels_used": {
+      "bicycle": 1
+     }
+    },
+    {
+     "category": "handle",
+     "instances": 500,
+     "localized_by_coco_detector": 0.006,
+     "labels_used": {
+      "knife": 3
+     }
+    },
+    {
+     "category": "shoe",
+     "instances": 477,
+     "localized_by_coco_detector": 0.004,
+     "labels_used": {
+      "remote": 1,
+      "sports ball": 1
+     }
+    },
+    {
+     "category": "hat",
+     "instances": 435,
+     "localized_by_coco_detector": 0.005,
+     "labels_used": {
+      "person": 1,
+      "teddy bear": 1
+     }
+    },
+    {
+     "category": "cabinet",
+     "instances": 421,
+     "localized_by_coco_detector": 0.007,
+     "labels_used": {
+      "refrigerator": 3
+     }
+    },
+    {
+     "category": "shirt",
+     "instances": 413,
+     "localized_by_coco_detector": 0.262,
+     "labels_used": {
+      "person": 104,
+      "teddy bear": 1,
+      "cat": 1
+     }
+    },
+    {
+     "category": "jersey",
+     "instances": 393,
+     "localized_by_coco_detector": 0.158,
+     "labels_used": {
+      "person": 61,
+      "tennis racket": 1
+     }
+    },
+    {
+     "category": "streetlight",
+     "instances": 387,
+     "localized_by_coco_detector": 0.005,
+     "labels_used": {
+      "traffic light": 2
+     }
+    },
+    {
+     "category": "sock",
+     "instances": 373,
+     "localized_by_coco_detector": 0.0,
+     "labels_used": {}
+    },
+    {
+     "category": "lightbulb",
+     "instances": 366,
+     "localized_by_coco_detector": 0.003,
+     "labels_used": {
+      "sports ball": 1
+     }
+    },
+    {
+     "category": "sunglasses",
+     "instances": 366,
+     "localized_by_coco_detector": 0.003,
+     "labels_used": {
+      "spoon": 1
+     }
+    },
+    {
+     "category": "ski_pole",
+     "instances": 359,
+     "localized_by_coco_detector": 0.006,
+     "labels_used": {
+      "skis": 2
+     }
+    },
+    {
+     "category": "headlight",
+     "instances": 358,
+     "localized_by_coco_detector": 0.0,
+     "labels_used": {}
+    },
+    {
+     "category": "signboard",
+     "instances": 354,
+     "localized_by_coco_detector": 0.025,
+     "labels_used": {
+      "book": 3,
+      "tv": 2,
+      "bench": 1
+     }
+    },
+    {
+     "category": "street_sign",
+     "instances": 332,
+     "localized_by_coco_detector": 0.036,
+     "labels_used": {
+      "stop sign": 11,
+      "traffic light": 1
+     }
+    },
+    {
+     "category": "trousers",
+     "instances": 322,
+     "localized_by_coco_detector": 0.047,
+     "labels_used": {
+      "person": 9,
+      "couch": 3,
+      "chair": 2
+     }
+    },
+    {
+     "category": "glass_(drink_container)",
+     "instances": 313,
+     "localized_by_coco_detector": 0.562,
+     "labels_used": {
+      "cup": 108,
+      "wine glass": 59,
+      "bottle": 4
+     }
+    },
+    {
+     "category": "plate",
+     "instances": 292,
+     "localized_by_coco_detector": 0.233,
+     "labels_used": {
+      "bowl": 26,
+      "dining table": 22,
+      "pizza": 11
+     }
+    },
+    {
+     "category": "pillow",
+     "instances": 287,
+     "localized_by_coco_detector": 0.045,
+     "labels_used": {
+      "bed": 5,
+      "chair": 3,
+      "couch": 3
+     }
+    },
+    {
+     "category": "jacket",
+     "instances": 279,
+     "localized_by_coco_detector": 0.416,
+     "labels_used": {
+      "person": 109,
+      "chair": 2,
+      "backpack": 1
+     }
+    },
+    {
+     "category": "glove",
+     "instances": 264,
+     "localized_by_coco_detector": 0.049,
+     "labels_used": {
+      "baseball glove": 12,
+      "bird": 1
+     }
+    },
+    {
+     "category": "tomato",
+     "instances": 263,
+     "localized_by_coco_detector": 0.042,
+     "labels_used": {
+      "orange": 4,
+      "carrot": 3,
+      "apple": 3
+     }
+    },
+    {
+     "category": "button",
+     "instances": 262,
+     "localized_by_coco_detector": 0.004,
+     "labels_used": {
+      "clock": 1
+     }
+    }
+   ],
+   "threshold": 0.3,
+   "predictions": "data/processed/predictions/yolox_s__coco_val2017__val2017__protocol.json",
+   "caveat": "LVIS annotation is federated: counts are lower bounds and 'localized' ignores which COCO label was used."
+  },
+  "open_images": {
+   "dataset": "Open Images V5 validation boxes",
+   "classes_with_boxes": 570,
+   "classes_same_as_coco80": 64,
+   "classes_subtype_of_coco80": 38,
+   "boxes_total": 303980,
+   "box_share_same": 0.1234,
+   "box_share_subtype": 0.0655,
+   "box_share_mapped": 0.189,
+   "subtype_examples": [
+    "Alarm clock -> clock",
+    "Barge -> boat",
+    "Blue jay -> bird",
+    "Boy -> person",
+    "Brown bear -> bear",
+    "Canary -> bird",
+    "Canoe -> boat",
+    "Chicken -> bird",
+    "Digital clock -> clock",
+    "Duck -> bird",
+    "Eagle -> bird",
+    "Falcon -> bird",
+    "Girl -> person",
+    "Gondola -> boat",
+    "Goose -> bird",
+    "Hamburger -> sandwich",
+    "Infant bed -> bed",
+    "Limousine -> car",
+    "Loveseat -> couch",
+    "Magpie -> bird",
+    "Man -> person",
+    "Ostrich -> bird",
+    "Owl -> bird",
+    "Panda -> bear",
+    "Parrot -> bird",
+    "Penguin -> bird",
+    "Polar bear -> bear",
+    "Raven -> bird",
+    "Sofa bed -> couch",
+    "Sparrow -> bird",
+    "Studio couch -> bed",
+    "Submarine sandwich -> sandwich",
+    "Swan -> bird",
+    "Turkey -> bird",
+    "Van -> car",
+    "Wall clock -> clock",
+    "Woman -> person",
+    "Woodpecker -> bird"
+   ],
+   "most_frequent_unmapped_classes": [
+    {
+     "class": "Mammal",
+     "boxes": 18276
+    },
+    {
+     "class": "Clothing",
+     "boxes": 17059
+    },
+    {
+     "class": "Wheel",
+     "boxes": 14383
+    },
+    {
+     "class": "Human body",
+     "boxes": 11744
+    },
+    {
+     "class": "Human arm",
+     "boxes": 11711
+    },
+    {
+     "class": "Human hair",
+     "boxes": 9567
+    },
+    {
+     "class": "Footwear",
+     "boxes": 9110
+    },
+    {
+     "class": "Human head",
+     "boxes": 8765
+    },
+    {
+     "class": "Tree",
+     "boxes": 8077
+    },
+    {
+     "class": "Window",
+     "boxes": 7583
+    },
+    {
+     "class": "Plant",
+     "boxes": 6903
+    },
+    {
+     "class": "Tire",
+     "boxes": 6742
+    },
+    {
+     "class": "Sports equipment",
+     "boxes": 6012
+    },
+    {
+     "class": "Flower",
+     "boxes": 5825
+    },
+    {
+     "class": "Human leg",
+     "boxes": 5818
+    },
+    {
+     "class": "Human face",
+     "boxes": 5594
+    },
+    {
+     "class": "Human eye",
+     "boxes": 5450
+    },
+    {
+     "class": "Human hand",
+     "boxes": 5031
+    },
+    {
+     "class": "Human nose",
+     "boxes": 4499
+    },
+    {
+     "class": "Snack",
+     "boxes": 3297
+    },
+    {
+     "class": "Land vehicle",
+     "boxes": 3053
+    },
+    {
+     "class": "Auto part",
+     "boxes": 2958
+    },
+    {
+     "class": "Food",
+     "boxes": 2833
+    },
+    {
+     "class": "Human mouth",
+     "boxes": 2752
+    },
+    {
+     "class": "Building",
+     "boxes": 2613
+    }
+   ],
+   "mapping_method": "exact COCO name, else an ancestor in Open Images' official bbox_labels_600_hierarchy.json with a COCO name",
+   "caveat": "Open Images labels are hierarchical (e.g. 'Clothing', 'Person' and 'Man' on the same object) and include parts ('Human arm'); shares count boxes, not distinct objects."
+  }
+ },
+ "git_commit": "1df2ae0+uncommitted"
+}
