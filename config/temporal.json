@@ -1,18 +1,18 @@
 {
   "movement": {
     "movingSpeed": {
-      "value": 0.08,
+      "value": 0.09,
       "unit": "frame widths per second",
       "purpose": "A tracked object whose Kalman-estimated centre speed exceeds this is 'moving'.",
-      "source": "heuristic",
-      "ref": "Placeholder until measured; see docs/COMPUTER_VISION_RESEARCH.md (tracker noise on static scenes)."
+      "source": "empirical",
+      "ref": "Measured with frontend/vision-lab.html (docs/benchmarks/browser_bench.json): real photos, real fast detector + this tracker at 10 fps. A static camera with ±1% random per-frame jitter gives p95 0.014-0.035 and max 0.085 frame widths/s; panning at 0.10 fw/s is estimated at 0.092-0.097 (median). 0.09 sits above all jitter and below deliberate motion."
     },
     "stillSpeed": {
-      "value": 0.03,
+      "value": 0.04,
       "unit": "frame widths per second",
       "purpose": "Below this speed an object is 'static' (hysteresis band between stillSpeed and movingSpeed keeps the previous state).",
-      "source": "heuristic",
-      "ref": "Placeholder until measured; see movingSpeed."
+      "source": "empirical",
+      "ref": "Same measurement: above the p95 of the ±1% jitter speed (max 0.035 over three images); between stillSpeed and movingSpeed the previous state is kept (hysteresis)."
     },
     "reversalWindowMs": {
       "value": 10000,

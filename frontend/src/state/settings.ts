@@ -1,37 +1,44 @@
 import { create } from 'zustand'
+import { VISION } from '../config'
 import { readJSON, writeJSON } from '../lib/storage'
 import type { Personality } from '../lib/schemas'
 
-export type AnalysisInterval = 0 | 10 | 20 | 40
-
 export interface Settings {
   personality: Personality
-  /** Force DEMO MODE even when an AI key is configured. */
-  forceDemo: boolean
-  /** Seconds between periodic re-checks of a stable scene (0 = off). */
-  interval: AnalysisInterval
-  /** Local vision frame-rate cap. */
+  /** Local vision frame-rate cap (config/vision.json fast.maxFps options). */
   maxFps: 6 | 10 | 15
+  /** Deep detector: auto = used for Deep Scan / Image / Video (and live checks when fast enough); off = never. */
+  deepMode: 'auto' | 'off'
+  /** Deep detector runtime preference. */
+  deepBackend: 'auto' | 'webgpu' | 'wasm'
+  /** Show the developer metrics panel in Live Scan. */
+  devPanel: boolean
 }
 
-const KEY = 'rd.settings.v1'
+const KEY = 'rd.settings.v2'
 
 const DEFAULTS: Settings = {
   personality: 'serious',
-  forceDemo: false,
-  interval: 20,
-  maxFps: 10,
+  maxFps: VISION.fast.maxFps as Settings['maxFps'],
+  deepMode: VISION.deep.mode,
+  deepBackend: VISION.deep.backend,
+  devPanel: false,
 }
 
 interface SettingsStore extends Settings {
   update: (patch: Partial<Settings>) => void
 }
 
+function persist(s: Settings): void {
+  const { personality, maxFps, deepMode, deepBackend, devPanel } = s
+  writeJSON(KEY, { personality, maxFps, deepMode, deepBackend, devPanel })
+}
+
 export const useSettings = create<SettingsStore>((set, get) => ({
-  ...readJSON<Settings>(KEY, DEFAULTS),
+  ...DEFAULTS,
+  ...readJSON<Partial<Settings>>(KEY, {}),
   update: (patch) => {
     set(patch)
-    const { personality, forceDemo, interval, maxFps } = { ...get(), ...patch }
-    writeJSON(KEY, { personality, forceDemo, interval, maxFps })
+    persist({ ...get(), ...patch })
   },
 }))

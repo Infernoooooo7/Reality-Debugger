@@ -1,6 +1,6 @@
 /**
  * Real subsystem status shown on the home screen's power-on self test:
- * backend reachability, AI provider, camera support and vision engine.
+ * backend reachability, local CV engine, optional AI layer, camera support.
  */
 import { create } from 'zustand'
 import { checkAI, getHealth, toApiError, type ApiError } from '../lib/api'
@@ -17,10 +17,11 @@ export interface HistoryEntry {
   status: Report['status']
   bugs: number
   topIssue: string | null
-  simulated: boolean
+  /** Whether the optional AI layer contributed to the report. */
+  ai: boolean
 }
 
-const HISTORY_KEY = 'rd.history.v1'
+const HISTORY_KEY = 'rd.history.v2'
 
 interface SystemStore {
   health: Health | null
@@ -76,7 +77,7 @@ export const useSystem = create<SystemStore>((set, get) => ({
       status: report.status,
       bugs: report.counts.active_bugs,
       topIssue: top?.title ?? null,
-      simulated: report.simulated,
+      ai: report.ai.status === 'ok' || report.ai.status === 'cached',
     }
     const history = [entry, ...get().history.filter((h) => h.id !== entry.id)].slice(0, 12)
     writeJSON(HISTORY_KEY, history)
@@ -89,7 +90,25 @@ export const useSystem = create<SystemStore>((set, get) => ({
   },
 }))
 
-/** True when the backend will simulate diagnostics (no provider or forced demo). */
-export function isDemo(health: Health | null, forceDemo: boolean): boolean {
-  return forceDemo || !health || health.ai.simulated
+export type AIMode = 'off' | 'ready' | 'unavailable' | 'unknown'
+
+/**
+ * The optional AI layer as the UI presents it. Local CV never depends on it:
+ * "off" is a normal configuration (no key), not an error.
+ */
+export function aiMode(health: Health | null): AIMode {
+  if (!health) return 'unknown'
+  if (!health.ai.configured || health.ai.state === 'off') return 'off'
+  if (health.ai.state === 'unavailable') return 'unavailable'
+  return 'ready'
+}
+
+export function aiEnabled(health: Health | null): boolean {
+  return Boolean(health?.features.ai_reasoning)
+}
+
+const PROVIDER_LABEL: Record<string, string> = { gemini: 'Gemini', claude: 'Claude', openai: 'OpenAI-compatible' }
+
+export function providerLabel(provider: string | null | undefined): string {
+  return provider ? (PROVIDER_LABEL[provider] ?? provider) : 'AI'
 }

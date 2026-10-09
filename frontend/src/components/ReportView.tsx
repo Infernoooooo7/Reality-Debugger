@@ -1,10 +1,11 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { canShareFiles } from '../lib/env'
-import { formatMs, formatPercent, pad2 } from '../lib/format'
-import type { Report } from '../lib/schemas'
+import { engineLabel, formatMs, formatPercent, pad2 } from '../lib/format'
+import type { AIRun, Report } from '../lib/schemas'
 import { copyText, downloadBlob, renderShareCard, reportText, type CardImage } from '../lib/share'
+import { providerLabel } from '../state/system'
 import { toast } from '../state/toasts'
-import { DemoBadge, StatusChip } from './Bits'
+import { LocalBadge, StatusChip } from './Bits'
 import { FindingCard } from './FindingCard'
 import { Icon } from './Icon'
 import { Meter, scoreColor } from './Meter'
@@ -102,6 +103,38 @@ export function ReportActions({ report, image }: { report: Report; image: CardIm
   )
 }
 
+/** What the optional AI layer did for this report (local results never depend on it). */
+export function AIRunNote({ run }: { run: AIRun }) {
+  if (run.status === 'ok' || run.status === 'cached') {
+    return (
+      <p className="ai-run t-data" data-status="ok">
+        AI reasoning added by {providerLabel(run.provider)}
+        {run.status === 'cached' ? ' (cached answer for an identical frame)' : run.latency_ms ? ` in ${formatMs(run.latency_ms)}` : ''}.
+        AI notes and AI findings are marked; measurements are unchanged.
+      </p>
+    )
+  }
+  if (run.status === 'unavailable') {
+    return (
+      <p className="ai-run t-data" data-status="unavailable">
+        AI reasoning unavailable{run.error ? ` (${run.error.code}: ${run.error.message})` : ''}. Local CV results are complete.
+      </p>
+    )
+  }
+  if (run.status === 'skipped') {
+    return (
+      <p className="ai-run t-data" data-status="skipped">
+        AI reasoning not called{run.reason ? `: ${run.reason}` : ''}.
+      </p>
+    )
+  }
+  return (
+    <p className="ai-run t-data" data-status="off">
+      Local-only analysis (no AI provider configured).
+    </p>
+  )
+}
+
 export function ReportView({
   report,
   image = null,
@@ -110,6 +143,8 @@ export function ReportView({
   showTimes = false,
   heading = 'Reality diagnostic',
   onJump,
+  onExplain,
+  explainingId = null,
 }: {
   report: Report
   image?: CardImage | null
@@ -118,6 +153,8 @@ export function ReportView({
   showTimes?: boolean
   heading?: string
   onJump?: (seconds: number) => void
+  onExplain?: (id: string) => void
+  explainingId?: string | null
 }) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(report.findings.slice(0, 2).map((f) => f.id)))
   const objectLabel = useMemo(() => new Map(report.objects.map((o) => [o.id, o.label])), [report.objects])
@@ -139,8 +176,9 @@ export function ReportView({
             {report.latency_ms > 0 ? ` · ${formatMs(report.latency_ms)}` : ''}
           </div>
         </div>
-        {report.simulated ? <DemoBadge /> : <span className="report__engine t-data">{report.model}</span>}
+        <LocalBadge text={report.ai.status === 'ok' || report.ai.status === 'cached' ? 'Local CV + AI' : 'Local CV'} />
       </header>
+      <AIRunNote run={report.ai} />
 
       <ScoreReadout report={report} />
 
@@ -169,6 +207,8 @@ export function ReportView({
                 onFocus={onFocus}
                 showTimes={showTimes}
                 onJump={onJump}
+                onExplain={onExplain}
+                explaining={explainingId === f.id}
               />
             ))}
           </div>
@@ -206,8 +246,9 @@ export function ReportView({
           </div>
           <div className="scene-graph">
             {report.objects.map((o) => (
-              <span key={o.id} className="scene-graph__node t-data">
+              <span key={o.id} className="scene-graph__node t-data" data-source={o.source} title={`${o.source}${o.verified ? ' · confirmed by both detectors' : ''}`}>
                 {o.label} <em>{formatPercent(o.confidence)}</em>
+                {o.verified ? ' ✓' : o.source === 'ai' ? ' · AI' : o.source === 'deep' ? ' ◆' : ''}
               </span>
             ))}
           </div>
@@ -234,9 +275,8 @@ export function ReportView({
       ) : null}
 
       <footer className="report__foot t-data">
-        {report.simulated
-          ? 'DEMO MODE: produced by fixed heuristics over on-device detections. Not AI output.'
-          : `Reasoned by ${report.provider} · ${report.model}. Observations are separated from inferences; confidence is the model's own estimate.`}
+        {engineLabel(report)} · {report.engine}. LOCAL CV findings are measured from detector boxes, tracks and pixel signals
+        (see each finding's measurements); AI findings and notes are interpretations and are labelled as such.
       </footer>
 
       <ReportActions report={report} image={image} />

@@ -59,9 +59,15 @@ scope.onmessage = async (event) => {
       }
       break
     }
-    case 'anchor':
-      engine.setAnchor()
+    case 'fuse': {
+      try {
+        const result = engine.fuse(message.detections, message.timestamp, message.holdMs)
+        send({ type: 'fuse', id: message.id, result })
+      } catch (error) {
+        send({ type: 'error', id: message.id, message: error instanceof Error ? error.message : String(error) })
+      }
       break
+    }
     case 'reset':
       engine.reset()
       break

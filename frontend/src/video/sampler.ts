@@ -1,15 +1,21 @@
 /**
  * Browser-side video pipeline. The file never leaves the device: frames are
  * decoded by the <video> element (streamed from disk, never loaded into
- * memory as a whole), sampled at intervals, fingerprinted, run through the
- * local detector, segmented into scenes and de-duplicated. Only a handful of
- * representative keyframes are uploaded.
+ * memory as a whole) and sampled at intervals (config/temporal.json "video").
+ * Every sample runs through the same fast detector + ByteTrack tracker as
+ * Live Scan, with video time as the clock, so objects keep their identity
+ * across samples. Scene cuts are found from appearance fingerprints,
+ * redundant frames are dropped and representative keyframes are selected;
+ * the deep detector verifies the keyframes. The backend receives the
+ * per-sample scene models - keyframe images only when AI reasoning is on.
  */
+import { DETECTION, TEMPORAL, VISION } from '../config'
 import { ApiError } from '../lib/api'
 import { FrameGrabber, JpegCapturer } from '../live/capture'
 import { vision } from '../vision/client'
+import { trackObject, visibleTracks, type SceneObjectPayload } from '../vision/scene'
 import { SignalAnalyzer, signatureDistance } from '../vision/signals'
-import type { Detection, Signature } from '../vision/types'
+import type { Signature, TrackEvent } from '../vision/types'
 
 export interface VideoInfo {
   duration: number
@@ -21,7 +27,10 @@ export interface Sample {
   t: number
   signature: Signature
   sharpness: number
-  detections: Detection[]
+  brightness: number
+  motion: number
+  objects: SceneObjectPayload[]
+  events: TrackEvent[]
 }
 
 export interface Keyframe {
@@ -33,6 +42,7 @@ export interface Keyframe {
 
 export interface Selection {
   scenes: { index: number; start_t: number; end_t: number }[]
+  sceneOf: number[]
   keyframes: Keyframe[]
   redundant: number
   events: { t: number; kind: 'SCENE_CHANGE' | 'OBJECT_ENTERED' | 'OBJECT_LEFT'; text: string }[]
@@ -46,8 +56,7 @@ export interface Progress {
   objects: number
 }
 
-const SCENE_THRESHOLD = 0.3
-const DEDUPE_THRESHOLD = 0.06
+const V = TEMPORAL.video
 
 function once(target: EventTarget, events: string[], timeoutMs: number): Promise<string> {
   return new Promise((resolve) => {
@@ -111,56 +120,66 @@ async function seek(video: HTMLVideoElement, t: number): Promise<void> {
   }
 }
 
-/** Sample the video at regular intervals; detection runs on every sample. */
+/** Sample the video at regular intervals; detection and tracking run on every sample. */
 export async function sampleVideo(
   video: HTMLVideoElement,
   info: VideoInfo,
-  opts: { maxSamples?: number; signal?: AbortSignal; onProgress?: (p: Progress) => void } = {},
+  opts: { signal?: AbortSignal; onProgress?: (p: Progress) => void } = {},
 ): Promise<Sample[]> {
-  const total = Math.max(8, Math.min(opts.maxSamples ?? 72, Math.round(info.duration / 0.5)))
+  const total = Math.max(V.minSamples, Math.min(V.maxSamples, Math.round(info.duration / V.sampleIntervalS)))
   const step = info.duration / total
   const grabber = new FrameGrabber()
   let analyzer: SignalAnalyzer | null = null
   let useEngine = true
   try {
     await vision.init()
+    vision.resetTracking()
   } catch {
     useEngine = false
     analyzer = new SignalAnalyzer()
   }
 
   const samples: Sample[] = []
-  const labelsSeen = new Set<string>()
+  const seen = new Set<string>()
   let scenes = 1
-  for (let i = 0; i < total; i++) {
-    if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    const t = Math.min(info.duration - 0.05, (i + 0.5) * step)
-    await seek(video, t)
-    const bitmap = await grabber.bitmap(video, 480)
-    if (!bitmap) continue
-    let sample: Sample
-    if (useEngine) {
-      const still = await vision.analyzeStill(bitmap)
-      sample = { t, signature: still.signature, sharpness: still.signals.sharpness, detections: still.detections }
-    } else {
-      const { signals, signature } = analyzer!.analyze(bitmap, { temporal: false })
-      bitmap.close()
-      sample = { t, signature, sharpness: signals.sharpness, detections: [] }
+  try {
+    for (let i = 0; i < total; i++) {
+      if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      const t = Math.min(info.duration - 0.05, (i + 0.5) * step)
+      await seek(video, t)
+      const bitmap = await grabber.bitmap(video, VISION.fast.grabWidth)
+      if (!bitmap) continue
+      let sample: Sample
+      if (useEngine) {
+        const result = await vision.processFrame(bitmap, t * 1000)
+        const objects = visibleTracks(result.tracks).map((track) => trackObject(track, t * 1000))
+        sample = {
+          t,
+          signature: result.signature,
+          sharpness: result.signals.sharpness,
+          brightness: result.signals.brightness,
+          motion: result.signals.motion,
+          objects,
+          events: result.events,
+        }
+      } else {
+        const { signals, signature } = analyzer!.analyze(bitmap)
+        bitmap.close()
+        sample = { t, signature, sharpness: signals.sharpness, brightness: signals.brightness, motion: signals.motion, objects: [], events: [] }
+      }
+      const prev = samples[samples.length - 1]
+      if (prev && signatureDistance(sample.signature, prev.signature) > V.sceneBoundary) scenes++
+      sample.objects.forEach((o) => seen.add(o.id))
+      samples.push(sample)
+      opts.onProgress?.({ done: i + 1, total, t, scenes, objects: seen.size })
     }
-    const prev = samples[samples.length - 1]
-    if (prev && signatureDistance(sample.signature, prev.signature) > SCENE_THRESHOLD) scenes++
-    sample.detections.filter((d) => d.score >= 0.45).forEach((d) => labelsSeen.add(d.label))
-    samples.push(sample)
-    opts.onProgress?.({ done: i + 1, total, t, scenes, objects: labelsSeen.size })
+  } finally {
+    if (useEngine) vision.resetTracking()
   }
   if (!samples.length) {
     throw new ApiError('VIDEO_UNREADABLE', 'No frames could be decoded from this video.', { hint: 'The file may be corrupted.' })
   }
   return samples
-}
-
-function labelSet(sample: Sample): Set<string> {
-  return new Set(sample.detections.filter((d) => d.score >= 0.45).map((d) => d.label))
 }
 
 /** Scene segmentation, redundancy removal and representative keyframe selection. */
@@ -171,7 +190,7 @@ export function selectKeyframes(samples: Sample[], maxKeyframes: number): Select
   for (let i = 1; i < samples.length; i++) {
     const stepDist = signatureDistance(samples[i]!.signature, samples[i - 1]!.signature)
     const drift = signatureDistance(samples[i]!.signature, samples[scenes[scenes.length - 1]![0]!]!.signature)
-    if (stepDist > SCENE_THRESHOLD || drift > SCENE_THRESHOLD * 1.6) {
+    if (stepDist > V.sceneBoundary || drift > V.sceneDrift) {
       scenes.push([i])
       events.push({ t: samples[i]!.t, kind: 'SCENE_CHANGE', text: `Scene ${scenes.length} begins (local frame comparison)` })
     } else {
@@ -185,51 +204,43 @@ export function selectKeyframes(samples: Sample[], maxKeyframes: number): Select
   for (const scene of scenes) {
     let kept = scene[0]!
     for (const i of scene.slice(1)) {
-      if (signatureDistance(samples[i]!.signature, samples[kept]!.signature) < DEDUPE_THRESHOLD) redundant++
+      if (signatureDistance(samples[i]!.signature, samples[kept]!.signature) < V.dedupe) redundant++
       else kept = i
     }
   }
 
-  // Object enter/leave events (debounced over two samples).
+  // Object enter/leave events from the tracker (confirmed / expired tracks).
   const changePoints: { index: number; text: string }[] = []
-  const present = new Map<string, number>()
-  for (let i = 0; i < samples.length; i++) {
-    const now = labelSet(samples[i]!)
-    const next = samples[i + 1] ? labelSet(samples[i + 1]!) : now
-    for (const label of now) {
-      if (!present.has(label) && (next.has(label) || i === samples.length - 1)) {
-        present.set(label, i)
-        if (i > 0) {
-          events.push({ t: samples[i]!.t, kind: 'OBJECT_ENTERED', text: `${label} enters the frame` })
-          changePoints.push({ index: i, text: `${label} entered` })
-        }
+  samples.forEach((sample, i) => {
+    for (const e of sample.events) {
+      const name = `${e.label}·${e.sceneId.slice(1).padStart(2, '0')}`
+      if (e.kind === 'entered' && i > 0) {
+        events.push({ t: sample.t, kind: 'OBJECT_ENTERED', text: `${name} enters the frame` })
+        changePoints.push({ index: i, text: `${e.label} entered` })
+      } else if (e.kind === 'left') {
+        events.push({ t: sample.t, kind: 'OBJECT_LEFT', text: `${name} leaves the frame` })
+        changePoints.push({ index: i, text: `${e.label} left` })
       }
     }
-    for (const label of [...present.keys()]) {
-      if (!now.has(label) && !next.has(label)) {
-        present.delete(label)
-        events.push({ t: samples[i]!.t, kind: 'OBJECT_LEFT', text: `${label} leaves the frame` })
-        changePoints.push({ index: i, text: `${label} left` })
-      }
-    }
-  }
+  })
 
+  const [wLo, wHi] = V.representativeWindow
   const representative = (scene: number[]): number => {
-    const lo = Math.floor(scene.length * 0.2)
-    const hi = Math.max(lo + 1, Math.floor(scene.length * 0.8))
+    const lo = Math.floor(scene.length * wLo)
+    const hi = Math.max(lo + 1, Math.floor(scene.length * wHi))
     const core = scene.slice(lo, hi)
     return (core.length ? core : scene).reduce((best, i) => (samples[i]!.sharpness > samples[best]!.sharpness ? i : best))
   }
 
   let picks: Keyframe[] = scenes.map((scene, si) => ({ sample: representative(scene), t: 0, scene: si, reason: 'scene representative' }))
   if (picks.length > maxKeyframes) {
-    const byLength = scenes.map((s, si) => [s.length, si] as const).sort((a, b) => b[0] - a[0])
+    const byLength = scenes.map((sc, si) => [sc.length, si] as const).sort((a, b) => b[0] - a[0])
     const keep = new Set(byLength.slice(0, maxKeyframes - 1).map(([, si]) => si))
     keep.add(0)
     picks = picks.filter((p) => keep.has(p.scene)).slice(0, maxKeyframes)
   } else {
     const chosen = new Set(picks.map((p) => p.sample))
-    const farEnough = (i: number) => [...chosen].every((c) => Math.abs(samples[c]!.t - samples[i]!.t) > 0.75)
+    const farEnough = (i: number) => [...chosen].every((c) => Math.abs(samples[c]!.t - samples[i]!.t) > V.keyframeMinGapS)
     // Object changes are where stories happen: spend budget there first.
     for (const cp of changePoints) {
       if (picks.length >= maxKeyframes) break
@@ -246,7 +257,7 @@ export function selectKeyframes(samples: Sample[], maxKeyframes: number): Select
     })
     extra.sort((a, b) => b.d - a.d)
     for (const { d, i, si } of extra) {
-      if (picks.length >= maxKeyframes || d < DEDUPE_THRESHOLD * 2) break
+      if (picks.length >= maxKeyframes || d < V.dedupe * 2) break
       if (!chosen.has(i) && farEnough(i)) {
         picks.push({ sample: i, t: 0, scene: si, reason: 'state change within scene' })
         chosen.add(i)
@@ -258,19 +269,84 @@ export function selectKeyframes(samples: Sample[], maxKeyframes: number): Select
 
   return {
     scenes: scenes.map((scene, index) => ({ index, start_t: samples[scene[0]!]!.t, end_t: samples[scene[scene.length - 1]!]!.t })),
+    sceneOf,
     keyframes: picks,
     redundant,
     events: events.sort((a, b) => a.t - b.t),
   }
 }
 
-/** Seek to each keyframe and encode it as a JPEG for upload. */
-export async function captureKeyframes(video: HTMLVideoElement, keyframes: Keyframe[], maxEdge = 1024): Promise<Blob[]> {
+/** Seek to each keyframe and encode it as a JPEG (thumbnails, deep detector, optional AI upload). */
+export async function captureKeyframes(video: HTMLVideoElement, keyframes: Keyframe[]): Promise<Blob[]> {
   const capturer = new JpegCapturer()
   const blobs: Blob[] = []
   for (const k of keyframes) {
     await seek(video, k.t)
-    blobs.push((await capturer.capture(video, maxEdge, 0.85)).blob)
+    blobs.push((await capturer.capture(video, VISION.capture.keyframeMaxEdge, VISION.capture.keyframeQuality)).blob)
   }
   return blobs
+}
+
+/** The JSON manifest for /api/analyze/video (numbers only; matches VideoManifest). */
+export function buildManifest(
+  file: File,
+  info: VideoInfo,
+  samples: Sample[],
+  selection: Selection,
+  detectors: string[],
+): Record<string, unknown> {
+  const tracks = new Map<string, { id: string; label: string; first_t: number; last_t: number; samples: number; sum: number }>()
+  for (const sample of samples) {
+    for (const o of sample.objects) {
+      const entry = tracks.get(o.id) ?? { id: o.id, label: o.label, first_t: sample.t, last_t: sample.t, samples: 0, sum: 0 }
+      entry.label = o.label
+      entry.last_t = sample.t
+      entry.samples += 1
+      entry.sum += o.confidence
+      tracks.set(o.id, entry)
+    }
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  return {
+    duration_s: info.duration,
+    width: info.width,
+    height: info.height,
+    name: file.name,
+    size_bytes: file.size,
+    detector: detectors.join(' + ') || null,
+    sampled_frames: samples.length,
+    redundant_removed: selection.redundant,
+    scenes: selection.scenes,
+    samples: samples.map((s, i) => ({
+      t: r2(s.t),
+      scene: selection.sceneOf[i] ?? 0,
+      objects: s.objects.slice(0, 40),
+      brightness: s.brightness,
+      sharpness: s.sharpness,
+      motion: s.motion,
+      detectors,
+    })),
+    frames: selection.keyframes.map((k, i) => ({
+      index: i,
+      t: r2(k.t),
+      scene: k.scene,
+      reason: k.reason,
+      sharpness: samples[k.sample]!.sharpness,
+      brightness: samples[k.sample]!.brightness,
+      detectors,
+      objects: samples[k.sample]!.objects
+        .filter((o) => o.confidence >= DETECTION.fast.scoreThreshold || o.verified)
+        .slice(0, 30)
+        .map((o) => ({ track_id: o.id, label: o.label, confidence: o.confidence, box: o.box })),
+    })),
+    events: selection.events.slice(0, 200),
+    tracks: [...tracks.values()].slice(0, 300).map((t) => ({
+      id: t.id,
+      label: t.label,
+      first_t: r2(t.first_t),
+      last_t: r2(t.last_t),
+      samples: t.samples,
+      mean_confidence: Math.round((t.sum / t.samples) * 1000) / 1000,
+    })),
+  }
 }

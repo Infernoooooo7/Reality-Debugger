@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import { AnnotatedImage } from '../components/AnnotatedImage'
-import { DemoBadge, PersonalitySwitch } from '../components/Bits'
+import { AIBadge, LocalBadge, PersonalitySwitch } from '../components/Bits'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Icon } from '../components/Icon'
 import { ReportView } from '../components/ReportView'
-import { analyzeImage, ApiError, isAbort, toApiError } from '../lib/api'
+import { VISION } from '../config'
+import { analyzeImage, analyzeScene, ApiError, isAbort, toApiError } from '../lib/api'
 import { formatBytes, formatMs } from '../lib/format'
 import { navigate } from '../lib/router'
 import type { Report } from '../lib/schemas'
 import { useSettings } from '../state/settings'
-import { isDemo, useSystem } from '../state/system'
+import { aiEnabled, aiMode, providerLabel, useSystem } from '../state/system'
 import { JpegCapturer } from '../live/capture'
 import { vision } from '../vision/client'
-import { spatialRelations } from '../vision/relations'
-import type { Detection, Track } from '../vision/types'
+import { deepDetector } from '../vision/deep/client'
+import { fuseStill, type FusedObject } from '../vision/fusion'
+import { stillScene } from '../vision/scene'
 import '../styles/debug.css'
 
 // JPG/PNG/WEBP everywhere; HEIC/HEIF/AVIF etc. work wherever the browser can
@@ -21,15 +23,16 @@ import '../styles/debug.css'
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif'
 const IMAGE_NAME = /\.(jpe?g|png|webp|heic|heif|avif)$/i
 
-type StageId = 'decode' | 'vision' | 'relations' | 'upload' | 'reason' | 'report'
+type StageId = 'decode' | 'fast' | 'deep' | 'fuse' | 'local' | 'reason' | 'report'
 type StageState = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
 
 const STAGES: { id: StageId; label: string }[] = [
   { id: 'decode', label: 'Local preprocessing' },
-  { id: 'vision', label: 'On-device detection' },
-  { id: 'relations', label: 'Relationship analysis' },
-  { id: 'upload', label: 'Secure upload (EXIF stripped)' },
-  { id: 'reason', label: 'Vision reasoning' },
+  { id: 'fast', label: 'Fast detector (on device)' },
+  { id: 'deep', label: 'Deep detector (on device)' },
+  { id: 'fuse', label: 'Detector fusion → scene model' },
+  { id: 'local', label: 'Local diagnostic engine' },
+  { id: 'reason', label: 'AI reasoning (optional)' },
   { id: 'report', label: 'Validated report' },
 ]
 
@@ -40,23 +43,6 @@ interface Picked {
   height: number
 }
 
-function detectionsToTracks(detections: Detection[]): Track[] {
-  return detections.map((d, i) => ({
-    id: i + 1,
-    key: `${d.label}·${String(i + 1).padStart(2, '0')}`,
-    label: d.label,
-    score: d.score,
-    box: d.box,
-    vx: 0,
-    vy: 0,
-    hits: 3,
-    misses: 0,
-    state: 'confirmed' as const,
-    firstSeen: 0,
-    lastSeen: 0,
-  }))
-}
-
 export default function ImageDebug() {
   const settings = useSettings()
   const health = useSystem((s) => s.health)
@@ -65,7 +51,7 @@ export default function ImageDebug() {
   const [stages, setStages] = useState<Record<StageId, { state: StageState; note?: string }>>(() => resetStages())
   const [error, setError] = useState<ApiError | null>(null)
   const [report, setReport] = useState<Report | null>(null)
-  const [detections, setDetections] = useState<Detection[]>([])
+  const [detections, setDetections] = useState<FusedObject[]>([])
   const [focusId, setFocusId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -73,7 +59,7 @@ export default function ImageDebug() {
   const capturer = useRef<JpegCapturer | null>(null)
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null)
   const limit = health?.limits.max_image_bytes ?? 15 * 1024 * 1024
-  const demo = isDemo(health, settings.forceDemo)
+  const withAI = aiEnabled(health)
 
   useEffect(() => () => abortRef.current?.abort(), [])
   useEffect(() => () => (picked ? URL.revokeObjectURL(picked.url) : undefined), [picked])
@@ -118,50 +104,65 @@ export default function ImageDebug() {
         setPicked({ file, url, width: bitmap.width, height: bitmap.height })
         setStage('decode', 'done', `${bitmap.width}×${bitmap.height} · ${formatMs(performance.now() - started)}`)
 
-        // 2. On-device detection (optional: continue without it on failure).
-        let localDetections: Detection[] = []
-        setStage('vision', 'active', vision.ready ? undefined : 'loading model…')
+        // 2. Fast detector (EfficientDet-Lite0).
+        let fast: Awaited<ReturnType<typeof vision.analyzeStill>> | null = null
+        setStage('fast', 'active', vision.ready ? undefined : 'loading model…')
         try {
-          const forVision = await createImageBitmap(bitmap)
-          const still = await vision.analyzeStill(forVision)
-          localDetections = still.detections
-          setDetections(still.detections)
-          setStage('vision', 'done', `${still.detections.length} objects · ${formatMs(still.inferenceMs)}`)
+          fast = await vision.analyzeStill(await createImageBitmap(bitmap))
+          setDetections(fuseStill(fast.detections, null))
+          setStage('fast', 'done', `${fast.detections.length} boxes · ${formatMs(fast.inferenceMs)}`)
         } catch (e) {
-          setStage('vision', 'skipped', `engine unavailable: ${toApiError(e).message.slice(0, 60)}`)
+          setStage('fast', 'failed', toApiError(e).message.slice(0, 60))
         }
 
-        // 3. Local relationship heuristics.
-        const relations = spatialRelations(detectionsToTracks(localDetections))
-        setStage('relations', 'done', relations.length ? `${relations.length} flagged` : 'none flagged')
+        // 3. Deep detector (YOLOX-S), loaded on first use; the report still works without it.
+        let deep: Awaited<ReturnType<typeof deepDetector.detect>> | null = null
+        if (deepDetector.enabled) {
+          setStage('deep', 'active', deepDetector.ready ? undefined : 'loading model (one-time download)…')
+          try {
+            deep = await deepDetector.detect(await createImageBitmap(bitmap))
+            const info = deepDetector.getSnapshot().info
+            setStage('deep', 'done', `${deep.detections.length} boxes · ${formatMs(deep.totalMs)} · ${info?.backend ?? ''}`)
+          } catch (e) {
+            setStage('deep', 'skipped', toApiError(e).message.slice(0, 70))
+          }
+        } else {
+          setStage('deep', 'skipped', 'switched off in settings')
+        }
 
-        // 4. Re-encode (resize + strip metadata) and upload.
-        setStage('upload', 'active')
+        // 4. Fusion -> scene model (measured on this device).
+        const fused = fuseStill(fast?.detections ?? [], deep?.detections ?? null)
+        setDetections(fused)
+        const detectors = [...(fast ? [VISION.fast.model] : []), ...(deep ? [VISION.deep.model] : [])]
+        const scene = fast
+          ? stillScene(fused, fast.signals, { width: bitmap.width, height: bitmap.height, detectors })
+          : null
+        const verified = fused.filter((o) => o.verified).length
+        setStage('fuse', fast ? 'done' : 'skipped', fast ? `${fused.length} objects · ${verified} confirmed by both` : 'no detections')
         setImageEl(await loadImage(url))
-        capturer.current ??= new JpegCapturer()
-        const shot = await capturer.current.capture(bitmap, 1600, 0.88)
-        bitmap.close()
-        setStage('upload', 'done', `${formatBytes(shot.blob.size)} JPEG`)
 
-        // 5. Vision reasoning on the backend.
-        setStage('reason', 'active', demo ? 'demo heuristics (simulated)' : health?.ai.model ?? undefined)
+        // 5. Local diagnostics, plus AI reasoning when a provider is configured
+        //    (only then does the image - resized, EXIF stripped - leave the device).
+        let result: Report
+        setStage('local', 'active')
         const reasonStarted = performance.now()
-        const result = await analyzeImage(shot.blob, {
-          personality: settings.personality,
-          demo: settings.forceDemo,
-          signal: controller.signal,
-          context: {
-            detector: vision.getSnapshot().info?.model ?? null,
-            objects: localDetections.slice(0, 30).map((d, i) => ({
-              track_id: `${d.label}·${String(i + 1).padStart(2, '0')}`,
-              label: d.label,
-              confidence: Math.round(d.score * 100) / 100,
-              box: d.box,
-            })),
-            relationships: relations.map((r) => r.text),
-          },
-        })
-        setStage('reason', 'done', formatMs(performance.now() - reasonStarted))
+        if (withAI || !scene) {
+          capturer.current ??= new JpegCapturer()
+          const shot = await capturer.current.capture(bitmap, VISION.capture.deepScanMaxEdge, VISION.capture.deepScanQuality)
+          setStage('reason', 'active', `${providerLabel(health?.ai.provider)} · ${formatBytes(shot.blob.size)} JPEG`)
+          result = await analyzeImage(shot.blob, { personality: settings.personality, scene, signal: controller.signal })
+          const run = result.ai
+          setStage(
+            'reason',
+            run.status === 'ok' || run.status === 'cached' ? 'done' : run.status === 'unavailable' ? 'failed' : 'skipped',
+            run.status === 'ok' ? formatMs(run.latency_ms ?? performance.now() - reasonStarted) : (run.error?.code ?? run.reason ?? run.status),
+          )
+        } else {
+          result = await analyzeScene(scene, { personality: settings.personality, signal: controller.signal })
+          setStage('reason', 'skipped', 'off - no image uploaded')
+        }
+        bitmap.close()
+        setStage('local', 'done', `${result.findings.filter((f) => f.source === 'local').length} measured findings`)
         setStage('report', 'done', `${result.findings.length} findings${result.warnings.length ? ` · ${result.warnings.length} warning(s)` : ''}`)
         setReport(result)
         record(result)
@@ -178,7 +179,7 @@ export default function ImageDebug() {
         setBusy(false)
       }
     },
-    [demo, health, limit, record, settings.forceDemo, settings.personality],
+    [health, limit, record, settings.personality, withAI],
   )
 
   const onFiles = (files: FileList | null) => {
@@ -201,7 +202,8 @@ export default function ImageDebug() {
         <span className="debug__title">
           <span className="t-data t-muted">IN·B</span> Image debug
         </span>
-        {demo ? <DemoBadge text="Demo" /> : null}
+        <LocalBadge />
+        <AIBadge mode={aiMode(health)} provider={providerLabel(health?.ai.provider)} />
       </header>
 
       <div className="debug__grid">
@@ -213,14 +215,15 @@ export default function ImageDebug() {
               ) : (
                 <figure className="annotated" data-scanning={busy || undefined}>
                   <img src={picked.url} alt="Selected image" />
-                  {detections.map((d, i) => (
+                  {detections.map((d) => (
                     <span
-                      key={i}
+                      key={d.id}
                       className="annotated__local"
+                      data-source={d.source}
                       style={{ left: `${d.box.x * 100}%`, top: `${d.box.y * 100}%`, width: `${d.box.w * 100}%`, height: `${d.box.h * 100}%` }}
                     >
                       <em>
-                        {d.label} {Math.round(d.score * 100)}%
+                        {d.label} {Math.round(d.confidence * 100)}%{d.verified ? ' ✓' : d.source === 'deep' ? ' ◆' : ''}
                       </em>
                     </span>
                   ))}
@@ -291,9 +294,10 @@ export default function ImageDebug() {
             <div className="debug__explain">
               <p className="t-label">What happens</p>
               <p>
-                Your image is decoded and scanned by the on-device detector first. Then a resized copy, with its metadata
-                (including GPS) stripped, goes to your own backend, which asks the vision model for a structured
-                diagnostic. Nothing is stored.
+                Your image is decoded and scanned on this device by two detectors (a fast one and a deeper one); their
+                boxes are fused into a scene model that the local diagnostic engine turns into measured findings. Only
+                those numbers go to your backend. If an AI provider is configured, a resized copy with its metadata
+                (including GPS) stripped is sent for optional reasoning. Nothing is stored.
               </p>
             </div>
           )}
@@ -308,18 +312,7 @@ export default function ImageDebug() {
                       <Icon name="retry" size={16} /> Retry
                     </button>
                   ) : null}
-                  {error.code.startsWith('AI_') ? (
-                    <button
-                      type="button"
-                      className="key key--small"
-                      onClick={() => {
-                        settings.update({ forceDemo: true })
-                        if (picked) void run(picked.file)
-                      }}
-                    >
-                      Run in demo mode
-                    </button>
-                  ) : null}
+
                 </>
               }
             />
@@ -344,9 +337,10 @@ export default function ImageDebug() {
 function resetStages(): Record<StageId, { state: StageState; note?: string }> {
   return {
     decode: { state: 'pending' },
-    vision: { state: 'pending' },
-    relations: { state: 'pending' },
-    upload: { state: 'pending' },
+    fast: { state: 'pending' },
+    deep: { state: 'pending' },
+    fuse: { state: 'pending' },
+    local: { state: 'pending' },
     reason: { state: 'pending' },
     report: { state: 'pending' },
   }

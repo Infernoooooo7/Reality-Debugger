@@ -43,9 +43,9 @@ class Settings(BaseSettings):
     # --- Optional AI reasoning layer ------------------------------------------
     # The local computer-vision pipeline and diagnostics never need an API key.
     # none: local only. gemini / claude / openai: that provider only.
-    # auto: the provider whose key is configured (gemini, then claude, then
-    # openai), else none. "anthropic" and "demo" are accepted as aliases of
-    # "claude" and "none".
+    # auto: gemini when GEMINI_API_KEY is set, else none. Claude and OpenAI are
+    # never picked implicitly (no accidental paid usage): set AI_PROVIDER.
+    # "anthropic" and "demo" are accepted as aliases of "claude" and "none".
     ai_provider: Literal["auto", "none", "gemini", "claude", "openai", "anthropic", "demo"] = "auto"
     # Fallback is never automatic: a second (possibly paid) provider is only
     # called when it is configured here explicitly.
@@ -107,6 +107,11 @@ class Settings(BaseSettings):
     # --- Shared parameter files ----------------------------------------------
     # config/*.json (vision, detection, tracking, temporal, diagnostics, ai).
     config_dir: Path | None = None
+
+    # Send COOP/COEP headers (cross-origin isolation -> multi-threaded WASM
+    # for the in-browser deep detector). Disable only if you embed third-party
+    # resources that lack CORP headers.
+    cross_origin_isolation: bool = True
 
     # --- Single-service deployment -----------------------------------------
     # Built frontend (frontend/dist). When set, this server also serves the

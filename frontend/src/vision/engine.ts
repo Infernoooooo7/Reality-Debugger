@@ -1,31 +1,30 @@
 /**
- * The local vision engine: detector + tracker + pixel signals.
- * Environment-agnostic so it can run inside the Web Worker (default) or on
- * the main thread as a fallback.
+ * The local vision engine: fast detector + ByteTrack tracker + pixel signals
+ * + view tracking. Environment-agnostic so it can run inside the Web Worker
+ * (default) or on the main thread as a fallback.
  */
-import { createDetector, MODEL_NAME, type Detector } from './detector'
+import { DETECTION, TEMPORAL, VISION } from '../config'
+import { createDetector, type Detector } from './detector'
+import { loadManifest } from './models'
 import { SignalAnalyzer } from './signals'
 import { Tracker } from './tracker'
-import type { Detection, EngineInfo, FrameResult, InitPayload, StillResult } from './types'
-
-const LETTERBOX = 384
+import type { Detection, EngineInfo, FrameResult, FuseResult, InitPayload, StillResult } from './types'
 
 /**
  * EfficientDet takes a square input and MediaPipe stretches whatever it is
- * given. Camera frames are 4:3 / 16:9, and stretching measurably hurts
- * recall (e.g. laptops), so frames are letterboxed onto a square canvas and
- * boxes are mapped back to frame coordinates.
+ * given. Camera frames are 4:3 / 16:9, so frames are letterboxed onto a
+ * square canvas of the model's input size and boxes are mapped back
+ * (on coco128: AP 37.0 letterboxed vs 36.3 stretched, docs/benchmarks).
  */
 class Letterbox {
   private canvas: OffscreenCanvas | HTMLCanvasElement
   private ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D
-  // content rect inside the square, normalised
   private rx = 0
   private ry = 0
   private rw = 1
   private rh = 1
 
-  constructor(size = LETTERBOX) {
+  constructor(size: number) {
     if (typeof OffscreenCanvas !== 'undefined') this.canvas = new OffscreenCanvas(size, size)
     else {
       const c = document.createElement('canvas')
@@ -75,16 +74,25 @@ export class VisionEngine {
   private signals: SignalAnalyzer | null = null
   private letterbox: Letterbox | null = null
   private clock = 0
+  private viewId = 0
 
   async init(payload: InitPayload): Promise<Omit<EngineInfo, 'runtime'>> {
     const started = performance.now()
+    const manifest = await loadManifest(payload.manifestUrl)
     this.signals = new SignalAnalyzer()
-    this.letterbox = new Letterbox()
-    const selection = await createDetector(payload)
+    const size = VISION.fast.letterbox ? (manifest.input?.width ?? 320) : 0
+    this.letterbox = size ? new Letterbox(size) : null
+    const selection = await createDetector({
+      ...payload,
+      scoreThreshold: DETECTION.fast.lowScoreFloor,
+      maxResults: DETECTION.fast.maxResults,
+    })
     this.detector = selection.detector
     return {
       delegate: selection.detector.delegate,
-      model: MODEL_NAME,
+      model: manifest.name,
+      modelId: manifest.id,
+      classes: manifest.num_classes,
       loadMs: Math.round(performance.now() - started),
       selfTest: selection.selfTest,
       probes: selection.probes,
@@ -96,21 +104,30 @@ export class VisionEngine {
     return this.clock
   }
 
+  private detect(bitmap: ImageBitmap): Detection[] {
+    if (!this.detector) throw new Error('Vision engine not initialised')
+    if (!this.letterbox) return this.detector.detect(bitmap, this.tick(performance.now()))
+    return this.letterbox.unmap(this.detector.detect(this.letterbox.draw(bitmap), this.tick(performance.now())))
+  }
+
   processFrame(frameId: number, bitmap: ImageBitmap, timestamp: number): FrameResult {
-    if (!this.detector || !this.signals || !this.letterbox) throw new Error('Vision engine not initialised')
+    if (!this.signals) throw new Error('Vision engine not initialised')
     const started = performance.now()
     try {
-      const square = this.letterbox.draw(bitmap)
-      const detections = this.letterbox.unmap(this.detector.detect(square, this.tick(timestamp)))
+      const detections = this.detect(bitmap)
       const inferenceMs = performance.now() - started
       const tracks = this.tracker.update(detections, timestamp)
-      const { signals } = this.signals.analyze(bitmap)
+      const { signals, signature } = this.signals.analyze(bitmap)
+      this.updateView(signals.sceneDelta, signals.motion)
       return {
         frameId,
         timestamp,
         tracks,
         detections: detections.length,
         signals,
+        signature,
+        viewId: this.viewId,
+        events: this.tracker.drainEvents(),
         inferenceMs: Math.round(inferenceMs * 10) / 10,
         totalMs: Math.round((performance.now() - started) * 10) / 10,
       }
@@ -119,13 +136,31 @@ export class VisionEngine {
     }
   }
 
+  /**
+   * A view starts on the first settled frame; a new view starts when a
+   * settled frame differs from the view's reference frame by more than
+   * temporal.sceneChange.threshold (cuts and pans alike). Requiring a
+   * settled frame keeps motion blur from creating spurious views.
+   */
+  private updateView(sceneDelta: number, motion: number): void {
+    if (!this.signals) return
+    const settled = motion < TEMPORAL.sceneChange.settleMotion
+    if (!this.signals.hasAnchor) {
+      if (settled) this.signals.setAnchor()
+      return
+    }
+    if (settled && sceneDelta > TEMPORAL.sceneChange.threshold) {
+      this.viewId += 1
+      this.signals.setAnchor()
+    }
+  }
+
   /** One-off analysis of a still image (no tracking, no temporal signals). */
   analyzeStill(bitmap: ImageBitmap): StillResult {
-    if (!this.detector || !this.signals || !this.letterbox) throw new Error('Vision engine not initialised')
+    if (!this.signals) throw new Error('Vision engine not initialised')
     const started = performance.now()
     try {
-      const square = this.letterbox.draw(bitmap)
-      const detections = this.letterbox.unmap(this.detector.detect(square, this.tick(performance.now())))
+      const detections = this.detect(bitmap)
       const inferenceMs = performance.now() - started
       const { signals, signature } = this.signals.analyze(bitmap, { temporal: false })
       return { detections, signals, signature, inferenceMs: Math.round(inferenceMs * 10) / 10 }
@@ -134,12 +169,20 @@ export class VisionEngine {
     }
   }
 
-  setAnchor(): void {
-    this.signals?.setAnchor()
+  /** Merge a deep-detector pass into the live tracks. */
+  fuse(detections: Detection[], timestamp: number, holdMs: number): FuseResult {
+    const outcome = this.tracker.verify(detections, timestamp, {
+      matchIou: DETECTION.fusion.matchIou,
+      deepOnlyMinScore: DETECTION.fusion.deepOnlyMinScore,
+      relabelMargin: DETECTION.fusion.relabelMargin,
+      holdMs,
+    })
+    return { ...outcome, tracks: this.tracker.current(timestamp) }
   }
 
   reset(): void {
     this.tracker.reset()
     this.signals?.reset()
+    this.viewId = 0
   }
 }

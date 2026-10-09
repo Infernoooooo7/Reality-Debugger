@@ -20,7 +20,7 @@ from app import __version__
 from app.api import analyze, health, image, scan, video
 from app.config import LAN_ORIGIN_REGEX, Settings, get_settings
 from app.errors import register_exception_handlers
-from app.middleware import AccessLogMiddleware, BodySizeLimitMiddleware
+from app.middleware import AccessLogMiddleware, BodySizeLimitMiddleware, CrossOriginIsolationMiddleware
 from app.runtime_config import load_config
 from app.services.ai_policy import AIPolicy
 from app.services.ai_providers import VisionProvider
@@ -126,6 +126,8 @@ def create_app(settings: Settings | None = None, *, providers: Mapping[str, Visi
     # headers are present even on 413 responses from the body limiter.
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
     app.add_middleware(AccessLogMiddleware)
+    if settings.cross_origin_isolation:
+        app.add_middleware(CrossOriginIsolationMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

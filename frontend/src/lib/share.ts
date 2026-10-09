@@ -2,7 +2,7 @@
  * Shareable diagnostic: a 1080×1350 PNG card rendered on a canvas, plus a
  * plain-text report for the clipboard.
  */
-import { pad2 } from './format'
+import { engineLabel, pad2 } from './format'
 import type { Report } from './schemas'
 
 const W = 1080
@@ -245,22 +245,8 @@ export async function renderShareCard(report: Report, image: CardImage | null): 
   ctx.lineTo(W - M, H - 92)
   ctx.stroke()
   ctx.font = `400 20px ${DATA}`
-  if (report.simulated) {
-    for (let i = 0; i < 6; i++) {
-      ctx.fillStyle = i % 2 ? COLORS.ink : COLORS.hazard
-      ctx.beginPath()
-      ctx.moveTo(M + i * 10, H - 48)
-      ctx.lineTo(M + i * 10 + 10, H - 48)
-      ctx.lineTo(M + i * 10 + 20, H - 68)
-      ctx.lineTo(M + i * 10 + 10, H - 68)
-      ctx.fill()
-    }
-    ctx.fillStyle = COLORS.hazard
-    ctx.fillText('DEMO MODE · SIMULATED, NOT AI OUTPUT', M + 80, H - 52)
-  } else {
-    ctx.fillStyle = COLORS.chalk3
-    ctx.fillText(`${report.provider} · ${report.model}`, M, H - 52)
-  }
+  ctx.fillStyle = COLORS.chalk3
+  ctx.fillText(engineLabel(report).toUpperCase().slice(0, 64), M, H - 52)
   ctx.textAlign = 'right'
   ctx.fillStyle = COLORS.chalk3
   ctx.fillText('YOUR WORLD HAS BUGS.', W - M, H - 52)
@@ -286,11 +272,14 @@ export function reportText(report: Report): string {
     rule,
   ]
   for (const f of report.findings) {
-    lines.push(`[${f.severity}] ${f.id} · ${f.category} · ${f.status} · ${Math.round(f.confidence * 100)}%`)
+    lines.push(`[${f.severity}] ${f.id} · ${f.source === 'local' ? 'LOCAL CV' : 'AI'} · ${f.category} · ${f.status} · ${Math.round(f.confidence * 100)}%`)
     lines.push(`  ${f.title}`)
     if (f.evidence) lines.push(`  evidence: ${f.evidence}`)
     if (f.impact) lines.push(`  impact:   ${f.impact}`)
     if (f.recommendation) lines.push(`  fix:      ${f.recommendation}`)
+    const numbers = Object.entries(f.measurements)
+    if (numbers.length) lines.push(`  measured: ${numbers.map(([k, v]) => `${k}=${v}`).join(', ')}`)
+    if (f.ai_note) lines.push(`  AI note:  ${f.ai_note}`)
     lines.push('')
   }
   if (report.optimizations.length) {
@@ -299,11 +288,7 @@ export function reportText(report: Report): string {
     lines.push('')
   }
   lines.push('FINAL DIAGNOSIS', `“${report.final_diagnosis}”`, rule)
-  lines.push(
-    report.simulated
-      ? 'Reality Debugger · DEMO MODE (simulated, not AI output)'
-      : `Reality Debugger · ${report.provider} · ${report.model}`,
-  )
+  lines.push(`Reality Debugger · ${engineLabel(report)} · ${report.engine}`)
   return lines.join('\n')
 }
 

@@ -12,18 +12,25 @@ import classicLoaderUrl from '@mediapipe/tasks-vision/vision_wasm_internal.js?ur
 import classicBinaryUrl from '@mediapipe/tasks-vision/vision_wasm_internal.wasm?url'
 import { supportsWasm, supportsWorkers } from '../lib/env'
 import type { VisionEngine } from './engine'
+import { VISION } from '../config'
+import { modelUrl } from './models'
 import type {
   Delegate,
   DelegatePreference,
+  Detection,
   EngineInfo,
   FrameResult,
+  FuseResult,
   InitPayload,
   StillResult,
   WorkerRequest,
   WorkerResponse,
 } from './types'
 
-export const MODEL_URL = `${import.meta.env.BASE_URL}models/efficientdet_lite0.tflite`
+/** The fast model is chosen in config/vision.json; its manifest names the file and labels. */
+export const FAST_MODEL_ID = VISION.fast.model
+const MANIFEST_URL = modelUrl(`${FAST_MODEL_ID}.manifest.json`)
+const MODEL_URL = modelUrl(`${FAST_MODEL_ID}.tflite`)
 
 const PREF_KEY = 'rd.vision.delegate'
 const CHOICE_KEY = 'rd.vision.autoChoice'
@@ -138,6 +145,7 @@ class VisionClient {
       try {
         const workerInfo = await this.startWorker({
           modelUrl: absolute(MODEL_URL),
+          manifestUrl: absolute(MANIFEST_URL),
           wasmLoaderUrl: absolute(moduleLoaderUrl),
           wasmBinaryUrl: absolute(moduleBinaryUrl),
           delegate,
@@ -155,6 +163,7 @@ class VisionClient {
       const engine = new VisionEngine()
       const mainInfo = await engine.init({
         modelUrl: absolute(MODEL_URL),
+        manifestUrl: absolute(MANIFEST_URL),
         wasmLoaderUrl: absolute(classicLoaderUrl),
         wasmBinaryUrl: absolute(classicBinaryUrl),
         delegate,
@@ -194,7 +203,7 @@ class VisionClient {
   }
 
   private route(message: WorkerResponse): void {
-    if (message.type === 'frame' || message.type === 'still') {
+    if (message.type === 'frame' || message.type === 'still' || message.type === 'fuse') {
       const entry = this.pending.get(message.id)
       if (!entry) return
       this.pending.delete(message.id)
@@ -239,10 +248,12 @@ class VisionClient {
     return this.engine!.analyzeStill(bitmap)
   }
 
-  /** Mark the current frame as the reference for scene-change detection. */
-  setAnchor(): void {
-    if (this.worker) this.worker.postMessage({ type: 'anchor' } satisfies WorkerRequest)
-    else this.engine?.setAnchor()
+  /** Merge deep-detector results into the live tracks (verification, relabels, deep-only objects). */
+  async fuse(detections: Detection[], timestamp: number, holdMs: number): Promise<FuseResult> {
+    await this.init()
+    const id = ++this.seq
+    if (this.worker) return this.call<FuseResult>({ type: 'fuse', id, detections, timestamp, holdMs }, [])
+    return this.engine!.fuse(detections, timestamp, holdMs)
   }
 
   resetTracking(): void {

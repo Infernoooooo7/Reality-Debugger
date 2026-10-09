@@ -45,6 +45,7 @@ class Finding(BaseModel):
     status: FindingStatus
     box: Box | None = None
     related_objects: list[str] = Field(default_factory=list)
+    object_ids: list[str] = Field(default_factory=list, description="Ids of the scene objects (tracks) the finding involves.")
     source: Source = Field(default="local", description="local = measured by the local CV engine; ai = AI reasoning.")
     rule: str | None = Field(default=None, description="Local rule that produced the finding.")
     measurements: dict[str, MeasurementValue] = Field(default_factory=dict, description="Numbers behind a local finding.")

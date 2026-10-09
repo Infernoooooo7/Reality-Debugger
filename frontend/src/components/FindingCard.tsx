@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { CATEGORY_LABEL, formatClock, formatPercent } from '../lib/format'
+import { CATEGORY_LABEL, formatClock, formatPercent, measurementLabel, measurementValue } from '../lib/format'
 import type { Finding, FindingStatus } from '../lib/schemas'
-import { SeverityTag, StatusChip } from './Bits'
+import { SeverityTag, SourceTag, StatusChip } from './Bits'
 
 const STAMP: Partial<Record<FindingStatus, string>> = {
   CONFIRMED: 'Confirmed',
@@ -17,6 +17,8 @@ export function FindingCard({
   focused = false,
   showTimes = false,
   onJump,
+  onExplain,
+  explaining = false,
 }: {
   finding: Finding
   expanded: boolean
@@ -25,6 +27,9 @@ export function FindingCard({
   focused?: boolean
   showTimes?: boolean
   onJump?: (seconds: number) => void
+  /** Ask the optional AI layer to explain this finding (only offered when AI is on). */
+  onExplain?: (id: string) => void
+  explaining?: boolean
 }) {
   const previous = useRef<FindingStatus>(finding.status)
   const [flash, setFlash] = useState<FindingStatus | null>(null)
@@ -51,6 +56,7 @@ export function FindingCard({
     >
       <button type="button" className="finding__head" onClick={onToggle} aria-expanded={expanded}>
         <span className="finding__id t-data">{finding.id}</span>
+        <SourceTag source={finding.source} />
         <SeverityTag severity={finding.severity} />
         <span className="finding__cat t-label">{CATEGORY_LABEL[finding.category] ?? finding.category}</span>
         <StatusChip status={finding.status} />
@@ -79,6 +85,7 @@ export function FindingCard({
           )
         ) : null}
         {finding.out_of_view ? <span>out of view</span> : null}
+        {finding.rule ? <span className="finding__rule">rule: {finding.rule}</span> : null}
         {related ? <span className="finding__related">{related}</span> : null}
       </div>
       {expanded ? (
@@ -99,6 +106,32 @@ export function FindingCard({
             <dt className="t-label">Recommended fix</dt>
             <dd>{finding.recommendation || '—'}</dd>
           </div>
+          {Object.keys(finding.measurements).length ? (
+            <div>
+              <dt className="t-label">Measurements</dt>
+              <dd>
+                <ul className="finding__measurements t-data">
+                  {Object.entries(finding.measurements).map(([key, value]) => (
+                    <li key={key}>
+                      <span>{measurementLabel(key)}</span>
+                      <b>{measurementValue(value)}</b>
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+          ) : null}
+          {finding.ai_note ? (
+            <div className="finding__ai" data-agrees={finding.ai_agrees === false ? 'false' : 'true'}>
+              <dt className="t-label">{finding.ai_agrees === false ? 'AI review · possible false alarm' : 'AI explanation'}</dt>
+              <dd>{finding.ai_note}</dd>
+            </div>
+          ) : null}
+          {onExplain && finding.status !== 'RESOLVED' ? (
+            <button type="button" className="key key--small finding__explain" onClick={() => onExplain(finding.id)} disabled={explaining}>
+              {explaining ? 'Asking AI…' : finding.ai_note ? 'Ask AI again' : 'Explain with AI'}
+            </button>
+          ) : null}
           {finding.quip ? <p className="finding__quip">“{finding.quip}”</p> : null}
           {finding.resolved_note && finding.status === 'RESOLVED' ? (
             <p className="finding__resolved t-data">✓ {finding.resolved_note}</p>

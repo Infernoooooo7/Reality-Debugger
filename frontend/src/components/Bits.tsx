@@ -8,9 +8,46 @@ export function SeverityTag({ severity }: { severity: Severity }) {
   return <span className={`sev sev--${severity}`}>{severity}</span>
 }
 
-export function DemoBadge({ text = 'Demo mode · simulated' }: { text?: string }) {
+/** Where a finding came from: measured by local CV, or added by the optional AI layer. */
+export function SourceTag({ source }: { source: 'local' | 'ai' }) {
   return (
-    <span className="demo-badge" title="No vision model was used. Results are simulated from on-device detections.">
+    <span
+      className="source-tag"
+      data-source={source}
+      title={source === 'local' ? 'Measured on this device by the local CV engine' : 'Interpretation by the optional AI reasoning layer'}
+    >
+      {source === 'local' ? 'LOCAL CV' : 'AI'}
+    </span>
+  )
+}
+
+/** The always-on local pipeline. */
+export function LocalBadge({ text = 'Local CV active' }: { text?: string }) {
+  return (
+    <span className="mode-badge" data-mode="local" title="Detection, tracking and diagnostics run locally - no API key needed.">
+      {text}
+    </span>
+  )
+}
+
+/** The optional AI layer: off (normal), ready, or unavailable (local CV continues). */
+export function AIBadge({ mode, provider }: { mode: 'off' | 'ready' | 'unavailable' | 'unknown'; provider?: string | null }) {
+  const text =
+    mode === 'ready'
+      ? `AI reasoning · ${provider ?? 'on'}`
+      : mode === 'unavailable'
+        ? 'AI reasoning unavailable'
+        : mode === 'off'
+          ? 'AI reasoning off'
+          : 'AI reasoning ?'
+  const title =
+    mode === 'off'
+      ? 'No AI provider is configured. Everything runs on local computer vision.'
+      : mode === 'unavailable'
+        ? 'The AI provider failed; local computer vision keeps running.'
+        : 'An optional AI layer adds explanations on top of the local results.'
+  return (
+    <span className="mode-badge" data-mode={`ai-${mode}`} title={title}>
       {text}
     </span>
   )

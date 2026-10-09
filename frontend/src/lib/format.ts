@@ -54,7 +54,23 @@ export const CATEGORY_LABEL: Record<string, string> = {
   ABSURD: 'Absurd',
 }
 
-export function providerLabel(provider: string, model: string, simulated: boolean): string {
-  if (simulated) return 'DEMO MODE · simulated heuristics'
-  return `${provider} · ${model}`
+const PROVIDERS: Record<string, string> = { gemini: 'Gemini', claude: 'Claude', openai: 'OpenAI-compatible' }
+
+/** "Local CV · efficientdet_lite0 + yolox_s" or "Local CV + Gemini (model)". */
+export function engineLabel(report: { provider: string; model: string; engine: string; detectors: string[]; ai: { status: string } }): string {
+  const local = `Local CV${report.detectors.length ? ` · ${report.detectors.join(' + ')}` : ''}`
+  if (report.ai.status === 'ok' || report.ai.status === 'cached') {
+    return `${local} + ${PROVIDERS[report.provider] ?? report.provider} (${report.model})`
+  }
+  return local
+}
+
+export function measurementLabel(key: string): string {
+  return key.replace(/_/g, ' ')
+}
+
+export function measurementValue(value: number | string): string {
+  if (typeof value === 'string') return value
+  if (Number.isInteger(value)) return String(value)
+  return Math.abs(value) < 1 ? value.toFixed(3) : value.toFixed(1)
 }

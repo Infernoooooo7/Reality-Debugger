@@ -1,200 +1,417 @@
 /**
- * Lightweight multi-object tracker (IoU association with constant-velocity
- * prediction, class voting and tentative/confirmed/lost states).
+ * Multi-object tracker: ByteTrack (Zhang et al., ECCV 2022) with a
+ * constant-velocity Kalman filter (SORT / DeepSORT) and optimal assignment.
  *
- * Deliberately simple: it runs every frame inside the vision worker and only
- * has to keep identities stable for a few seconds so the UI and the scan
- * director can reason about "new" objects and persisting issues.
+ * Per frame:
+ *  1. Kalman-predict every track to the frame time.
+ *  2. Associate tracked + lost tracks with HIGH-score detections
+ *     (IoU fused with the detection score).
+ *  3. Associate the remaining tracked tracks with LOW-score detections
+ *     (plain IoU) - ByteTrack's key idea: occluded or blurred objects are
+ *     often still detected, just with low confidence.
+ *  4. Associate unconfirmed tracks with the leftover high-score detections;
+ *     a track is confirmed once it has been matched `confirmHits` times.
+ *  5. Start tentative tracks from unmatched detections above `newTrackScore`;
+ *     drop lost tracks after `lostBufferMs`.
+ *
+ * ByteTrack is single-class; here a detection may only extend a track of a
+ * compatible class (same label or COCO supercategory, config/ontology).
+ * On top of the association the tracker derives temporal attributes from
+ * the Kalman state: speed, moving/static (with hysteresis), time static,
+ * direction reversals and occlusion. All thresholds: config/tracking.json and
+ * config/temporal.json.
  */
-import { center, iou } from './geometry'
-import type { Detection, NBox, Track } from './types'
+import { TEMPORAL, TRACKING, VISION } from '../config'
+import { linearAssignment } from './assignment'
+import { area, intersection, iou } from './geometry'
+import { KalmanFilter, type Mat, type Vec } from './kalman'
+import { compatible } from './ontology'
+import type { Detection, Movement, NBox, Track, TrackEvent } from './types'
 
-const CONFUSABLE: string[][] = [
-  ['cup', 'wine glass', 'bowl', 'vase', 'bottle'],
-  ['tv', 'laptop'],
-  ['cell phone', 'remote'],
-  ['couch', 'chair', 'bench'],
-  ['dining table', 'bed'],
-  ['car', 'truck', 'bus'],
-  ['cat', 'dog', 'teddy bear'],
-  ['handbag', 'backpack', 'suitcase'],
-]
-
-function compatible(a: string, b: string): boolean {
-  if (a === b) return true
-  return CONFUSABLE.some((group) => group.includes(a) && group.includes(b))
-}
-
-interface TrackerOptions {
-  iouMatch: number
-  maxMissMs: number
+export interface TrackerOptions {
+  highScore: number
+  lowScore: number
+  newTrackScore: number
+  firstMatchIou: number
+  secondMatchIou: number
+  unconfirmedMatchIou: number
+  fuseScore: boolean
+  duplicateIou: number
+  lostBufferMs: number
   confirmHits: number
-  minNewScore: number
-  boxSmoothing: number
+  classCompatibility: 'supercategory' | 'label'
+  kalmanStdWeightPosition: number
+  kalmanStdWeightVelocity: number
+  /** Duration of one "frame" for the Kalman model (ms). */
+  nominalFrameMs: number
+  movingSpeed: number
+  stillSpeed: number
+  reversalWindowMs: number
+  occludedFraction: number
 }
 
-const DEFAULTS: TrackerOptions = {
-  iouMatch: 0.12,
-  maxMissMs: 1100,
-  confirmHits: 3,
-  minNewScore: 0.42,
-  boxSmoothing: 0.6,
+export const TRACKER_DEFAULTS: TrackerOptions = {
+  highScore: TRACKING.highScore,
+  lowScore: TRACKING.lowScore,
+  newTrackScore: TRACKING.newTrackScore,
+  firstMatchIou: TRACKING.firstMatchIou,
+  secondMatchIou: TRACKING.secondMatchIou,
+  unconfirmedMatchIou: TRACKING.unconfirmedMatchIou,
+  fuseScore: TRACKING.fuseScore,
+  duplicateIou: TRACKING.duplicateIou,
+  lostBufferMs: TRACKING.lostBufferMs,
+  confirmHits: TRACKING.confirmHits,
+  classCompatibility: TRACKING.classCompatibility,
+  kalmanStdWeightPosition: TRACKING.kalmanStdWeightPosition,
+  kalmanStdWeightVelocity: TRACKING.kalmanStdWeightVelocity,
+  nominalFrameMs: 1000 / VISION.fast.maxFps,
+  movingSpeed: TEMPORAL.movement.movingSpeed,
+  stillSpeed: TEMPORAL.movement.stillSpeed,
+  reversalWindowMs: TEMPORAL.movement.reversalWindowMs,
+  occludedFraction: TEMPORAL.occlusion.occludedFraction,
 }
 
-interface InternalTrack extends Track {
-  votes: Map<string, number>
-  updatedAt: number
+const EDGE = 0.005
+const MAX_DT_FRAMES = 10
+
+function toMeasurement(b: NBox): Vec {
+  const h = Math.max(b.h, 1e-4)
+  return Float64Array.of(b.x + b.w / 2, b.y + b.h / 2, b.w / h, h)
 }
 
-function shift(box: NBox, dx: number, dy: number): NBox {
-  return { x: box.x + dx, y: box.y + dy, w: box.w, h: box.h }
+function toBox(mean: Vec): NBox {
+  const h = Math.max(mean[3]!, 1e-4)
+  const w = Math.max(mean[2]! * h, 1e-4)
+  const x = mean[0]! - w / 2
+  const y = mean[1]! - h / 2
+  const x1 = Math.max(0, x)
+  const y1 = Math.max(0, y)
+  const x2 = Math.min(1, x + w)
+  const y2 = Math.min(1, y + h)
+  return { x: x1, y: y1, w: Math.max(1e-4, x2 - x1), h: Math.max(1e-4, y2 - y1) }
+}
+
+class STrack {
+  readonly id: number
+  label: string
+  readonly votes = new Map<string, number>()
+  score: number
+  readonly mean: Vec
+  readonly cov: Mat
+  activated = false
+  state: 'tracked' | 'lost' = 'tracked'
+  hits = 1
+  misses = 0
+  readonly firstSeen: number
+  lastSeen: number
+  predictedAt: number
+  matched = true
+  source: 'fast' | 'deep' | 'fused' = 'fast'
+  verified = false
+  holdUntil = 0
+  movement: Movement = 'unknown'
+  staticSince: number
+  lastSign = 0
+  reversalTimes: number[] = []
+  occlusion = 0
+  occludedSince: number | null = null
+  truncated = false
+
+  constructor(id: number, det: Detection, now: number, kf: KalmanFilter) {
+    this.id = id
+    this.label = det.label
+    this.score = det.score
+    this.votes.set(det.label, det.score)
+    const { mean, cov } = kf.initiate(toMeasurement(det.box))
+    this.mean = mean
+    this.cov = cov
+    this.firstSeen = now
+    this.lastSeen = now
+    this.predictedAt = now
+    this.staticSince = now
+  }
+
+  get box(): NBox {
+    return toBox(this.mean)
+  }
+
+  get historyMs(): number {
+    return this.lastSeen - this.firstSeen
+  }
 }
 
 export class Tracker {
-  private tracks: InternalTrack[] = []
+  private tracks: STrack[] = []
   private nextId = 1
+  private readonly kf: KalmanFilter
   private readonly opts: TrackerOptions
+  private events: TrackEvent[] = []
 
   constructor(options: Partial<TrackerOptions> = {}) {
-    this.opts = { ...DEFAULTS, ...options }
+    this.opts = { ...TRACKER_DEFAULTS, ...options }
+    this.kf = new KalmanFilter({
+      stdWeightPosition: this.opts.kalmanStdWeightPosition,
+      stdWeightVelocity: this.opts.kalmanStdWeightVelocity,
+    })
   }
 
   reset(): void {
     this.tracks = []
     this.nextId = 1
+    this.events = []
   }
 
-  update(detections: Detection[], now: number): Track[] {
-    const { iouMatch, maxMissMs, confirmHits, minNewScore, boxSmoothing } = this.opts
-
-    // 1. Constant-velocity prediction.
-    const predicted = this.tracks.map((t) => {
-      const dt = Math.min(0.5, Math.max(0, (now - t.updatedAt) / 1000))
-      return shift(t.box, t.vx * dt, t.vy * dt)
-    })
-
-    // 2. Candidate pairs scored by overlap (fallback: centre distance).
-    const pairs: { ti: number; di: number; score: number }[] = []
-    this.tracks.forEach((track, ti) => {
-      detections.forEach((det, di) => {
-        if (!compatible(track.label, det.label)) return
-        const overlap = iou(predicted[ti]!, det.box)
-        let score = overlap
-        if (overlap < iouMatch) {
-          const [tx, ty] = center(predicted[ti]!)
-          const [dx, dy] = center(det.box)
-          const scale = Math.sqrt(Math.max(track.box.w * track.box.h, det.box.w * det.box.h, 1e-4))
-          const distance = Math.hypot(tx - dx, ty - dy) / scale
-          if (distance > 0.6) return
-          score = 0.08 * (1 - distance)
-        }
-        if (track.label !== det.label) score *= 0.8
-        pairs.push({ ti, di, score })
-      })
-    })
-    pairs.sort((a, b) => b.score - a.score)
-
-    const usedTracks = new Set<number>()
-    const usedDets = new Set<number>()
-    for (const { ti, di } of pairs) {
-      if (usedTracks.has(ti) || usedDets.has(di)) continue
-      usedTracks.add(ti)
-      usedDets.add(di)
-      this.updateTrack(this.tracks[ti]!, detections[di]!, now, boxSmoothing, confirmHits)
-    }
-
-    // 3. Age unmatched tracks.
-    const survivors: InternalTrack[] = []
-    this.tracks.forEach((track, ti) => {
-      if (!usedTracks.has(ti)) {
-        track.misses += 1
-        if (track.state === 'tentative' && track.misses >= 2) return
-        if (now - track.lastSeen > maxMissMs) return
-        if (track.state === 'confirmed') track.state = 'lost'
-        // Keep coasting on the prediction while lost.
-        track.box = predicted[ti]!
-        track.vx *= 0.6
-        track.vy *= 0.6
-        track.updatedAt = now
-      }
-      survivors.push(track)
-    })
-    this.tracks = survivors
-
-    // 4. Spawn tracks for confident unmatched detections.
-    detections.forEach((det, di) => {
-      if (usedDets.has(di) || det.score < minNewScore) return
-      const id = this.nextId++
-      this.tracks.push({
-        id,
-        key: `${det.label}·${String(id).padStart(2, '0')}`,
-        label: det.label,
-        score: det.score,
-        box: { ...det.box },
-        vx: 0,
-        vy: 0,
-        hits: 1,
-        misses: 0,
-        state: 'tentative',
-        firstSeen: now,
-        lastSeen: now,
-        votes: new Map([[det.label, det.score]]),
-        updatedAt: now,
-      })
-    })
-
-    return this.snapshot()
+  /** Events since the last call (entered / left). */
+  drainEvents(): TrackEvent[] {
+    const out = this.events
+    this.events = []
+    return out
   }
 
-  private updateTrack(track: InternalTrack, det: Detection, now: number, alpha: number, confirmHits: number): void {
-    const dt = Math.max(1e-3, (now - track.updatedAt) / 1000)
-    const [ox, oy] = center(track.box)
-    const box: NBox = {
-      x: track.box.x + (det.box.x - track.box.x) * alpha,
-      y: track.box.y + (det.box.y - track.box.y) * alpha,
-      w: track.box.w + (det.box.w - track.box.w) * alpha,
-      h: track.box.h + (det.box.h - track.box.h) * alpha,
+  private compatible(a: string, b: string): boolean {
+    return compatible(a, b, this.opts.classCompatibility)
+  }
+
+  private cost(tracks: STrack[], dets: Detection[], fuse: boolean): number[][] {
+    return tracks.map((t) => {
+      const box = t.box
+      return dets.map((d) => {
+        if (!this.compatible(t.label, d.label)) return 1e9
+        const overlap = iou(box, d.box)
+        return 1 - (fuse ? overlap * d.score : overlap)
+      })
+    })
+  }
+
+  private predict(now: number): void {
+    for (const t of this.tracks) {
+      const dt = Math.min(MAX_DT_FRAMES, Math.max(0, (now - t.predictedAt) / this.opts.nominalFrameMs))
+      if (dt <= 0) continue
+      if (t.state !== 'tracked') t.mean[7] = 0 // ByteTrack: lost tracks keep their height
+      this.kf.predict(t.mean, t.cov, dt)
+      t.predictedAt = now
     }
-    const [nx, ny] = center(box)
-    track.vx = 0.5 * track.vx + 0.5 * ((nx - ox) / dt)
-    track.vy = 0.5 * track.vy + 0.5 * ((ny - oy) / dt)
-    track.box = box
-    track.score = 0.7 * track.score + 0.3 * det.score
-    track.hits += 1
-    track.misses = 0
-    track.lastSeen = now
-    track.updatedAt = now
-    track.votes.set(det.label, (track.votes.get(det.label) ?? 0) + det.score)
-    let best = track.label
+  }
+
+  private apply(t: STrack, det: Detection, now: number): void {
+    this.kf.update(t.mean, t.cov, toMeasurement(det.box))
+    t.score = 0.5 * t.score + 0.5 * det.score
+    t.votes.set(det.label, (t.votes.get(det.label) ?? 0) + det.score)
+    let best = t.label
     let bestVotes = -1
-    for (const [label, votes] of track.votes) {
+    for (const [label, votes] of t.votes) {
       if (votes > bestVotes) {
         best = label
         bestVotes = votes
       }
     }
-    if (best !== track.label) {
-      track.label = best
-      track.key = `${best}·${String(track.id).padStart(2, '0')}`
+    t.label = best
+    t.hits += 1
+    t.misses = 0
+    t.lastSeen = now
+    t.state = 'tracked'
+    t.matched = true
+    if (t.source === 'deep') {
+      // The fast detector now sees an object the deep detector found: both agree.
+      t.source = 'fused'
+      t.verified = true
+      t.holdUntil = 0
     }
-    if (track.state !== 'confirmed' && track.hits >= confirmHits) track.state = 'confirmed'
-    else if (track.state === 'lost') track.state = 'confirmed'
   }
 
-  private snapshot(): Track[] {
-    return this.tracks.map((t) => ({
-      id: t.id,
-      key: t.key,
-      label: t.label,
-      score: Math.round(t.score * 1000) / 1000,
-      box: { ...t.box },
-      vx: t.vx,
-      vy: t.vy,
-      hits: t.hits,
-      misses: t.misses,
-      state: t.state,
-      firstSeen: t.firstSeen,
-      lastSeen: t.lastSeen,
-    }))
+  private activate(t: STrack, now: number): void {
+    if (t.activated) return
+    t.activated = true
+    this.events.push({ kind: 'entered', at: now, trackId: t.id, sceneId: `t${t.id}`, label: t.label })
+  }
+
+  update(detections: Detection[], now: number): Track[] {
+    const o = this.opts
+    this.predict(now)
+    for (const t of this.tracks) t.matched = false
+
+    const high = detections.filter((d) => d.score >= o.highScore)
+    const low = detections.filter((d) => d.score >= o.lowScore && d.score < o.highScore)
+    const pool = this.tracks.filter((t) => t.activated)
+    const unconfirmed = this.tracks.filter((t) => !t.activated)
+
+    // 1. tracked + lost vs high-score detections
+    const first = linearAssignment(this.cost(pool, high, o.fuseScore), 1 - o.firstMatchIou, high.length)
+    for (const [ti, di] of first.matches) this.apply(pool[ti]!, high[di]!, now)
+    const remainingHigh = first.unmatchedCols.map((i) => high[i]!)
+
+    // 2. remaining tracked tracks vs low-score detections
+    const rTracked = first.unmatchedRows.map((i) => pool[i]!).filter((t) => t.state === 'tracked')
+    const second = linearAssignment(this.cost(rTracked, low, false), 1 - o.secondMatchIou, low.length)
+    for (const [ti, di] of second.matches) this.apply(rTracked[ti]!, low[di]!, now)
+    for (const i of second.unmatchedRows) {
+      const t = rTracked[i]!
+      if (now < t.holdUntil) continue // deep-only object: held until the next deep check
+      t.state = 'lost'
+    }
+
+    // 3. unconfirmed tracks vs leftover high-score detections
+    const third = linearAssignment(this.cost(unconfirmed, remainingHigh, o.fuseScore), 1 - o.unconfirmedMatchIou, remainingHigh.length)
+    const used = new Set<number>()
+    for (const [ti, di] of third.matches) {
+      const t = unconfirmed[ti]!
+      this.apply(t, remainingHigh[di]!, now)
+      if (t.hits >= o.confirmHits) this.activate(t, now)
+      used.add(di)
+    }
+    const removed = new Set<STrack>(third.unmatchedRows.map((i) => unconfirmed[i]!)) // unconfirmed and missed: drop
+
+    // 4. new tentative tracks
+    remainingHigh.forEach((det, di) => {
+      if (used.has(di) || det.score < o.newTrackScore) return
+      const t = new STrack(this.nextId++, det, now, this.kf)
+      if (o.confirmHits <= 1) this.activate(t, now)
+      this.tracks.push(t)
+    })
+
+    // 5. expire lost tracks, remove duplicates
+    for (const t of this.tracks) {
+      if (t.state === 'lost') t.misses += 1
+      if (t.state === 'lost' && now - t.lastSeen > o.lostBufferMs) removed.add(t)
+    }
+    const tracked = this.tracks.filter((t) => t.state === 'tracked' && t.activated && !removed.has(t))
+    const lost = this.tracks.filter((t) => t.state === 'lost' && !removed.has(t))
+    for (const a of tracked) {
+      for (const b of lost) {
+        if (iou(a.box, b.box) > o.duplicateIou) removed.add(a.historyMs >= b.historyMs ? b : a)
+      }
+    }
+    for (const t of removed) {
+      if (t.activated) this.events.push({ kind: 'left', at: now, trackId: t.id, sceneId: `t${t.id}`, label: t.label })
+    }
+    this.tracks = this.tracks.filter((t) => !removed.has(t))
+
+    this.updateTemporal(now)
+    return this.snapshot(now)
+  }
+
+  /**
+   * Fuse a deep-detector pass into the tracks: a compatible overlapping deep
+   * detection verifies a track; a clearly more confident conflicting one
+   * relabels it; confident deep-only detections become held tracks.
+   */
+  verify(
+    detections: Detection[],
+    now: number,
+    opts: { matchIou: number; deepOnlyMinScore: number; relabelMargin: number; holdMs: number },
+  ): { verified: number; relabeled: number; added: number } {
+    let verified = 0
+    let relabeled = 0
+    let added = 0
+    const candidates = this.tracks.filter((t) => t.activated)
+    const claimed = new Set<STrack>()
+    for (const det of [...detections].sort((a, b) => b.score - a.score)) {
+      let best: STrack | null = null
+      let bestIou = opts.matchIou
+      for (const t of candidates) {
+        if (claimed.has(t)) continue
+        const overlap = iou(t.box, det.box)
+        if (overlap >= bestIou) {
+          best = t
+          bestIou = overlap
+        }
+      }
+      if (best) {
+        claimed.add(best)
+        if (this.compatible(best.label, det.label)) {
+          best.verified = true
+          if (best.source === 'fast') best.source = 'fused'
+          verified += 1
+        } else if (det.score >= best.score + opts.relabelMargin) {
+          best.votes.clear()
+          best.votes.set(det.label, det.score)
+          best.label = det.label
+          best.verified = true
+          best.source = 'fused'
+          relabeled += 1
+        }
+        continue
+      }
+      if (det.score < opts.deepOnlyMinScore) continue
+      const t = new STrack(this.nextId++, det, now, this.kf)
+      t.source = 'deep'
+      t.holdUntil = now + opts.holdMs
+      this.activate(t, now)
+      this.tracks.push(t)
+      claimed.add(t)
+      added += 1
+    }
+    this.updateTemporal(now)
+    return { verified, relabeled, added }
+  }
+
+  private updateTemporal(now: number): void {
+    const o = this.opts
+    const perSecond = 1000 / o.nominalFrameMs
+    const visible = this.tracks.filter((t) => t.activated)
+    for (const t of visible) {
+      const vx = t.mean[4]! * perSecond
+      const vy = t.mean[5]! * perSecond
+      const speed = Math.hypot(vx, vy)
+      if (t.hits >= 3 && t.source !== 'deep') {
+        if (speed > o.movingSpeed) t.movement = 'moving'
+        else if (speed < o.stillSpeed) t.movement = 'static'
+      }
+      if (t.movement === 'moving') {
+        t.staticSince = now
+        const sign = Math.abs(vx) > o.stillSpeed ? Math.sign(vx) : 0
+        if (sign !== 0) {
+          if (t.lastSign !== 0 && sign !== t.lastSign) t.reversalTimes.push(now)
+          t.lastSign = sign
+        }
+      }
+      t.reversalTimes = t.reversalTimes.filter((at) => now - at <= o.reversalWindowMs)
+      const box = t.box
+      const own = area(box)
+      let covered = 0
+      for (const other of visible) if (other !== t) covered += intersection(box, other.box)
+      t.occlusion = own > 0 ? Math.min(1, covered / own) : 0
+      t.truncated = box.x <= EDGE || box.y <= EDGE || box.x + box.w >= 1 - EDGE || box.y + box.h >= 1 - EDGE
+      if (t.occlusion >= o.occludedFraction) t.occludedSince ??= now
+      else t.occludedSince = null
+    }
+  }
+
+  /** Current tracks without a detector update (e.g. right after `verify`). */
+  current(now: number): Track[] {
+    return this.snapshot(now)
+  }
+
+  private snapshot(now: number): Track[] {
+    const perSecond = 1000 / this.opts.nominalFrameMs
+    return this.tracks.map((t) => {
+      const vx = t.mean[4]! * perSecond
+      const vy = t.mean[5]! * perSecond
+      const held = t.source === 'deep' && now < t.holdUntil
+      return {
+        id: t.id,
+        key: `${t.label}·${String(t.id).padStart(2, '0')}`,
+        sceneId: `t${t.id}`,
+        label: t.label,
+        score: Math.round(t.score * 1000) / 1000,
+        box: t.box,
+        vx,
+        vy,
+        speed: Math.hypot(vx, vy),
+        hits: t.hits,
+        misses: t.misses,
+        state: !t.activated ? 'tentative' : t.matched || held ? 'confirmed' : t.state === 'lost' ? 'lost' : 'confirmed',
+        firstSeen: t.firstSeen,
+        lastSeen: t.lastSeen,
+        movement: t.movement,
+        staticMs: t.movement === 'moving' ? 0 : Math.max(0, now - t.staticSince),
+        reversals: t.reversalTimes.length,
+        occlusion: Math.round(t.occlusion * 100) / 100,
+        occludedMs: t.occludedSince === null ? 0 : now - t.occludedSince,
+        truncated: t.truncated,
+        source: t.source,
+        verified: t.verified,
+      }
+    })
   }
 }

@@ -1,185 +1,217 @@
 # Architecture notes
 
-These notes document the decisions behind Reality Debugger and the exact rules
-the code implements. File references are relative to the repository root.
+These notes describe how Reality Debugger is put together and the exact rules
+the code implements. Paths are relative to the repository root. The research
+behind the model, tracker and threshold choices, with measurements and
+citations, is in [`COMPUTER_VISION_RESEARCH.md`](COMPUTER_VISION_RESEARCH.md).
+Every tunable number lives in [`config/`](../config/README.md), with its unit,
+purpose and source.
 
 ## 1. Pipeline
 
 ```
- ┌──────────────────────────── browser (on device) ────────────────────────────┐
- │ camera (getUserMedia)                                                        │
- │   └─ FrameGrabber: 480-px ImageBitmap, transferred (zero-copy) ──┐            │
- │                                                                  ▼            │
- │   vision worker: letterbox → EfficientDet-Lite0 → Tracker → SignalAnalyzer    │
- │                                                                  │            │
- │   ◀── tracks · motion · scene Δ · sharpness · brightness ────────┘            │
- │   spatial heuristics → ScanDirector ──(decision)──▶ JpegCapturer (1280 px)    │
- │   OverlayRenderer (rAF, interpolated) · HUD (5 Hz) · findings panel           │
- └───────────────────────────────────────┬──────────────────────────────────────┘
-                                         │ POST /api/analyze/frame (+ local context)
- ┌────────────────────────────── FastAPI backend ──────────────────────────────┐
- │ validate upload → normalise (≤1024 px, EXIF stripped) → prompt + schema      │
- │ → provider (Claude / OpenAI-compatible / demo) → extract + validate JSON     │
- │ → merge into scan session (lifecycle) → score → ScanState + report + events │
- └──────────────────────────────────────────────────────────────────────────────┘
+ ┌─────────────────────────────── browser (on device) ───────────────────────────────┐
+ │ camera / image / video frame                                                       │
+ │   ├─ fast worker (every frame, ≤ 10 fps): letterbox 320 → EfficientDet-Lite0        │
+ │   │      → ByteTrack (Kalman + Hungarian) → temporal attributes                     │
+ │   │      → pixel signals (motion, brightness, sharpness, scene fingerprint, view)   │
+ │   ├─ deep worker (selective): YOLOX-S on ONNX Runtime Web (WebGPU / WASM threads)   │
+ │   │      → fusion: verify / relabel / add objects                                  │
+ │   └─ scene model: objects + attributes + signals + events  (numbers only)           │
+ └──────────────────────────────────────────┬─────────────────────────────────────────┘
+                                            │ POST /api/scan/observe (JSON, no image)
+ ┌──────────────────────────────────── FastAPI backend ───────────────────────────────┐
+ │ validate scene → relations (geometry) → local diagnostic engine (attribute rules)   │
+ │   → finding lifecycle DISCOVERED → CONFIRMED → TRACKING → RESOLVED → score/status   │
+ │   → AI policy: is reasoning worth a call now?  ── no ──▶ local report (always)      │
+ │                                       └─ yes, and a provider is configured:          │
+ │        frame + scene + local findings → Gemini / Claude → validated JSON            │
+ │        → explanations attached to local findings, extra AI findings (source "ai")   │
+ └─────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Responsibilities are split by folder: `frontend/src/live/camera.ts` (camera),
-`frontend/src/vision/*` (vision + tracking), `backend/app/services/ai_*`
-(AI), `backend/app/services/diagnostic_service.py` (diagnostics),
-`backend/app/api/*` (API) and `frontend/src/screens|components` (UI).
+The data flows Detector → `Detection` → tracked object → `SceneModel` →
+diagnostic engine. No stage hard-codes object labels:
+- the label lists come from each model's own metadata (manifests in `frontend/public/models/`);
+- what a label *is* (liquid container, electronic, sharp, food…) comes from the generated ontology (`config/ontology.generated.json`).
 
-## 2. Local vision engine (`frontend/src/vision`)
+Folders:
+- `frontend/src/vision/`: detectors, tracker, fusion and scene model.
+- `frontend/src/live/`: the Live Scan loop.
+- `backend/app/services/local_diagnostics.py`: rules.
+- `backend/app/services/diagnostic_service.py`: lifecycle and scoring.
+- `backend/app/services/ai_*.py`, `pipeline.py`: the optional AI layer.
+- `backend/app/api/`: HTTP.
 
-- **Runtime:** a module Web Worker (`vision.worker.ts`) owns a `VisionEngine`
-  (`engine.ts`). If workers or `OffscreenCanvas` are unavailable the same engine
-  runs on the main thread (`client.ts`).
-- **Detector** (`detector.ts`): MediaPipe Tasks `ObjectDetector`, model
-  `public/models/efficientdet_lite0.tflite`, `VIDEO` running mode, score
-  threshold 0.3, up to 25 results. WASM loader/binary are bundled through
-  Vite `?url` imports, so nothing is fetched from a CDN.
-- **Delegate selection:** `auto` probes CPU and GPU with a procedurally drawn
-  stop sign (detected at ~0.96 by EfficientDet-Lite0). GPU is used only if it
-  detects the probe and is at least 20 % faster than CPU. In testing,
-  a software WebGL GPU returned *no detections at all* while CPU was correct —
-  hence verification rather than assumption. The result is cached in
-  `localStorage` for 14 days.
-- **Letterboxing:** frames are drawn centred on a 384×384 grey canvas before
-  detection and boxes are mapped back. MediaPipe stretches non-square inputs;
-  on test frames this lifted laptop detection from *not detected* to 0.52–0.79.
-- **Tracker** (`tracker.ts`): greedy IoU matching on constant-velocity
-  predictions (centre-distance fallback for fast motion), compatible-class
-  matching (cup↔wine glass, tv↔laptop…) with class voting; tracks are
-  `tentative` until 3 hits, `lost` while coasting, dropped after 1.1 s unseen.
-- **Signals** (`signals.ts`, 128×96 thumbnail, buffers reused): motion = mean
-  absolute luminance difference (×6, clipped) plus the bounding box of changed
-  pixels; fingerprint = 4×4×4 RGB histogram + 16×12 luminance grid;
-  `distance = 0.55·½‖h₁−h₂‖₁ + 0.45·min(1, 3·mean|g₁−g₂|)`; sharpness =
-  log-scaled Laplacian variance.
-- **Spatial heuristics** (`relations.ts`): container next to electronics,
-  food next to electronics, sharp tools, ≥3 drink containers, ≥9 objects.
+## 2. Browser vision (`frontend/src/vision`)
 
-## 3. Scan director (`frontend/src/live/director.ts`)
+- **Fast detector** (`detector.ts`, `engine.ts`, `vision.worker.ts`): MediaPipe
+  Tasks `ObjectDetector` with EfficientDet-Lite0 int8, in a module Web Worker,
+  falling back to the main thread.
+  - Frames are letterboxed to the model's input size (320, read from the manifest).
+  - Detections down to the low band (0.15) are kept for the tracker. Display uses 0.30.
+  - GPU vs CPU is decided by a self-test on a procedurally drawn stop sign. GPU must find the probe and be more than 20 % faster.
+  - The choice is cached for 14 days. Override it with `?vision=cpu`.
+- **Tracker** (`tracker.ts`, `kalman.ts`, `assignment.ts`): ByteTrack with an 8-dim Kalman filter and a variable time step.
+  - Three association stages: high-score boxes, low-score boxes, unconfirmed tracks.
+  - Optimal assignment uses a cost limit, as in `lap.lapjv`.
+  - Detections only extend tracks of a compatible class (same COCO supercategory).
+  - Each track carries `speed`, `movement` (static/moving with hysteresis), `static_ms`, direction `reversals`, `occlusion`/`occluded_ms`, `truncated` and `persistent`.
+  - Track events: `entered`, `left`, `scene_change`.
+- **Signals and views** (`signals.ts`): computed on a 128×96 thumbnail.
+  - Motion: luminance difference plus the changed-pixel box.
+  - Brightness, and log Laplacian sharpness.
+  - Scene fingerprint: RGB histogram plus luminance grid.
+  - A new **view** starts when a settled frame (motion < 0.07) differs from the current view's reference frame by > 0.32.
+- **Deep detector** (`deep/`): YOLOX-S ONNX in its own worker, with
+  preprocessing exactly as the official `preproc()`.
+  - Runtime: ONNX Runtime Web on WebGPU when a hardware adapter exists. Software adapters are refused.
+  - Otherwise WASM, multi-threaded when the page is cross-origin isolated.
+  - If a WebGPU warm-up exceeds 3 s, WASM is measured too and the faster one is kept.
+  - The 36 MB model is fetched once, SHA-256-checked and stored in Cache Storage.
+- **Fusion** (`fusion.ts`, `Tracker.verify`):
+  - A deep box overlapping a fast box (IoU ≥ 0.3) with a compatible class verifies it.
+  - A conflicting class is replaced only when the deep score is ≥ 0.15 higher.
+  - Deep-only objects need a score ≥ 0.40.
+- **Scene model** (`scene.ts`): the JSON sent to the backend (`backend/app/schemas/scene.py`).
+- **Relations** (`relations.ts`): the same 2D geometry as the backend, for the overlay.
 
-Local ML runs on every frame (capped at 6/10/15 fps); the vision model is
-called only when one of these fires, in priority order:
+## 3. Live Scan (`frontend/src/live/session.ts`)
 
-| Trigger | Condition |
+1. Every frame goes through the fast detector and tracker in the worker. The
+   overlay interpolates boxes at display rate, and React reads a throttled
+   snapshot.
+2. Every **1.5 s** when the scene model changed, or every **6 s** as a
+   heartbeat, the scene model is posted to `/api/scan/observe`. Only numbers
+   are sent; there is no image.
+3. When the fast and deep detectors are both available and a deep pass takes
+   ≤ 600 ms on this device, a deep check runs at most every 12 s. It verifies
+   tracks in the tracker.
+4. **Deep Scan** freezes the frame and runs the deep detector and fusion, then
+   calls `/api/scan/deep`. The frame is attached only if AI is enabled.
+5. If the backend's response carries an `ai_suggestion` (AI enabled only), the
+   next *settled* frame is captured (≤ 1280 px JPEG) and sent to
+   `/api/analyze/frame`. **Explain** on a finding does the same with
+   `trigger=user_explain`.
+6. **Clear session** deletes the server session (`DELETE /api/scan/{id}`) and
+   all local state.
+
+## 4. Local diagnostic engine (`backend/app/services/local_diagnostics.py`)
+
+The engine has 16 rules over **attributes** and measurements, never over
+label strings. Thresholds and severities are in `config/diagnostics.json`.
+
+| Group | Rules |
 | --- | --- |
-| `first_look` | no analysis yet and 1.4 s since start |
-| `new_object` | a confirmed track of a class not present at the last analysis, area ≥ 0.6 % of frame, visible > 300 ms |
-| `relationship` | a spatial heuristic not seen before |
-| `confirmation` (resolution) | all objects a finding depends on have been missing > 2.5 s while the scene is similar (Δ < 0.3); at most every 15 s per finding |
-| `scene_change` | fingerprint distance to the last analysed frame > 0.32 |
-| `confirmation` | a DISCOVERED finding older than 4.5 s (≤ every 12 s per finding) |
-| `interval` | periodic re-check of a stable scene (10/20/40 s or off) |
-| `deep_scan` / `freeze` | user request (bypasses the director) |
+| hazard pairs | `spill_risk` (liquid container near/touching electronics), `food_near_electronics`, `liquid_near_outlet`, `animal_near_equipment` |
+| single objects | `sharp_exposed`, `edge_placement` |
+| density | `clutter`, `surface_congestion`, `overlap_stack`, `cable_congestion` |
+| temporal | `persistent_occlusion`, `long_presence`, `repeated_movement`, `view_obstruction` |
+| signals | `lighting`, `blur` |
 
-Gates: never more than one request in flight, at least 5 s between analyses,
-and the frame must be settled (motion < 0.07 and no track coasting on a missed
-detection) unless it has waited 2.2 s since sending became allowed. Only tracks
-matched in the sent frame go into its `context`, so objects that just left the
-view (for example after a hard cut) are never reported. Errors back off (4 s doubling to 60 s); rate limits wait 15 s;
-authentication/configuration errors stop automatic analysis and offer demo
-mode. The backend additionally enforces `SCAN_AI_CALLS_PER_MINUTE` (12).
+- A rule is **armed** only if the loaded vocabulary has a label with the
+  attributes it needs.
+- With the COCO detectors, 14 rules are armed. `cable_congestion` and
+  `liquid_near_outlet` wait for a model with cable/outlet classes.
+- `/api/health` lists the armed rules.
 
-Finding anchors: a finding's `related_objects` labels are mapped to COCO
-classes (`live/labels.ts`, e.g. *mug → cup*, *monitor → tv*); if matching
-tracks exist, the overlay anchors the finding to their live boxes, otherwise
-to the analysed box while the scene is similar (Δ < 0.22).
+Relations (`geometry.py`) use the edge gap relative to the frame and to the
+larger box, IoU, containment and the base point. Each finding stores its
+measurements (gaps, IoU, occupancy, durations, counts) and the ids of the
+objects involved.
 
-## 4. Finding lifecycle (`backend/app/services/diagnostic_service.py`)
+## 5. Finding lifecycle (`backend/app/services/diagnostic_service.py`)
 
-- The model receives the scan's active findings with canonical ids
-  (`BUG-001`…) and must return one `status_updates` entry per finding:
-  `PRESENT`, `RESOLVED` (only if the area is clearly visible and the issue is
-  gone) or `NOT_VISIBLE`. New issues get `new_1`, `new_2`….
-- Matching: canonical id → demo rule id → fuzzy match (same category and
-  title similarity ≥ 0.45, or box IoU ≥ 0.4 with some title overlap, or shared
-  objects with overlapping boxes).
-- Transitions:
-  - new finding → **DISCOVERED** (Deep Scan with confidence ≥ 0.8 → straight to
-    **CONFIRMED**);
-  - second sighting → **CONFIRMED**; third → **TRACKING**;
-  - `RESOLVED` update → **RESOLVED** (with the model's observation as the note);
-  - a resolved finding that reappears → **REOPENED** event, back to DISCOVERED;
-  - `NOT_VISIBLE` → stays open, flagged `out_of_view`.
-- Confidence is smoothed (0.6 new + 0.4 old). Every transition is recorded in
-  the finding's `history` and emitted as a lifecycle event the UI animates.
+Rules from `config/temporal.json`:
 
-## 5. Score and status
+- **DISCOVERED**: when a rule first fires.
+- **CONFIRMED**: after 2 observations spanning ≥ 1.5 s. In a Deep Scan where both detectors verify every involved object, confirmation is immediate.
+- **TRACKING**: from the 3rd observation.
+- **RESOLVED**: only after the condition has been absent for ≥ 3 s **and** ≥ 2 observations in the same view.
+- **Out of view**: if the camera moved to another view, or an involved object left through the frame edge (margin 4 %), the finding is flagged `out_of_view`, not resolved.
+- **REOPENED**: a resolved finding that reappears emits this event.
+- **Re-identification**: a finding is matched across track-id changes by its key, or by the same rule + labels + box IoU ≥ 0.3.
+
+Images and videos use the same engine:
+- An image is a single observation, so its findings report as CONFIRMED.
+- A video replays its samples through the lifecycle with video time as the clock.
+
+## 6. Score and status
 
 ```
 penalty   = Σ over open findings  weight(severity) × (0.5 + 0.5 × confidence)
             weight: CRITICAL 30 · HIGH 16 · MEDIUM 8 · LOW 3 · INFO 0
 computed  = max(5, 100 − penalty)
-score     = round(0.5 × model_score + 0.5 × computed)     (computed only, if no model score)
+score     = computed                                  (local only)
+          = round(0.5 × ai_score + 0.5 × computed)    (when the AI gave a holistic score)
 status    = CRITICAL if score < 45 or a CRITICAL is open
             DEGRADED if score < 80 or a HIGH is open
             STABLE   otherwise
 ```
 
-Blending keeps the model's holistic judgement but makes the score move when a
-bug is resolved, and stops a generous model score from hiding open HIGH bugs.
+## 7. Optional AI layer (`backend/app/services`)
 
-## 6. AI integration (`backend/app/services`)
+- **Provider selection** (`ai_service.py`): `AI_PROVIDER=auto` uses Gemini when
+  `GEMINI_API_KEY` is set and is local-only otherwise. Claude/OpenAI must be named
+  explicitly. A fallback provider is called only if `AI_FALLBACK_PROVIDER` names
+  one (default `none`). A failed Gemini call never silently becomes a paid
+  Claude call.
+- **Providers** (`ai_providers.py`):
+  - Gemini: official `google-genai` SDK, `response_json_schema`, key sent in a header.
+  - Claude: official `anthropic` SDK, JSON-schema output.
+  - OpenAI-compatible: for local servers such as Ollama.
+  - Each provider maps its errors to typed codes (`AI_AUTH_FAILED`, `AI_RATE_LIMITED`, …).
+- **When** (`ai_policy.py`, `config/ai.json`):
+  - Automatic triggers: a confirmed finding of severity ≥ MEDIUM or a confirmed relation not yet explained, a new view, or an ambiguous scene (mean confidence < 0.40).
+  - User triggers: Explain, Deep Scan, Image/Video Debug with AI on.
+  - Automatic calls have a 15 s cooldown and a cap of 6 per minute per scan. User actions bypass the cooldown.
+  - A 64-bit average hash of the frame de-duplicates near-identical frames, with a 2-minute cache.
+  - After a failure, calls back off for 60 s (transient) or 10 min (configuration problems).
+- **What** (`prompts.py`): the scene model, the computed relations and the local
+  findings with their measurements, plus one compressed frame.
+  - The AI explains the local findings through `local_notes {finding_id, note, agrees}`, adds issues outside the detector vocabulary and names the scene.
+  - It does not re-detect objects. Its output is validated item by item.
+- **Failure isolation** (`pipeline.py`): the local report is computed first. An AI
+  failure only sets `report.ai.status = "unavailable"` with a typed error. The
+  request still succeeds, and the UI shows *LOCAL CV ACTIVE · AI REASONING
+  UNAVAILABLE*.
+- **Metrics** (`metrics.py`, `GET /api/metrics`): local evaluation timings,
+  findings per rule, lifecycle counts, AI calls/skips/cache hits/errors/tokens
+  and latency. The *Dev panel* in Live Scan shows them next to the on-device
+  timings.
 
-- `prompts.py` – one stable system prompt (cached with `cache_control`), a
-  per-request user message (mode, personality, trigger, local detector hints,
-  active findings) and `DIAGNOSIS_SCHEMA`, which follows structured-output
-  constraints (every object `additionalProperties: false`, all keys required,
-  nullable via `anyOf`, no numeric/string limits).
-- `ai_providers.py` – `AnthropicProvider` (official SDK, `output_config.format`
-  JSON schema, `effort`, server-side refusal fallback `fallbacks: "default"`
-  under beta `server-side-fallback-2026-07-01`, typed error mapping) and
-  `OpenAICompatibleProvider` (`/chat/completions`, falls back from
-  `json_schema` → `json_object` → prompt-only on servers that reject it).
-- `ai_service.py` – provider selection, JSON extraction (fences/prose tolerant),
-  one repair retry on malformed output, concurrency limit.
-- `schemas/analysis.py::parse_diagnosis` – validates every list item on its
-  own, coerces percentages, unknown enums, pixel boxes and long text; drops
-  what cannot be saved and reports warnings instead of failing.
-- Default model `claude-opus-5-5`; live frames use effort `low`, everything
-  else `medium` (both configurable).
+## 8. Image and Video Debug
 
-## 7. Video pipeline (`frontend/src/video/sampler.ts`)
+- **Image** (`screens/ImageDebug.tsx`): decode → fast detector → deep detector →
+  fusion → `/api/analyze/scene`. That route is local and uploads no image. With
+  AI on, `/api/analyze/image` receives the image and the scene instead. The
+  stages are shown as they run.
+- **Video** (`video/sampler.ts`, `screens/VideoDebug.tsx`):
+  - The file never leaves the device. It is sampled every 0.5 s (8–72 samples), and every sample goes through the fast detector and tracker with video time as the clock.
+  - Scene boundaries come from the fingerprint distance (step > 0.30, drift > 0.48). Near-duplicates are dropped (< 0.06).
+  - Up to 8 keyframes in total: the sharpest frame in the middle 60 % of each scene, then object enter/leave moments, then the frames least like their scene's representative. The deep detector verifies keyframes within a 15 s budget.
+  - The manifest of samples goes to `/api/analyze/video`. Keyframe JPEGs are added only when AI is on.
+  - The backend replays the samples through the lifecycle and returns a timeline.
+  - Videos the browser cannot decode can be sampled by OpenCV on the server. That path gives signal-only diagnostics (lighting, sharpness, scene changes) because no detector runs server-side. The temporary file is deleted immediately.
 
-1. Metadata via a `<video>` element on an object URL (the file is streamed,
-   never read into memory); `Infinity` durations (MediaRecorder WebM) are
-   resolved by seeking to the end.
-2. `N = clamp(duration / 0.5 s, 8, 72)` evenly spaced samples; each is seeked,
-   presented (`requestVideoFrameCallback`), fingerprinted and run through the
-   detector.
-3. Scene boundaries where the step distance > 0.30 or drift from the scene's
-   first frame > 0.48.
-4. Redundant frames: distance < 0.06 from the last kept frame of the scene.
-5. Representatives: sharpest frame in the middle 60 % of each scene; extra
-   budget goes to object enter/leave moments, then to the frames least like
-   their scene's representative; at most 8 keyframes.
-6. Keyframes (1024 px JPEG) + manifest (timestamps, scenes, local detections,
-   local events) → `POST /api/analyze/video`; the model narrates a timeline
-   referencing frame numbers which the backend maps back to timestamps and
-   merges with the local events.
+## 9. Privacy and security
 
-Videos the browser can't decode can be uploaded whole; the backend streams
-them to a temporary file, runs the same selection with OpenCV and deletes the
-file immediately.
+- API keys exist only in the backend environment. The frontend never sees them,
+  and the log filter masks anything key-shaped (`sk-…`, `AIza…`).
+- Without AI, nothing but scene models (numbers) leaves the device. With AI,
+  only frames the policy selects (or the user sends) are uploaded.
+- Uploads are checked by magic bytes, size and pixel count, decoded in memory,
+  re-encoded without EXIF/GPS, and never stored.
+- Sessions hold findings text in memory only and expire after 2 h. *Clear
+  session* deletes one immediately.
+- AI output is validated against a schema item by item. Malformed items are
+  dropped with a warning.
+- COOP/COEP headers isolate the page (needed for multi-threaded WASM). All
+  assets, including the model files, are same-origin.
 
-## 8. Why REST and no WebSocket
+## 10. Why REST and no WebSocket
 
-Every vision-model analysis is a request/response pair initiated by the
-client, and the realtime part (detection, tracking, overlay) runs on the
-device. A WebSocket would add reconnection logic without carrying anything the
-POST response doesn't already contain. It becomes worthwhile for streamed
-partial findings or multi-device mirroring (see *Next steps* in the README).
-
-## 9. Demo mode (`backend/app/services/demo_reasoner.py`)
-
-Used when no provider is configured (or forced per request with `demo=true`).
-It applies fixed rules to the browser's real detections and pixel statistics —
-liquid container next to electronics, several drink containers, sharp tools,
-food next to electronics, phone in the focus zone, object density, book pile,
-animals, plants, a person in frame, low/harsh light — in three personalities,
-and produces the same wire format, so it goes through the same validation and
-lifecycle code. Every result carries `simulated: true`, `provider: "demo"`,
-and the UI labels it with a hazard-stripe *DEMO MODE · SIMULATED* badge.
+Every exchange is a small request/response initiated by the client, and the
+realtime part (detection, tracking, overlay) runs on the device. Observations
+are tiny JSON posts every 1.5 s. A WebSocket would add reconnection logic
+without carrying anything a POST response doesn't already contain.

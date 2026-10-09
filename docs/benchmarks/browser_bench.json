@@ -1,0 +1,870 @@
+{
+ "description": "On-device browser measurements of the Reality Debugger vision pipeline. Produced by frontend/vision-lab.html (src/dev/lab.ts) driven by Playwright; raw window.__lab outputs restructured, values unchanged.",
+ "measured_on": "2026-10-09",
+ "environment": {
+  "crossOriginIsolated": true,
+  "hardwareConcurrency": 4,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+  "webgpu": true,
+  "browser": "Playwright headless Chromium 141 (/opt/pw-browsers/chromium) with --enable-unsafe-swiftshader --use-angle=swiftshader",
+  "machine": "Linux x86_64 cloud container, 4 vCPU, no hardware GPU (WebGPU/WebGL only through the SwiftShader software rasteriser)",
+  "server": "Vite dev server with COOP same-origin / COEP require-corp (cross-origin isolated, so WASM can use threads)"
+ },
+ "test_media": {
+  "000000000110.jpg": {
+   "source": "COCO train2017 image 000000000110 (from the coco128 subset packaged by Ultralytics); image licence per its Flickr source under the COCO terms of use",
+   "sha256": "39d967c7856965853e90b9283db4a6895a034eb17fe0c84581d17af4a59edcf2"
+  },
+  "cats_and_dogs.jpg": {
+   "source": "https://storage.googleapis.com/mediapipe-assets/cats_and_dogs.jpg",
+   "sha256": "a2eaa7ad3a1aae4e623dd362a5f737e8a88d122597ecd1a02b3e1444db56df9c"
+  },
+  "bus.jpg": {
+   "source": "https://github.com/ultralytics/assets/releases/download/v0.0.0/bus.jpg",
+   "sha256": "c02019c4979c191eb739ddd944445ef408dad5679acab6fd520ef9d434bfbc63"
+  }
+ },
+ "caveats": [
+  "One machine, one browser, headless, no hardware GPU. Phone and laptop numbers will differ; WebGPU on a real GPU is unmeasured.",
+  "Three images; per-image timings are medians of 1-3 timed runs (see timed_runs_per_image), so p95 equals or nearly equals the median. Not a statistical study.",
+  "Detector timings include the worker round trip (postMessage + ImageBitmap transfer)."
+ ],
+ "fast_detector": {
+  "model": "EfficientDet-Lite0 int8 (MediaPipe Tasks Vision, Web Worker)",
+  "note": "Delegate is chosen by a startup self-test: the GPU (WebGL on SwiftShader) probe returned no detection on the probe image, so the CPU (XNNPACK) delegate was used in every run.",
+  "runs": [
+   {
+    "run": "main",
+    "lab_url_and_flags": "?images=cats_and_dogs.jpg,bus.jpg,000000000110.jpg&runs=3&tracker=0",
+    "timed_runs_per_image": "3 after 1 warm-up",
+    "init_ms": 9093,
+    "engine": {
+     "delegate": "CPU",
+     "model": "EfficientDet-Lite0 (int8)",
+     "modelId": "efficientdet_lite0",
+     "classes": 80,
+     "loadMs": 8728,
+     "selfTest": {
+      "delegate": "CPU",
+      "ms": 124.7,
+      "label": "stop sign",
+      "score": 0.96
+     },
+     "probes": [
+      {
+       "delegate": "CPU",
+       "ms": 124.7,
+       "label": "stop sign",
+       "score": 0.96
+      },
+      {
+       "delegate": "GPU",
+       "ms": 967.8,
+       "label": null,
+       "score": 0
+      }
+     ],
+     "runtime": "worker"
+    },
+    "images": {
+     "cats_and_dogs.jpg": {
+      "medianMs": 93.9,
+      "p95Ms": 94.6,
+      "detections": 4,
+      "aboveThreshold": 4,
+      "top": [
+       "cat:0.87",
+       "cat:0.84",
+       "dog:0.74",
+       "teddy bear:0.74"
+      ]
+     },
+     "bus.jpg": {
+      "medianMs": 77.1,
+      "p95Ms": 77.3,
+      "detections": 11,
+      "aboveThreshold": 5,
+      "top": [
+       "bus:0.79",
+       "person:0.72",
+       "person:0.68",
+       "person:0.61",
+       "person:0.30",
+       "person:0.26",
+       "backpack:0.25",
+       "handbag:0.20",
+       "person:0.17",
+       "person:0.16",
+       "handbag:0.16"
+      ]
+     },
+     "000000000110.jpg": {
+      "medianMs": 70.1,
+      "p95Ms": 74.4,
+      "detections": 22,
+      "aboveThreshold": 12,
+      "top": [
+       "person:0.89",
+       "person:0.84",
+       "person:0.59",
+       "person:0.59",
+       "pizza:0.52",
+       "person:0.50",
+       "person:0.48",
+       "pizza:0.45",
+       "person:0.41",
+       "person:0.36",
+       "chair:0.32",
+       "dining table:0.32"
+      ]
+     }
+    }
+   },
+   {
+    "run": "repeat (WebGPU software-adapter run)",
+    "lab_url_and_flags": "?images=cats_and_dogs.jpg,bus.jpg&runs=2&tracker=0 + --enable-unsafe-webgpu",
+    "timed_runs_per_image": "2 after 1 warm-up",
+    "init_ms": 6694,
+    "engine": {
+     "delegate": "CPU",
+     "model": "EfficientDet-Lite0 (int8)",
+     "modelId": "efficientdet_lite0",
+     "classes": 80,
+     "loadMs": 6547,
+     "selfTest": {
+      "delegate": "CPU",
+      "ms": 113.5,
+      "label": "stop sign",
+      "score": 0.96
+     },
+     "probes": [
+      {
+       "delegate": "CPU",
+       "ms": 113.5,
+       "label": "stop sign",
+       "score": 0.96
+      },
+      {
+       "delegate": "GPU",
+       "ms": 1178,
+       "label": null,
+       "score": 0
+      }
+     ],
+     "runtime": "worker"
+    },
+    "images": {
+     "cats_and_dogs.jpg": {
+      "medianMs": 76.2,
+      "p95Ms": 79.6,
+      "detections": 4,
+      "aboveThreshold": 4,
+      "top": [
+       "cat:0.87",
+       "cat:0.84",
+       "dog:0.74",
+       "teddy bear:0.74"
+      ]
+     },
+     "bus.jpg": {
+      "medianMs": 73.6,
+      "p95Ms": 81.9,
+      "detections": 11,
+      "aboveThreshold": 5,
+      "top": [
+       "bus:0.79",
+       "person:0.72",
+       "person:0.68",
+       "person:0.61",
+       "person:0.30",
+       "person:0.26",
+       "backpack:0.25",
+       "handbag:0.20",
+       "person:0.17",
+       "person:0.16",
+       "handbag:0.16"
+      ]
+     }
+    }
+   },
+   {
+    "run": "repeat (WebGPU guard run)",
+    "lab_url_and_flags": "?images=cats_and_dogs.jpg&runs=2&tracker=0 + --enable-unsafe-webgpu",
+    "timed_runs_per_image": "2 after 1 warm-up",
+    "init_ms": 5680,
+    "engine": {
+     "delegate": "CPU",
+     "model": "EfficientDet-Lite0 (int8)",
+     "modelId": "efficientdet_lite0",
+     "classes": 80,
+     "loadMs": 5544,
+     "selfTest": {
+      "delegate": "CPU",
+      "ms": 99.1,
+      "label": "stop sign",
+      "score": 0.96
+     },
+     "probes": [
+      {
+       "delegate": "CPU",
+       "ms": 99.1,
+       "label": "stop sign",
+       "score": 0.96
+      },
+      {
+       "delegate": "GPU",
+       "ms": 943.2,
+       "label": null,
+       "score": 0
+      }
+     ],
+     "runtime": "worker"
+    },
+    "images": {
+     "cats_and_dogs.jpg": {
+      "medianMs": 70.9,
+      "p95Ms": 80.6,
+      "detections": 4,
+      "aboveThreshold": 4,
+      "top": [
+       "cat:0.87",
+       "cat:0.84",
+       "dog:0.74",
+       "teddy bear:0.74"
+      ]
+     }
+    }
+   },
+   {
+    "run": "repeat (early tracker run)",
+    "lab_url_and_flags": "?images=000000000110.jpg&runs=1&deep=0",
+    "timed_runs_per_image": "1 after 1 warm-up",
+    "init_ms": 5824,
+    "engine": {
+     "delegate": "CPU",
+     "model": "EfficientDet-Lite0 (int8)",
+     "modelId": "efficientdet_lite0",
+     "classes": 80,
+     "loadMs": 5678,
+     "selfTest": {
+      "delegate": "CPU",
+      "ms": 93.1,
+      "label": "stop sign",
+      "score": 0.96
+     },
+     "probes": [
+      {
+       "delegate": "CPU",
+       "ms": 93.1,
+       "label": "stop sign",
+       "score": 0.96
+      },
+      {
+       "delegate": "GPU",
+       "ms": 920.8,
+       "label": null,
+       "score": 0
+      }
+     ],
+     "runtime": "worker"
+    },
+    "images": {
+     "000000000110.jpg": {
+      "medianMs": 62.9,
+      "p95Ms": 62.9,
+      "detections": 22,
+      "aboveThreshold": 12,
+      "top": [
+       "person:0.89",
+       "person:0.84",
+       "person:0.59",
+       "person:0.59",
+       "pizza:0.52",
+       "person:0.50",
+       "person:0.48",
+       "pizza:0.45",
+       "person:0.41",
+       "person:0.36",
+       "chair:0.32",
+       "dining table:0.32"
+      ]
+     }
+    }
+   },
+   {
+    "run": "repeat (tracker run, 000000000110.jpg)",
+    "lab_url_and_flags": "?images=000000000110.jpg&runs=1&deep=0",
+    "timed_runs_per_image": "1 after 1 warm-up",
+    "init_ms": 6198,
+    "engine": {
+     "delegate": "CPU",
+     "model": "EfficientDet-Lite0 (int8)",
+     "modelId": "efficientdet_lite0",
+     "classes": 80,
+     "loadMs": 6038,
+     "selfTest": {
+      "delegate": "CPU",
+      "ms": 110.6,
+      "label": "stop sign",
+      "score": 0.96
+     },
+     "probes": [
+      {
+       "delegate": "CPU",
+       "ms": 110.6,
+       "label": "stop sign",
+       "score": 0.96
+      },
+      {
+       "delegate": "GPU",
+       "ms": 950.1,
+       "label": null,
+       "score": 0
+      }
+     ],
+     "runtime": "worker"
+    },
+    "images": {
+     "000000000110.jpg": {
+      "medianMs": 112.5,
+      "p95Ms": 112.5,
+      "detections": 22,
+      "aboveThreshold": 12,
+      "top": [
+       "person:0.89",
+       "person:0.84",
+       "person:0.59",
+       "person:0.59",
+       "pizza:0.52",
+       "person:0.50",
+       "person:0.48",
+       "pizza:0.45",
+       "person:0.41",
+       "person:0.36",
+       "chair:0.32",
+       "dining table:0.32"
+      ]
+     }
+    }
+   },
+   {
+    "run": "repeat (tracker run, cats_and_dogs.jpg)",
+    "lab_url_and_flags": "?images=cats_and_dogs.jpg&runs=1&deep=0",
+    "timed_runs_per_image": "1 after 1 warm-up",
+    "init_ms": 6514,
+    "engine": {
+     "delegate": "CPU",
+     "model": "EfficientDet-Lite0 (int8)",
+     "modelId": "efficientdet_lite0",
+     "classes": 80,
+     "loadMs": 6320,
+     "selfTest": {
+      "delegate": "CPU",
+      "ms": 110.5,
+      "label": "stop sign",
+      "score": 0.96
+     },
+     "probes": [
+      {
+       "delegate": "CPU",
+       "ms": 110.5,
+       "label": "stop sign",
+       "score": 0.96
+      },
+      {
+       "delegate": "GPU",
+       "ms": 1104.7,
+       "label": null,
+       "score": 0
+      }
+     ],
+     "runtime": "worker"
+    },
+    "images": {
+     "cats_and_dogs.jpg": {
+      "medianMs": 103.2,
+      "p95Ms": 103.2,
+      "detections": 4,
+      "aboveThreshold": 4,
+      "top": [
+       "cat:0.87",
+       "cat:0.84",
+       "dog:0.74",
+       "teddy bear:0.74"
+      ]
+     }
+    }
+   },
+   {
+    "run": "repeat (tracker run, bus.jpg)",
+    "lab_url_and_flags": "?images=bus.jpg&runs=1&deep=0",
+    "timed_runs_per_image": "1 after 1 warm-up",
+    "init_ms": 5779,
+    "engine": {
+     "delegate": "CPU",
+     "model": "EfficientDet-Lite0 (int8)",
+     "modelId": "efficientdet_lite0",
+     "classes": 80,
+     "loadMs": 5621,
+     "selfTest": {
+      "delegate": "CPU",
+      "ms": 95.8,
+      "label": "stop sign",
+      "score": 0.96
+     },
+     "probes": [
+      {
+       "delegate": "CPU",
+       "ms": 95.8,
+       "label": "stop sign",
+       "score": 0.96
+      },
+      {
+       "delegate": "GPU",
+       "ms": 951.8,
+       "label": null,
+       "score": 0
+      }
+     ],
+     "runtime": "worker"
+    },
+    "images": {
+     "bus.jpg": {
+      "medianMs": 69.2,
+      "p95Ms": 69.2,
+      "detections": 11,
+      "aboveThreshold": 5,
+      "top": [
+       "bus:0.79",
+       "person:0.72",
+       "person:0.68",
+       "person:0.61",
+       "person:0.30",
+       "person:0.26",
+       "backpack:0.25",
+       "handbag:0.20",
+       "person:0.17",
+       "person:0.16",
+       "handbag:0.16"
+      ]
+     }
+    }
+   }
+  ]
+ },
+ "deep_detector": {
+  "model": "YOLOX-S ONNX (official 0.1.1rc0 export) on onnxruntime-web 1.30.0, Web Worker",
+  "wasm_4_threads": {
+   "note": "Backend 'auto' without --enable-unsafe-webgpu; the worker ran on WebAssembly with 4 threads. Timed runs follow the worker's own warm-up.",
+   "init_ms": 2862,
+   "engine": {
+    "model": "YOLOX-S",
+    "backend": "wasm",
+    "threads": 4,
+    "crossOriginIsolated": true,
+    "bytes": 35858002,
+    "cached": false,
+    "downloadMs": 1238,
+    "sessionMs": 972,
+    "warmupMs": 601,
+    "fallbackReason": null
+   },
+   "timed_runs_per_image": 3,
+   "images": {
+    "cats_and_dogs.jpg": {
+     "medianTotalMs": 485.9,
+     "medianInferenceMs": 431.3,
+     "p95TotalMs": 529.6,
+     "detections": 4,
+     "top": [
+      "cat:0.91",
+      "cat:0.74",
+      "dog:0.64",
+      "cat:0.55"
+     ],
+     "fused": {
+      "objects": 4,
+      "verified": 3,
+      "deepOnly": 0
+     }
+    },
+    "bus.jpg": {
+     "medianTotalMs": 527.9,
+     "medianInferenceMs": 520.3,
+     "p95TotalMs": 555,
+     "detections": 5,
+     "top": [
+      "bus:0.94",
+      "person:0.91",
+      "person:0.89",
+      "person:0.89",
+      "person:0.55"
+     ],
+     "fused": {
+      "objects": 5,
+      "verified": 5,
+      "deepOnly": 0
+     }
+    },
+    "000000000110.jpg": {
+     "medianTotalMs": 445.6,
+     "medianInferenceMs": 438.2,
+     "p95TotalMs": 480.4,
+     "detections": 21,
+     "top": [
+      "person:0.94",
+      "person:0.92",
+      "person:0.83",
+      "person:0.82",
+      "pizza:0.78",
+      "person:0.78",
+      "chair:0.70",
+      "person:0.70",
+      "dining table:0.67",
+      "person:0.67",
+      "person:0.67",
+      "chair:0.65"
+     ],
+     "fused": {
+      "objects": 19,
+      "verified": 14,
+      "deepOnly": 4
+     }
+    }
+   }
+  },
+  "webgpu_software_adapter": {
+   "note": "Chromium flag --enable-unsafe-webgpu, backend 'auto', before the software-adapter guard existed, so ONNX Runtime ran on WebGPU through SwiftShader (the GPU emulated on the CPU). warmupMs here is the mean of the first two runs (the formula at the time); later builds time only the second run. This run is why the worker now refuses software adapters and compares against WebAssembly when a WebGPU warm-up exceeds 3 s.",
+   "init_ms": 39175,
+   "engine": {
+    "model": "YOLOX-S",
+    "backend": "webgpu",
+    "threads": 4,
+    "crossOriginIsolated": true,
+    "bytes": 35858002,
+    "cached": false,
+    "downloadMs": 1498,
+    "sessionMs": 2826,
+    "warmupMs": 34813,
+    "fallbackReason": null
+   },
+   "timed_runs_per_image": 2,
+   "images": {
+    "cats_and_dogs.jpg": {
+     "medianTotalMs": 27533.1,
+     "medianInferenceMs": 27523.7,
+     "p95TotalMs": 28749.1,
+     "detections": 4,
+     "top": [
+      "cat:0.91",
+      "cat:0.74",
+      "dog:0.64",
+      "cat:0.55"
+     ],
+     "fused": {
+      "objects": 4,
+      "verified": 3,
+      "deepOnly": 0
+     }
+    },
+    "bus.jpg": {
+     "medianTotalMs": 29327.9,
+     "medianInferenceMs": 29317.9,
+     "p95TotalMs": 29956.3,
+     "detections": 5,
+     "top": [
+      "bus:0.94",
+      "person:0.91",
+      "person:0.89",
+      "person:0.89",
+      "person:0.55"
+     ],
+     "fused": {
+      "objects": 5,
+      "verified": 5,
+      "deepOnly": 0
+     }
+    }
+   }
+  },
+  "auto_with_guard": {
+   "note": "Same flags (--enable-unsafe-webgpu), backend 'auto', after the guard was added: the SwiftShader adapter is refused, WebAssembly is used and fallbackReason records why.",
+   "init_ms": 2210,
+   "engine": {
+    "model": "YOLOX-S",
+    "backend": "wasm",
+    "threads": 4,
+    "crossOriginIsolated": true,
+    "bytes": 35858002,
+    "cached": false,
+    "downloadMs": 498,
+    "sessionMs": 1209,
+    "warmupMs": 441,
+    "fallbackReason": "software WebGPU adapter (google swiftshader) - WebAssembly is faster"
+   },
+   "timed_runs_per_image": 2,
+   "images": {
+    "cats_and_dogs.jpg": {
+     "medianTotalMs": 499.9,
+     "medianInferenceMs": 462.4,
+     "p95TotalMs": 518.6,
+     "detections": 4,
+     "top": [
+      "cat:0.91",
+      "cat:0.74",
+      "dog:0.64",
+      "cat:0.55"
+     ],
+     "fused": {
+      "objects": 4,
+      "verified": 3,
+      "deepOnly": 0
+     }
+    }
+   }
+  },
+  "fused_meaning": "fuseStill(fast, deep) with config/detection.json fusion thresholds: objects kept, verified = both detectors agree, deepOnly = found only by YOLOX-S (score >= deepOnlyMinScore)."
+ },
+ "tracker": {
+  "method": "One real photo per sequence, drawn 1.1x zoomed into a 480 px wide canvas and shifted per frame; each frame goes through the real fast detector and a fresh ByteTrack Tracker. 40 frames at a nominal 100 ms (10 fps). Speeds are Kalman-estimated centre speeds in normalised frame units per second (frame widths for horizontal motion) of confirmed tracks with >= 4 hits, sampled from frame 8 on.",
+  "scenarios": {
+   "identical": "the same frame 40 times",
+   "jitter_0.5pct": "static camera, uniform random offset in [-0.5%, +0.5%] of the frame per frame (hand tremor)",
+   "jitter_1pct": "static camera, uniform random offset in [-1%, +1%] per frame",
+   "pan_0.05fw_s": "constant horizontal pan at 0.05 frame widths per second",
+   "pan_0.10fw_s": "constant horizontal pan at 0.10 frame widths per second",
+   "pan_0.20fw_s": "constant horizontal pan at 0.20 frame widths per second"
+  },
+  "movement_counts_note": "The 'movements' counts were classified with the thresholds active during the measurement (stillSpeed 0.03, movingSpeed 0.08, the pre-calibration placeholders). Speeds do not depend on the thresholds; config/temporal.json now uses stillSpeed 0.04 and movingSpeed 0.09, chosen from these speeds.",
+  "images": {
+   "000000000110.jpg": {
+    "frameMs": 100,
+    "frames": 40,
+    "identical": {
+     "samples": 256,
+     "medianSpeed": 0,
+     "p95Speed": 0,
+     "maxSpeed": 0,
+     "movements": {
+      "static": 256,
+      "moving": 0,
+      "unknown": 0
+     },
+     "trackIds": 8
+    },
+    "jitter_0.5pct": {
+     "samples": 278,
+     "medianSpeed": 0.0031,
+     "p95Speed": 0.0201,
+     "maxSpeed": 0.0521,
+     "movements": {
+      "static": 278,
+      "moving": 0,
+      "unknown": 0
+     },
+     "trackIds": 9
+    },
+    "jitter_1pct": {
+     "samples": 308,
+     "medianSpeed": 0.0075,
+     "p95Speed": 0.0351,
+     "maxSpeed": 0.085,
+     "movements": {
+      "static": 306,
+      "moving": 2,
+      "unknown": 0
+     },
+     "trackIds": 11
+    },
+    "pan_0.05fw_s": {
+     "samples": 347,
+     "medianSpeed": 0.0482,
+     "p95Speed": 0.0588,
+     "maxSpeed": 0.0809,
+     "movements": {
+      "static": 278,
+      "moving": 36,
+      "unknown": 33
+     },
+     "trackIds": 11
+    },
+    "pan_0.10fw_s": {
+     "samples": 300,
+     "medianSpeed": 0.0965,
+     "p95Speed": 0.1055,
+     "maxSpeed": 0.1188,
+     "movements": {
+      "static": 22,
+      "moving": 272,
+      "unknown": 6
+     },
+     "trackIds": 10
+    },
+    "pan_0.20fw_s": {
+     "samples": 221,
+     "medianSpeed": 0.1873,
+     "p95Speed": 0.2036,
+     "maxSpeed": 0.2239,
+     "movements": {
+      "static": 0,
+      "moving": 221,
+      "unknown": 0
+     },
+     "trackIds": 9
+    }
+   },
+   "cats_and_dogs.jpg": {
+    "frameMs": 100,
+    "frames": 40,
+    "identical": {
+     "samples": 128,
+     "medianSpeed": 0,
+     "p95Speed": 0,
+     "maxSpeed": 0,
+     "movements": {
+      "static": 128,
+      "moving": 0,
+      "unknown": 0
+     },
+     "trackIds": 4
+    },
+    "jitter_0.5pct": {
+     "samples": 127,
+     "medianSpeed": 0.0035,
+     "p95Speed": 0.0073,
+     "maxSpeed": 0.0103,
+     "movements": {
+      "static": 127,
+      "moving": 0,
+      "unknown": 0
+     },
+     "trackIds": 4
+    },
+    "jitter_1pct": {
+     "samples": 125,
+     "medianSpeed": 0.0059,
+     "p95Speed": 0.0141,
+     "maxSpeed": 0.0181,
+     "movements": {
+      "static": 125,
+      "moving": 0,
+      "unknown": 0
+     },
+     "trackIds": 4
+    },
+    "pan_0.05fw_s": {
+     "samples": 123,
+     "medianSpeed": 0.0483,
+     "p95Speed": 0.0534,
+     "maxSpeed": 0.0632,
+     "movements": {
+      "static": 61,
+      "moving": 0,
+      "unknown": 62
+     },
+     "trackIds": 4
+    },
+    "pan_0.10fw_s": {
+     "samples": 105,
+     "medianSpeed": 0.0972,
+     "p95Speed": 0.1035,
+     "maxSpeed": 0.1088,
+     "movements": {
+      "static": 0,
+      "moving": 105,
+      "unknown": 0
+     },
+     "trackIds": 5
+    },
+    "pan_0.20fw_s": {
+     "samples": 67,
+     "medianSpeed": 0.1912,
+     "p95Speed": 0.2011,
+     "maxSpeed": 0.2037,
+     "movements": {
+      "static": 0,
+      "moving": 67,
+      "unknown": 0
+     },
+     "trackIds": 4
+    }
+   },
+   "bus.jpg": {
+    "frameMs": 100,
+    "frames": 40,
+    "identical": {
+     "samples": 128,
+     "medianSpeed": 0,
+     "p95Speed": 0,
+     "maxSpeed": 0,
+     "movements": {
+      "static": 128,
+      "moving": 0,
+      "unknown": 0
+     },
+     "trackIds": 4
+    },
+    "jitter_0.5pct": {
+     "samples": 160,
+     "medianSpeed": 0.0041,
+     "p95Speed": 0.0121,
+     "maxSpeed": 0.0324,
+     "movements": {
+      "static": 160,
+      "moving": 0,
+      "unknown": 0
+     },
+     "trackIds": 5
+    },
+    "jitter_1pct": {
+     "samples": 128,
+     "medianSpeed": 0.0111,
+     "p95Speed": 0.0341,
+     "maxSpeed": 0.0523,
+     "movements": {
+      "static": 128,
+      "moving": 0,
+      "unknown": 0
+     },
+     "trackIds": 4
+    },
+    "pan_0.05fw_s": {
+     "samples": 97,
+     "medianSpeed": 0.0436,
+     "p95Speed": 0.06,
+     "maxSpeed": 0.1241,
+     "movements": {
+      "static": 96,
+      "moving": 1,
+      "unknown": 0
+     },
+     "trackIds": 4
+    },
+    "pan_0.10fw_s": {
+     "samples": 96,
+     "medianSpeed": 0.0919,
+     "p95Speed": 0.1071,
+     "maxSpeed": 0.1184,
+     "movements": {
+      "static": 32,
+      "moving": 64,
+      "unknown": 0
+     },
+     "trackIds": 4
+    },
+    "pan_0.20fw_s": {
+     "samples": 82,
+     "medianSpeed": 0.1885,
+     "p95Speed": 0.2054,
+     "maxSpeed": 0.2151,
+     "movements": {
+      "static": 0,
+      "moving": 82,
+      "unknown": 0
+     },
+     "trackIds": 3
+    }
+   }
+  }
+ }
+}

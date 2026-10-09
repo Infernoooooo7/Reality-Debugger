@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import basicSsl from '@vitejs/plugin-basic-ssl'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
@@ -22,6 +23,15 @@ export default defineConfig(({ mode }) => {
     ? { cert: readFileSync(env.HTTPS_CERT), key: readFileSync(env.HTTPS_KEY) }
     : undefined
 
+  // Shared parameter files live in <repo>/config (outside the Vite root).
+  const repoRoot = fileURLToPath(new URL('..', import.meta.url))
+  // Cross-origin isolation enables multi-threaded WebAssembly for the deep
+  // detector (SharedArrayBuffer). Every resource is same-origin, so this is safe.
+  const headers = {
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp',
+  }
+
   const proxy = {
     '/api': {
       target: backend,
@@ -40,6 +50,8 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       allowedHosts: ['.local', 'localhost'],
       proxy,
+      headers,
+      fs: { allow: [repoRoot] },
       ...(customCert ? { https: customCert } : {}),
     },
     preview: {
@@ -48,7 +60,13 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       allowedHosts: ['.local', 'localhost'],
       proxy,
+      headers,
       ...(customCert ? { https: customCert } : {}),
+    },
+    // onnxruntime-web locates its .wasm/.mjs files relative to its own module;
+    // pre-bundling would break that.
+    optimizeDeps: {
+      exclude: ['onnxruntime-web'],
     },
     worker: {
       format: 'es',

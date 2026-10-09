@@ -31,6 +31,10 @@ export const TriggerSchema = z.enum([
   'deep_scan',
   'freeze',
   'manual',
+  'observe',
+  'user_explain',
+  'confirmed_finding',
+  'ambiguous',
 ])
 
 export const BoxSchema = z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() })
@@ -56,7 +60,12 @@ export const FindingSchema = z.object({
   status: FindingStatusSchema,
   box: BoxSchema.nullish(),
   related_objects: z.array(z.string()).default([]),
-  source: z.enum(['ai', 'demo']),
+  object_ids: z.array(z.string()).default([]),
+  source: z.enum(['local', 'ai']),
+  rule: z.string().nullish(),
+  measurements: z.record(z.string(), z.union([z.number(), z.string()])).default({}),
+  ai_note: z.string().nullish(),
+  ai_agrees: z.boolean().nullish(),
   sightings: z.number().default(1),
   out_of_view: z.boolean().default(false),
   first_seen_at: z.string().nullish(),
@@ -72,7 +81,8 @@ export const DetectedObjectSchema = z.object({
   label: z.string(),
   confidence: z.number(),
   box: BoxSchema.nullish(),
-  source: z.enum(['ai', 'local']),
+  source: z.enum(['fast', 'deep', 'fused', 'ai']),
+  verified: z.boolean().default(false),
 })
 
 export const RelationshipSchema = z.object({
@@ -80,6 +90,7 @@ export const RelationshipSchema = z.object({
   relation: z.string(),
   object: z.string(),
   observation: z.string().default(''),
+  source: z.enum(['local', 'ai']).default('local'),
 })
 
 export const OptimizationSchema = z.object({
@@ -104,6 +115,24 @@ export const CountsSchema = z.object({
   resolved: z.number(),
 })
 
+export const ErrorBodySchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  hint: z.string().nullish(),
+  retryable: z.boolean().optional(),
+})
+
+/** What the optional AI layer did for one request. */
+export const AIRunSchema = z.object({
+  status: z.enum(['off', 'ok', 'cached', 'skipped', 'unavailable']),
+  provider: z.string().nullish(),
+  model: z.string().nullish(),
+  latency_ms: z.number().nullish(),
+  trigger: z.string().nullish(),
+  reason: z.string().nullish(),
+  error: ErrorBodySchema.nullish(),
+})
+
 export const ReportSchema = z.object({
   report_id: z.string(),
   created_at: z.string(),
@@ -111,7 +140,9 @@ export const ReportSchema = z.object({
   personality: PersonalitySchema,
   provider: z.string(),
   model: z.string(),
-  simulated: z.boolean(),
+  engine: z.string(),
+  detectors: z.array(z.string()).default([]),
+  ai: AIRunSchema,
   latency_ms: z.number(),
   system_name: z.string(),
   scene: SceneSchema,
@@ -153,6 +184,7 @@ export const ScanStateSchema = z.object({
   updated_at: z.string(),
   personality: PersonalitySchema,
   analyses: z.number(),
+  observations: z.number().default(0),
   status: SystemStatusSchema,
   system_score: z.number().nullish(),
   system_name: z.string().nullish(),
@@ -162,15 +194,21 @@ export const ScanStateSchema = z.object({
   optimizations: z.array(OptimizationSchema).default([]),
   counts: CountsSchema,
   events: z.array(LifecycleEventSchema).default([]),
-  simulated: z.boolean(),
-  provider: z.string().nullish(),
-  model: z.string().nullish(),
+  ai: AIRunSchema.nullish(),
+  engine: z.string().nullish(),
+})
+
+export const AISuggestionSchema = z.object({
+  trigger: TriggerSchema,
+  reason: z.string(),
+  finding_ids: z.array(z.string()).default([]),
 })
 
 export const ScanAnalysisSchema = z.object({
   scan: ScanStateSchema,
   report: ReportSchema,
   events: z.array(LifecycleEventSchema),
+  ai_suggestion: AISuggestionSchema.nullish(),
 })
 
 export const TimelineEventSchema = z.object({
@@ -189,7 +227,7 @@ export const TimelineEventSchema = z.object({
   severity: SeveritySchema,
   finding_id: z.string().nullish(),
   text: z.string(),
-  source: z.enum(['ai', 'demo', 'local']),
+  source: z.enum(['local', 'ai']),
 })
 
 export const VideoReportSchema = z.object({
@@ -209,30 +247,35 @@ export const VideoReportSchema = z.object({
     scenes: z.number(),
     redundant_removed: z.number(),
     keyframes: z.number(),
+    tracked_objects: z.number().default(0),
   }),
   keyframes: z.array(z.object({ index: z.number(), t: z.number(), scene: z.number(), reason: z.string() })),
+})
+
+export const AIStatusSchema = z.object({
+  provider: z.string(),
+  model: z.string().nullish(),
+  configured: z.boolean(),
+  state: z.enum(['off', 'ready', 'unverified', 'unavailable']),
+  detail: z.string(),
+  fallback: z.string().nullish(),
+  last_error: ErrorBodySchema.nullish(),
 })
 
 export const HealthSchema = z.object({
   status: z.literal('ok'),
   version: z.string(),
   time: z.string(),
-  ai: z.object({
-    provider: z.string(),
-    model: z.string().nullish(),
-    configured: z.boolean(),
-    simulated: z.boolean(),
-    detail: z.string(),
+  ai: AIStatusSchema,
+  local: z.object({
+    engine: z.string(),
+    rules: z.array(z.string()),
+    labels: z.number(),
+    attributes: z.array(z.string()),
+    detectors: z.array(z.string()),
   }),
   limits: z.record(z.string(), z.number()),
   features: z.record(z.string(), z.boolean()),
-})
-
-export const ErrorBodySchema = z.object({
-  code: z.string(),
-  message: z.string(),
-  hint: z.string().nullish(),
-  retryable: z.boolean().optional(),
 })
 
 export const AICheckSchema = z.object({
@@ -240,8 +283,14 @@ export const AICheckSchema = z.object({
   provider: z.string(),
   model: z.string().nullish(),
   latency_ms: z.number(),
-  simulated: z.boolean(),
   error: ErrorBodySchema.nullish(),
+})
+
+export const MetricsSchema = z.object({
+  uptime_s: z.number(),
+  sessions: z.number(),
+  local: z.record(z.string(), z.unknown()),
+  ai: z.record(z.string(), z.unknown()),
 })
 
 export type Severity = z.infer<typeof SeveritySchema>
@@ -262,4 +311,8 @@ export type ScanAnalysis = z.infer<typeof ScanAnalysisSchema>
 export type TimelineEvent = z.infer<typeof TimelineEventSchema>
 export type VideoReport = z.infer<typeof VideoReportSchema>
 export type Health = z.infer<typeof HealthSchema>
+export type AIStatus = z.infer<typeof AIStatusSchema>
 export type AICheck = z.infer<typeof AICheckSchema>
+export type AIRun = z.infer<typeof AIRunSchema>
+export type AISuggestion = z.infer<typeof AISuggestionSchema>
+export type Metrics = z.infer<typeof MetricsSchema>

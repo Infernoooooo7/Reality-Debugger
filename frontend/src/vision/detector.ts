@@ -1,6 +1,7 @@
 /**
- * Object detector backed by MediaPipe Tasks (EfficientDet-Lite0, 80 COCO
- * classes) running on WebAssembly (XNNPACK) or the WebGL GPU delegate.
+ * Fast object detector backed by MediaPipe Tasks (EfficientDet-Lite0; class
+ * names come from the labels packed in the model's metadata) running on
+ * WebAssembly (XNNPACK) or the WebGL GPU delegate.
  *
  * Delegate choice is verified, not assumed: a procedurally drawn stop sign is
  * run through each candidate delegate and GPU is only used when it actually
@@ -11,7 +12,8 @@
 import { ObjectDetector } from '@mediapipe/tasks-vision'
 import type { Delegate, DelegatePreference, Detection, ProbeResult } from './types'
 
-export const MODEL_NAME = 'EfficientDet-Lite0 int8 · COCO-80 · MediaPipe Tasks'
+/** The synthetic self-test image depicts a stop sign (a COCO class); it only verifies that a delegate computes correct results. */
+const PROBE_CLASS = 'stop sign'
 
 export interface Detector {
   readonly delegate: Delegate
@@ -25,8 +27,9 @@ export interface DetectorConfig {
   wasmLoaderUrl: string
   wasmBinaryUrl: string
   delegate: DelegatePreference
-  scoreThreshold?: number
-  maxResults?: number
+  /** Lowest score returned (ByteTrack needs the low-score band too). */
+  scoreThreshold: number
+  maxResults: number
 }
 
 type AnyCanvas = OffscreenCanvas | HTMLCanvasElement
@@ -136,7 +139,7 @@ function runProbe(detector: Detector, probe: AnyCanvas): ProbeResult {
   const started = performance.now()
   const detections = detector.detect(probe, 2)
   const ms = performance.now() - started
-  const best = detections.filter((d) => d.label === 'stop sign').sort((a, b) => b.score - a.score)[0]
+  const best = detections.filter((d) => d.label === PROBE_CLASS).sort((a, b) => b.score - a.score)[0]
   return {
     delegate: detector.delegate,
     ms: Math.round(ms * 10) / 10,
@@ -192,8 +195,8 @@ async function create(config: DetectorConfig, delegate: Delegate): Promise<Detec
     {
       baseOptions: { modelAssetPath: config.modelUrl, delegate },
       runningMode: 'VIDEO',
-      scoreThreshold: config.scoreThreshold ?? 0.3,
-      maxResults: config.maxResults ?? 25,
+      scoreThreshold: config.scoreThreshold,
+      maxResults: config.maxResults,
       ...(canvas ? { canvas } : {}),
     },
   )

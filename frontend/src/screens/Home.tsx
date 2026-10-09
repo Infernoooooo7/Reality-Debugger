@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { DemoBadge, PersonalitySwitch } from '../components/Bits'
+import { AIBadge, LocalBadge, PersonalitySwitch } from '../components/Bits'
 import { Icon } from '../components/Icon'
 import { Meter, scoreColor } from '../components/Meter'
 import { BACKEND_START_HINT } from '../lib/api'
@@ -7,9 +7,10 @@ import { cameraSupport } from '../lib/env'
 import { formatMs, pad2, timeOfDay } from '../lib/format'
 import { navigate } from '../lib/router'
 import type { Personality } from '../lib/schemas'
-import { useSettings, type AnalysisInterval } from '../state/settings'
-import { isDemo, useSystem } from '../state/system'
+import { useSettings } from '../state/settings'
+import { aiMode, providerLabel, useSystem } from '../state/system'
 import { delegatePreference, setDelegatePreference, useVision, vision } from '../vision/client'
+import { useDeep } from '../vision/deep/client'
 import '../styles/home.css'
 
 const VOICE: Record<Personality, { line: string; sample: string }> = {
@@ -56,7 +57,8 @@ export function Home() {
   const visionState = useVision()
   const camera = cameraSupport()
   const [showSettings, setShowSettings] = useState(false)
-  const demo = isDemo(health, settings.forceDemo)
+  const deep = useDeep()
+  const mode = aiMode(health)
 
   // Warm up the vision engine shortly after the instrument "boots" so that
   // Live Scan starts instantly. This is real model loading, shown live below.
@@ -81,14 +83,40 @@ export function Home() {
       ? { state: 'ok' as const, value: `OK · ${formatMs(healthLatencyMs)}`, detail: undefined }
       : { state: 'busy' as const, value: 'PROBING', detail: undefined }
 
+  const localLine: { state: LineState; value: string; detail?: string } = health
+    ? {
+        state: 'ok',
+        value: `ACTIVE · ${health.local.rules.length} RULES`,
+        detail: `${health.local.engine} · ${health.local.labels} classes from model metadata · ${health.local.attributes.length} attributes`,
+      }
+    : { state: healthError ? 'fault' : 'busy', value: healthError ? 'OFFLINE' : 'PROBING' }
+
+  // The AI layer is optional: "off" is a normal state, never a fault.
   let aiLine: { state: LineState; value: string; detail?: string }
   if (!health) aiLine = { state: 'idle', value: 'UNKNOWN' }
-  else if (settings.forceDemo) aiLine = { state: 'warn', value: 'DEMO · FORCED', detail: 'Simulated diagnostics (toggle in settings).' }
-  else if (!health.ai.configured)
-    aiLine = { state: 'warn', value: 'DEMO MODE', detail: 'No API key in backend .env - diagnostics are simulated.' }
-  else if (!aiCheck) aiLine = { state: 'busy', value: `CHECKING ${health.ai.model ?? ''}` }
-  else if (aiCheck.ok) aiLine = { state: 'ok', value: `ONLINE · ${aiCheck.model ?? health.ai.provider}` }
-  else aiLine = { state: 'fault', value: aiCheck.error?.code ?? 'FAULT', detail: aiCheck.error?.hint ?? aiCheck.error?.message }
+  else if (mode === 'off') aiLine = { state: 'idle', value: 'OFF · LOCAL ONLY', detail: health.ai.detail }
+  else if (!aiCheck) aiLine = { state: 'busy', value: `CHECKING ${providerLabel(health.ai.provider).toUpperCase()}` }
+  else if (aiCheck.ok) aiLine = { state: 'ok', value: `ONLINE · ${providerLabel(aiCheck.provider)} · ${aiCheck.model ?? ''}` }
+  else aiLine = { state: 'warn', value: 'UNAVAILABLE', detail: `${aiCheck.error?.message ?? 'Provider check failed'} Local CV keeps working.` }
+
+  const deepLine: { state: LineState; value: string; detail?: string } =
+    settings.deepMode === 'off'
+      ? { state: 'idle', value: 'OFF', detail: 'Switched off in settings.' }
+      : deep.status === 'ready' && deep.info
+        ? {
+            state: 'ok',
+            value: `READY · ${deep.info.backend.toUpperCase()}${deep.emaMs ? ` · ${formatMs(deep.emaMs)}` : ''}`,
+            detail: `${deep.info.model} · ${deep.info.threads} thread(s)${deep.info.fallbackReason ? ` · ${deep.info.fallbackReason}` : ''}`,
+          }
+        : deep.status === 'loading'
+          ? {
+              state: 'busy',
+              value: deep.progress?.total ? `LOADING ${Math.round((100 * deep.progress.loaded) / deep.progress.total)}%` : 'LOADING',
+              detail: 'YOLOX-S · one-time download, cached afterwards',
+            }
+          : deep.status === 'error'
+            ? { state: 'warn', value: 'UNAVAILABLE', detail: deep.error ?? undefined }
+            : { state: 'idle', value: 'ON DEMAND', detail: 'Loads for Deep Scan, Image and Video Debug.' }
 
   const info = visionState.info
   const visionLine: { state: LineState; value: string; detail?: string } =
@@ -99,7 +127,7 @@ export function Home() {
           detail: `${info.model} · loaded in ${formatMs(info.loadMs)}`,
         }
       : visionState.status === 'loading'
-        ? { state: 'busy', value: 'LOADING MODEL', detail: 'EfficientDet-Lite0 · 4.6 MB · WebAssembly' }
+        ? { state: 'busy', value: 'LOADING MODEL', detail: 'fast detector · WebAssembly' }
         : visionState.status === 'error'
           ? { state: 'fault', value: 'FAULT', detail: visionState.error ?? undefined }
           : { state: 'idle', value: 'STANDBY' }
@@ -123,7 +151,8 @@ export function Home() {
           Reality OS <span className="t-data t-muted">v{health?.version ?? '1.0.0'}</span>
         </span>
         <span className="home__bar-right">
-          {demo ? <DemoBadge text="Demo mode" /> : <span className="home__live t-data">● AI LINKED</span>}
+          <LocalBadge />
+          <AIBadge mode={mode} provider={providerLabel(health?.ai.provider)} />
           <Clock />
         </span>
       </header>
@@ -137,15 +166,16 @@ export function Home() {
             has <span className="squiggle home__bugs">bugs</span>.
           </h1>
           <p className="home__lede">
-            Point a camera at a desk, a kitchen, a gaming setup. An on-device vision engine watches continuously. When
-            something changes, a vision model files the bug report: severity, evidence, impact and a fix.
+            Point a camera at a desk, a kitchen, a gaming setup. On-device computer vision detects, tracks and measures
+            every object continuously, and a local diagnostic engine files the bug reports - severity, measured evidence,
+            impact and a fix. No API key needed; an optional AI layer can add explanations.
           </p>
 
           <nav className="modes" aria-label="Input modes">
             <button type="button" className="mode mode--primary key--signal" onClick={() => navigate('live')}>
               <span className="mode__ch t-data">IN·A</span>
               <span className="mode__name">Enter live scan</span>
-              <span className="mode__desc">Continuous camera diagnostics · local ML every frame · AI on change</span>
+              <span className="mode__desc">Continuous camera diagnostics · detection + tracking every frame · AI optional</span>
               <span className="mode__go" aria-hidden="true">
                 <Icon name="arrow" size={28} strokeWidth={2.4} />
               </span>
@@ -153,7 +183,7 @@ export function Home() {
             <button type="button" className="mode" onClick={() => navigate('image')}>
               <span className="mode__ch t-data">IN·B</span>
               <span className="mode__name">Image debug</span>
-              <span className="mode__desc">Photo, gallery or upload → deep diagnostic</span>
+              <span className="mode__desc">Photo, gallery or upload → fast + deep detectors → diagnostic</span>
               <span className="mode__go" aria-hidden="true">
                 <Icon name="image" size={22} />
               </span>
@@ -161,7 +191,7 @@ export function Home() {
             <button type="button" className="mode" onClick={() => navigate('video')}>
               <span className="mode__ch t-data">IN·C</span>
               <span className="mode__name">Video debug</span>
-              <span className="mode__desc">Scene detection · keyframes · diagnostic timeline</span>
+              <span className="mode__desc">Tracking across samples · scene cuts · diagnostic timeline</span>
               <span className="mode__go" aria-hidden="true">
                 <Icon name="video" size={22} />
               </span>
@@ -175,17 +205,17 @@ export function Home() {
                 <li>Camera</li>
                 <li>Detect</li>
                 <li>Track</li>
-                <li>Scene Δ</li>
-                <li>Select frame</li>
+                <li>Measure</li>
+                <li>Scene model</li>
               </ol>
             </div>
             <div className="signal-path__zone signal-path__zone--server">
               <span className="t-label">Your backend</span>
               <ol>
-                <li>Validate</li>
-                <li>Vision AI</li>
-                <li>Diagnose</li>
+                <li>Rules</li>
                 <li>Lifecycle</li>
+                <li>Score</li>
+                <li>AI (optional)</li>
               </ol>
             </div>
           </div>
@@ -201,8 +231,10 @@ export function Home() {
             </div>
             <ul className="post__lines">
               <PostLine label="Backend link" {...backendLine} />
-              <PostLine label="AI reasoner" {...aiLine} />
-              <PostLine label="Vision engine" {...visionLine} />
+              <PostLine label="Local CV engine" {...localLine} />
+              <PostLine label="AI reasoning" {...aiLine} />
+              <PostLine label="Fast detector" {...visionLine} />
+              <PostLine label="Deep detector" {...deepLine} />
               <PostLine label="Detector self-test" {...selfTestLine} />
               <PostLine label="Camera" {...cameraLine} />
             </ul>
@@ -243,7 +275,7 @@ export function Home() {
                     <span className="history__name">{h.systemName}</span>
                     <span className="t-data t-muted">
                       {h.mode}
-                      {h.simulated ? ' · demo' : ''}
+                      {h.ai ? ' · AI' : ' · local'}
                     </span>
                   </li>
                 ))}
@@ -279,29 +311,34 @@ export function Home() {
               <div className="settings__body">
                 <label className="settings__row">
                   <span>
-                    Force demo mode
-                    <small>Simulated diagnostics even if an API key is configured.</small>
+                    Deep detector
+                    <small>YOLOX-S (36 MB, cached): Deep Scan, Image/Video Debug, live checks when fast enough.</small>
                   </span>
-                  <input
-                    type="checkbox"
-                    checked={settings.forceDemo}
-                    onChange={(e) => settings.update({ forceDemo: e.target.checked })}
-                  />
+                  <select value={settings.deepMode} onChange={(e) => settings.update({ deepMode: e.target.value as 'auto' | 'off' })}>
+                    <option value="auto">auto</option>
+                    <option value="off">off</option>
+                  </select>
                 </label>
                 <label className="settings__row">
                   <span>
-                    Periodic re-check
-                    <small>How often a stable scene is re-analysed by the AI.</small>
+                    Deep detector runtime
+                    <small>WebGPU when available, else multi-threaded WebAssembly. Applies after reload.</small>
                   </span>
                   <select
-                    value={settings.interval}
-                    onChange={(e) => settings.update({ interval: Number(e.target.value) as AnalysisInterval })}
+                    value={settings.deepBackend}
+                    onChange={(e) => settings.update({ deepBackend: e.target.value as 'auto' | 'webgpu' | 'wasm' })}
                   >
-                    <option value={10}>10 s</option>
-                    <option value={20}>20 s</option>
-                    <option value={40}>40 s</option>
-                    <option value={0}>off</option>
+                    <option value="auto">auto</option>
+                    <option value="webgpu">WebGPU</option>
+                    <option value="wasm">WebAssembly</option>
                   </select>
+                </label>
+                <label className="settings__row">
+                  <span>
+                    Developer metrics
+                    <small>Latency, tracking and AI-usage panel in Live Scan.</small>
+                  </span>
+                  <input type="checkbox" checked={settings.devPanel} onChange={(e) => settings.update({ devPanel: e.target.checked })} />
                 </label>
                 <label className="settings__row">
                   <span>
@@ -338,7 +375,7 @@ export function Home() {
       </main>
 
       <footer className="home__foot t-data">
-        Frames leave this device only when the local engine selects them for analysis · images are never stored ·
+        Only measurements leave this device unless AI reasoning is configured · images are never stored ·
         <a href="/api/docs" target="_blank" rel="noreferrer">
           API docs
         </a>

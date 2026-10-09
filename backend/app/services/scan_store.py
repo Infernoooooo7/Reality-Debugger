@@ -127,6 +127,7 @@ class TrackedFinding:
             status=self.status,
             box=self.box,
             related_objects=self.related_objects,
+            object_ids=list(self.object_ids),
             source="local" if self.source == "local" else "ai",
             rule=self.rule,
             measurements=dict(self.measurements),

@@ -257,6 +257,7 @@ class DiagnosticService:
             status=status,
             box=lf.box,
             related_objects=list(lf.related_objects),
+            object_ids=list(lf.object_ids),
             source="local",
             rule=lf.rule,
             measurements=dict(lf.measurements),

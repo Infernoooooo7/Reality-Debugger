@@ -5,9 +5,11 @@ certs
 **/node_modules
 **/__pycache__
 **/.pytest_cache
+**/*.part
 backend/venv
 frontend/dist
 frontend/test-results
 frontend/playwright-report
-frontend/vision-check.html
+frontend/public/test-media
+frontend/vision-lab.html
 frontend/src/dev

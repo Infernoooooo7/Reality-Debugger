@@ -1,21 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DemoBadge, PersonalitySwitch } from '../components/Bits'
+import { AIBadge, LocalBadge, PersonalitySwitch } from '../components/Bits'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Icon } from '../components/Icon'
 import { Meter } from '../components/Meter'
 import { ReportView } from '../components/ReportView'
-import { analyzeVideoFile, analyzeVideoKeyframes, ApiError, isAbort, toApiError } from '../lib/api'
-import { formatBytes, formatClock, pad2 } from '../lib/format'
+import { VISION } from '../config'
+import { analyzeVideoFile, analyzeVideoManifest, ApiError, isAbort, toApiError } from '../lib/api'
+import { formatBytes, formatClock, formatMs, pad2 } from '../lib/format'
 import { navigate } from '../lib/router'
 import type { TimelineEvent, VideoReport } from '../lib/schemas'
 import type { CardImage } from '../lib/share'
 import { useSettings } from '../state/settings'
-import { isDemo, useSystem } from '../state/system'
-import { captureKeyframes, loadVideo, sampleVideo, selectKeyframes, type Progress, type VideoInfo } from '../video/sampler'
+import { aiEnabled, aiMode, providerLabel, useSystem } from '../state/system'
+import {
+  buildManifest,
+  captureKeyframes,
+  loadVideo,
+  sampleVideo,
+  selectKeyframes,
+  type Progress,
+  type VideoInfo,
+} from '../video/sampler'
 import { useVision, vision } from '../vision/client'
+import { deepDetector } from '../vision/deep/client'
+import { verifyObjects } from '../vision/fusion'
 import '../styles/debug.css'
 
-type Phase = 'idle' | 'loading' | 'ready' | 'scanning' | 'selecting' | 'capturing' | 'reasoning' | 'uploading' | 'done' | 'error'
+type Phase = 'idle' | 'loading' | 'ready' | 'scanning' | 'selecting' | 'capturing' | 'verifying' | 'reasoning' | 'uploading' | 'done' | 'error'
 
 const PHASE_TEXT: Record<Phase, string> = {
   idle: 'Awaiting input',
@@ -24,11 +35,15 @@ const PHASE_TEXT: Record<Phase, string> = {
   scanning: 'Scanning frames…',
   selecting: 'Selecting keyframes…',
   capturing: 'Capturing keyframes…',
+  verifying: 'Deep detector on keyframes…',
   uploading: 'Uploading to backend…',
-  reasoning: 'Vision reasoning…',
+  reasoning: 'Local diagnostics…',
   done: 'Diagnostic complete',
   error: 'Fault',
 }
+
+/** Wall-clock helper for the (event-handler only) timing below. */
+const clock = () => performance.now()
 
 const KIND_LABEL: Record<TimelineEvent['kind'], string> = {
   DISCOVERED: 'Discovered',
@@ -52,7 +67,7 @@ export default function VideoDebug() {
   const [info, setInfo] = useState<VideoInfo | null>(null)
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState<Progress | null>(null)
-  const [stats, setStats] = useState<{ scenes: number; keyframes: number; redundant: number } | null>(null)
+  const [stats, setStats] = useState<{ scenes: number; keyframes: number; redundant: number; deep?: string } | null>(null)
   const [uploadPct, setUploadPct] = useState<number | null>(null)
   const [result, setResult] = useState<VideoReport | null>(null)
   const [thumbs, setThumbs] = useState<string[]>([])
@@ -62,7 +77,7 @@ export default function VideoDebug() {
   const [cardImage, setCardImage] = useState<CardImage | null>(null)
   const [showLocal, setShowLocal] = useState(false)
   const visionState = useVision()
-  const demo = isDemo(health, settings.forceDemo)
+  const withAI = aiEnabled(health)
   const serverMax = health?.limits.max_video_bytes ?? 300 * 1024 * 1024
   const maxKeyframes = Math.min(8, health?.limits.max_video_keyframes ?? 8)
 
@@ -70,7 +85,7 @@ export default function VideoDebug() {
   useEffect(() => () => (url ? URL.revokeObjectURL(url) : undefined), [url])
   useEffect(() => () => thumbs.forEach((t) => URL.revokeObjectURL(t)), [thumbs])
 
-  const busy = ['loading', 'scanning', 'selecting', 'capturing', 'uploading', 'reasoning'].includes(phase)
+  const busy = ['loading', 'scanning', 'selecting', 'capturing', 'verifying', 'uploading', 'reasoning'].includes(phase)
 
   const pick = async (picked: File | undefined) => {
     if (!picked) return
@@ -125,34 +140,35 @@ export default function VideoDebug() {
       const first = new Image()
       first.src = thumbUrls[0]!
       setCardImage({ source: first, width: info.width, height: info.height })
-      setPhase('reasoning')
-      const manifest = {
-        duration_s: info.duration,
-        width: info.width,
-        height: info.height,
-        name: file.name,
-        size_bytes: file.size,
-        detector: vision.getSnapshot().info?.model ?? null,
-        sampled_frames: samples.length,
-        redundant_removed: selection.redundant,
-        scenes: selection.scenes,
-        frames: selection.keyframes.map((k, i) => ({
-          index: i,
-          t: k.t,
-          scene: k.scene,
-          reason: k.reason,
-          sharpness: samples[k.sample]!.sharpness,
-          objects: samples[k.sample]!.detections.slice(0, 30).map((d) => ({
-            label: d.label,
-            confidence: Math.round(d.score * 100) / 100,
-            box: d.box,
-          })),
-        })),
-        events: selection.events.slice(0, 120),
+
+      // Deep detector verifies the keyframes (within the time budget).
+      const detectors = [vision.getSnapshot().info?.modelId ?? VISION.fast.model]
+      if (deepDetector.enabled) {
+        setPhase('verifying')
+        const started = clock()
+        let done = 0
+        try {
+          for (const [i, k] of selection.keyframes.entries()) {
+            if (clock() - started > VISION.deep.videoBudgetMs) break
+            const deep = await deepDetector.detect(await createImageBitmap(blobs[i]!))
+            const sample = samples[k.sample]!
+            sample.objects = verifyObjects(sample.objects, deep.detections, `k${i + 1}d`)
+            done++
+          }
+          if (done) detectors.push(VISION.deep.model)
+          const note = `${done}/${selection.keyframes.length} keyframes · ${formatMs(clock() - started)}`
+          setStats((prev) => (prev ? { ...prev, deep: note } : prev))
+        } catch (e) {
+          const note = `unavailable: ${toApiError(e).message.slice(0, 60)}`
+          setStats((prev) => (prev ? { ...prev, deep: note } : prev))
+        }
       }
-      const report = await analyzeVideoKeyframes(blobs, manifest, {
+
+      setPhase('reasoning')
+      const manifest = buildManifest(file, info, samples, selection, detectors)
+      // Keyframe images are uploaded only when an AI provider is configured.
+      const report = await analyzeVideoManifest(manifest, withAI ? blobs : [], {
         personality: settings.personality,
-        demo: settings.forceDemo,
         signal: controller.signal,
       })
       setResult(report)
@@ -176,7 +192,6 @@ export default function VideoDebug() {
     try {
       const report = await analyzeVideoFile(file, {
         personality: settings.personality,
-        demo: settings.forceDemo,
         signal: controller.signal,
         onUploadProgress: (f) => {
           setUploadPct(f)
@@ -219,7 +234,8 @@ export default function VideoDebug() {
         <span className="debug__title">
           <span className="t-data t-muted">IN·C</span> Video debug
         </span>
-        {demo ? <DemoBadge text="Demo" /> : null}
+        <LocalBadge />
+        <AIBadge mode={aiMode(health)} provider={providerLabel(health?.ai.provider)} />
       </header>
 
       <div className="debug__grid">
@@ -239,7 +255,7 @@ export default function VideoDebug() {
                 <Icon name="video" size={40} strokeWidth={1.6} />
               </div>
               <p className="dropzone__title t-display">Select a video</p>
-              <p className="t-muted">Processed on this device · only keyframes are uploaded</p>
+              <p className="t-muted">Processed on this device · only measurements are uploaded{withAI ? ' (+ keyframes for AI)' : ''}</p>
             </div>
           ) : null}
 
@@ -303,11 +319,15 @@ export default function VideoDebug() {
                       : 'seeking first frame…'
                     : phase === 'uploading' && uploadPct != null
                     ? `uploading whole file for server-side sampling · ${Math.round(uploadPct * 100)}%`
-                    : phase === 'reasoning'
-                      ? demo
-                        ? 'demo heuristics over keyframe detections (simulated)'
-                        : `${health?.ai.model ?? 'vision model'} reading ${stats?.keyframes ?? ''} keyframes`
-                      : ' '}
+                    : phase === 'verifying'
+                      ? 'YOLOX-S checking the keyframes (loads once, then cached)'
+                      : phase === 'reasoning'
+                        ? withAI
+                          ? `local engine + ${providerLabel(health?.ai.provider)} reading ${stats?.keyframes ?? ''} keyframes`
+                          : `local engine replaying ${progress?.done ?? ''} tracked samples`
+                        : stats?.deep
+                          ? `deep detector: ${stats.deep}`
+                          : ' '}
               </span>
             </div>
             <div>
@@ -319,8 +339,12 @@ export default function VideoDebug() {
               <b>{pad2(stats?.scenes ?? progress?.scenes ?? 0)}</b>
             </div>
             <div>
-              <span className="t-label">Keyframes sent</span>
+              <span className="t-label">{withAI ? 'Keyframes sent' : 'Keyframes'}</span>
               <b>{pad2(stats?.keyframes ?? 0)}</b>
+            </div>
+            <div>
+              <span className="t-label">Objects tracked</span>
+              <b>{pad2(result?.sampling.tracked_objects ?? progress?.objects ?? 0)}</b>
             </div>
             <div>
               <span className="t-label">Findings</span>
@@ -343,11 +367,7 @@ export default function VideoDebug() {
                       <Icon name="retry" size={16} /> Retry
                     </button>
                   ) : null}
-                  {error.code.startsWith('AI_') ? (
-                    <button type="button" className="key key--small" onClick={() => settings.update({ forceDemo: true })}>
-                      Use demo mode
-                    </button>
-                  ) : null}
+
                 </>
               }
             />
@@ -416,7 +436,7 @@ export default function VideoDebug() {
               </div>
 
               {thumbs.length ? (
-                <div className="keyframes" aria-label="Keyframes sent to the vision model">
+                <div className="keyframes" aria-label="Keyframes">
                   {result.keyframes.map((k, i) =>
                     thumbs[i] ? (
                       <button key={k.index} type="button" onClick={() => jump(k.t)} title={k.reason}>
@@ -445,9 +465,11 @@ export default function VideoDebug() {
             <div className="debug__explain">
               <p className="t-label">How video debug works</p>
               <p>
-                The video stays on this device. It is sampled every ~0.5 s, each sample is fingerprinted and run through
-                the local detector, scene cuts are detected, redundant frames dropped, and at most {maxKeyframes}{' '}
-                representative keyframes go to the vision model, which narrates a chronological diagnostic.
+                The video stays on this device. It is sampled every ~0.5 s; every sample runs through the fast detector
+                and the tracker, so objects keep their identity over time. Scene cuts are detected, redundant frames
+                dropped, and up to {maxKeyframes} keyframes are checked by the deep detector. The local engine then
+                replays the tracked samples to build a timeline of measured findings. With an AI provider configured,
+                the keyframes can also be sent for optional reasoning.
               </p>
             </div>
           ) : null}

@@ -1,39 +1,59 @@
 /**
- * Local spatial heuristics over tracked objects. They never produce findings
- * on their own - they flag "interesting" relationships so the scan director
- * can ask the vision model to take a look, and they are passed to the model
- * as hints.
+ * Spatial relations between tracked objects, computed from boxes only (the
+ * same measures and thresholds as the backend engine, config/diagnostics.json
+ * "proximity"). Used for the live HUD and the developer panel; findings
+ * themselves come from the backend's local diagnostic engine.
  */
-import { gap } from './geometry'
+import { DIAGNOSTICS } from '../config'
+import { area, baseInside, containment, gap, iou, relativeGap } from './geometry'
+import { hasAttribute } from './ontology'
 import type { Track } from './types'
-
-const ELECTRONICS = new Set(['laptop', 'keyboard', 'mouse', 'cell phone', 'tv', 'remote', 'microwave', 'toaster', 'oven'])
-const CONTAINERS = new Set(['cup', 'bottle', 'wine glass', 'bowl', 'vase'])
-const FOOD = new Set(['banana', 'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake'])
-const SHARP = new Set(['knife', 'scissors'])
 
 export interface Relation {
   key: string
+  subject: Track
+  object: Track
+  kind: 'on' | 'overlaps' | 'touching' | 'near'
+  relativeGap: number
   text: string
 }
 
-export function spatialRelations(tracks: Track[]): Relation[] {
-  const live = tracks.filter((t) => t.state !== 'tentative')
+const RANK = { on: 0, overlaps: 1, touching: 2, near: 3 }
+
+export function spatialRelations(tracks: Track[], limit = 12): Relation[] {
+  const { touchGap, nearRelativeGap } = DIAGNOSTICS.proximity
+  const live = tracks.filter((t) => t.state === 'confirmed')
   const out: Relation[] = []
-  for (const a of live) {
-    for (const b of live) {
-      if (a.id === b.id) continue
-      const d = gap(a.box, b.box)
-      if (CONTAINERS.has(a.label) && ELECTRONICS.has(b.label) && d < 0.05) {
-        out.push({ key: `spill:${a.id}:${b.id}`, text: `${a.key} is ${d === 0 ? 'touching' : 'next to'} ${b.key}` })
-      } else if (FOOD.has(a.label) && ELECTRONICS.has(b.label) && d < 0.06) {
-        out.push({ key: `food:${a.id}:${b.id}`, text: `${a.key} is next to ${b.key}` })
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length; j++) {
+      const a = live[i]!
+      const b = live[j]!
+      const rel = relativeGap(a.box, b.box)
+      const overlap = iou(a.box, b.box)
+      const touching = overlap > 0 || gap(a.box, b.box) <= touchGap
+      if (!touching && rel > nearRelativeGap) continue
+      let [subject, object] = area(a.box) <= area(b.box) ? [a, b] : [b, a]
+      let kind: Relation['kind'] = overlap > 0 ? 'overlaps' : touching ? 'touching' : 'near'
+      for (const [x, y] of [
+        [a, b],
+        [b, a],
+      ] as const) {
+        if (hasAttribute(y.label, 'surface') && !hasAttribute(x.label, 'surface') && containment(x.box, y.box) >= 0.5 && baseInside(x.box, y.box)) {
+          subject = x
+          object = y
+          kind = 'on'
+          break
+        }
       }
+      out.push({
+        key: `${kind}:${subject.id}:${object.id}`,
+        subject,
+        object,
+        kind,
+        relativeGap: touching ? 0 : rel,
+        text: `${subject.key} ${kind === 'on' ? 'on' : kind === 'near' ? 'near' : kind} ${object.key}`,
+      })
     }
-    if (SHARP.has(a.label)) out.push({ key: `sharp:${a.id}`, text: `${a.key} lying in the open` })
   }
-  const containers = live.filter((t) => CONTAINERS.has(t.label))
-  if (containers.length >= 3) out.push({ key: `stack:containers:${containers.length}`, text: `${containers.length} drink containers in view` })
-  if (live.length >= 9) out.push({ key: `density:${Math.floor(live.length / 3)}`, text: `${live.length} objects in view` })
-  return out.slice(0, 10)
+  return out.sort((x, y) => RANK[x.kind] - RANK[y.kind] || x.relativeGap - y.relativeGap).slice(0, limit)
 }

@@ -1,4 +1,4 @@
-"""Pure-ASGI middleware: request body cap and access logging.
+"""Pure-ASGI middleware: request body cap, access logging and isolation headers.
 
 The access log records method, path, status and timing only - never request
 bodies, query strings, headers or image data.
@@ -112,3 +112,33 @@ class AccessLogMiddleware:
                     status,
                     (time.perf_counter() - started) * 1000,
                 )
+
+
+class CrossOriginIsolationMiddleware:
+    """COOP/COEP on every response so the page is cross-origin isolated:
+    SharedArrayBuffer and therefore multi-threaded WebAssembly for the deep
+    detector. All of the app's resources are same-origin, so require-corp
+    blocks nothing the app needs."""
+
+    HEADERS = [
+        (b"cross-origin-opener-policy", b"same-origin"),
+        (b"cross-origin-embedder-policy", b"require-corp"),
+    ]
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                present = {name.lower() for name, _ in headers}
+                headers += [h for h in self.HEADERS if h[0] not in present]
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, with_headers)

@@ -300,6 +300,15 @@ def test_cors_allows_lan_origins_only(client: TestClient) -> None:
     assert "access-control-allow-origin" not in res.headers
 
 
+def test_responses_are_cross_origin_isolated(client: TestClient) -> None:
+    # COOP/COEP make the page cross-origin isolated: multi-threaded WASM for the deep detector.
+    for res in (client.get("/api/health"), client.get("/api/nope")):
+        assert res.headers["cross-origin-opener-policy"] == "same-origin"
+        assert res.headers["cross-origin-embedder-policy"] == "require-corp"
+    with TestClient(create_app(make_settings(cross_origin_isolation=False))) as plain:
+        assert "cross-origin-embedder-policy" not in plain.get("/api/health").headers
+
+
 def test_unknown_route_uses_error_envelope(client: TestClient) -> None:
     res = client.get("/api/nope")
     assert res.status_code == 404

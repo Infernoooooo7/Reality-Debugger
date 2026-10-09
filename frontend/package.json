@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "preview:https": "vite preview --mode https",
     "lint": "oxlint src",
+    "test": "vitest run",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@fontsource-variable/instrument-sans": "5.3.0",
     "@fontsource-variable/martian-mono": "5.3.0",
     "@mediapipe/tasks-vision": "1.1.0",
+    "onnxruntime-web": "1.30.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "4.6.5",
@@ -33,7 +35,8 @@
     "@vitejs/plugin-react": "6.1.2",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.3",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "vitest": "4.1.11"
   },
   "engines": {
     "node": ">=20.19"

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnnotatedImage } from '../components/AnnotatedImage'
-import { DemoBadge, StatusChip } from '../components/Bits'
+import { AIBadge, LocalBadge, StatusChip } from '../components/Bits'
 import { DecodeText } from '../components/DecodeText'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { FindingCard } from '../components/FindingCard'
@@ -14,9 +14,11 @@ import { LiveSession } from '../live/session'
 import { LIVING_TEXT, useLive } from '../live/store'
 import { scanToReport } from '../live/summary'
 import { useSettings } from '../state/settings'
-import { isDemo, useSystem } from '../state/system'
+import { aiMode, providerLabel, useSystem } from '../state/system'
 import { toast } from '../state/toasts'
 import { useVision } from '../vision/client'
+import { useDeep } from '../vision/deep/client'
+import type { DevMetrics, Hud } from '../live/store'
 import '../styles/live.css'
 
 const SEVERITY_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 } as const
@@ -39,6 +41,34 @@ function Sparkline({ values }: { values: number[] }) {
   )
 }
 
+function DevPanel({ hud, dev }: { hud: Hud; dev: DevMetrics }) {
+  const rows: [string, string][] = [
+    ['fast detector', `${dev.fastMs.toFixed(1)} ms`],
+    ['frame total', `${dev.frameMs.toFixed(1)} ms`],
+    ['fps', hud.fps.toFixed(1)],
+    ['tracks', `${hud.objects} confirmed · ${hud.tentative} tentative · ${hud.verified} verified`],
+    ['relations', String(hud.relations)],
+    ['view', `#${hud.viewId} · Δ ${hud.sceneDelta.toFixed(2)}`],
+    ['observe', dev.observeMs === null ? '—' : `${dev.observeMs} ms · ${dev.observations} sent · ${(dev.observePayloadBytes / 1024).toFixed(1)} KB`],
+    ['deep detector', dev.deepMs === null ? 'not run' : `${dev.deepMs.toFixed(0)} ms · ${dev.deepBackend ?? '?'} · ${dev.deepRuns} runs`],
+    ['deep fusion', `${dev.deepVerified} verified · ${dev.deepAdded} added`],
+    ['AI calls', `${dev.aiCalls} · skipped ${dev.aiSkipped}${dev.lastSkipReason ? ` (${dev.lastSkipReason})` : ''}`],
+  ]
+  return (
+    <section className="devpanel t-data" aria-label="Developer metrics">
+      <div className="t-label">Dev metrics · measured in this browser</div>
+      <dl>
+        {rows.map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )
+}
+
 function Elapsed({ since }: { since: number }) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -52,10 +82,11 @@ export default function LiveScan() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sessionRef = useRef<LiveSession | null>(null)
-  const { phase, bootStep, fatal, hud, ai, living, scan, deep, events } = useLive()
+  const { phase, bootStep, fatal, hud, dev, ai, living, scan, deep, events, explaining } = useLive()
   const settings = useSettings()
   const health = useSystem((s) => s.health)
   const visionState = useVision()
+  const deepState = useDeep()
   const [panelOpen, setPanelOpen] = useState(true)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [exitOpen, setExitOpen] = useState(false)
@@ -73,8 +104,7 @@ export default function LiveScan() {
     }
   }, [bootKey])
 
-  useEffect(() => sessionRef.current?.configure(settings.interval), [settings.interval])
-  useEffect(() => sessionRef.current?.setForceDemo(settings.forceDemo), [settings.forceDemo])
+  useEffect(() => sessionRef.current?.syncAIState(), [health])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -90,7 +120,8 @@ export default function LiveScan() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const demo = isDemo(health, settings.forceDemo)
+  const mode = ai.state === 'unavailable' ? 'unavailable' : aiMode(health)
+  const onExplain = ai.enabled ? (id: string) => void sessionRef.current?.explain(id) : undefined
   const findings = useMemo(() => sortFindings(scan?.findings ?? []), [scan])
   const open = findings.filter((f) => f.status !== 'RESOLVED')
   const resolved = findings.filter((f) => f.status === 'RESOLVED')
@@ -112,7 +143,7 @@ export default function LiveScan() {
     if (clear) {
       await sessionRef.current?.clearSession()
       toast('Scan session cleared from this device and the backend', 'ok')
-    } else if (scan && scan.analyses > 0) {
+    } else if (scan && (scan.observations > 0 || scan.analyses > 0)) {
       useSystem.getState().record(scanToReport(scan))
     }
     navigate('home')
@@ -174,37 +205,45 @@ export default function LiveScan() {
           </div>
         </div>
         <div className="live__hud-row live__hud-row--chips t-data">
+          <LocalBadge text="Local CV active" />
           <span className="hud-chip">
-            VISION {info ? `${info.delegate} · ${Math.round(hud.inferenceMs)}ms` : visionState.status.toUpperCase()}
+            FAST {info ? `${info.delegate} · ${Math.round(hud.inferenceMs)}ms` : visionState.status.toUpperCase()}
           </span>
-          <span className="hud-chip">
+          <span className="hud-chip" title="Confirmed tracks (ByteTrack) · + tentative · ✓ confirmed by both detectors">
             OBJ {pad2(hud.objects)}
             {hud.tentative ? <em> +{hud.tentative}</em> : null}
-          </span>
-          <span className="hud-chip" data-ai={ai.state}>
-            AI {ai.state === 'analyzing' ? <>ANALYZING <Elapsed since={ai.startedAt} /></> : ai.state.toUpperCase()}
-            {ai.state === 'idle' && ai.lastLatencyMs ? <em> · last {formatMs(ai.lastLatencyMs)}</em> : null}
+            {hud.verified ? <em> ✓{hud.verified}</em> : null}
           </span>
           <span className="hud-chip hud-chip--trace" title="Motion (frame differencing)">
             MOTION <Sparkline values={hud.motionTrace} />
           </span>
-          <span className="hud-chip" title="Scene change since the last analysed frame">
-            SCENE Δ {hud.sceneDelta.toFixed(2)}
+          <span className="hud-chip" title="View number · appearance change since the view started">
+            VIEW {hud.viewId} · Δ {hud.sceneDelta.toFixed(2)}
           </span>
-          {demo ? <DemoBadge text="Demo · simulated" /> : null}
+          {deepState.status === 'ready' ? (
+            <span className="hud-chip" title="Deep detector (YOLOX-S)">
+              DEEP {deepState.info?.backend.toUpperCase()}
+              {deepState.emaMs ? ` · ${deepState.emaMs}ms` : ''}
+            </span>
+          ) : null}
+          {ai.enabled ? (
+            <span className="hud-chip" data-ai={ai.state}>
+              AI {ai.state === 'analyzing' ? <>REASONING <Elapsed since={ai.startedAt} /></> : ai.state === 'waiting' ? 'QUEUED' : ai.state.toUpperCase()}
+              {ai.state === 'idle' && ai.lastLatencyMs ? <em> · last {formatMs(ai.lastLatencyMs)}</em> : null}
+            </span>
+          ) : (
+            <AIBadge mode={mode} provider={providerLabel(ai.provider)} />
+          )}
         </div>
-        {ai.error && (ai.state === 'blocked' || ai.state === 'error' || ai.state === 'budget') ? (
+        {ai.enabled && ai.state === 'unavailable' ? (
           <div className="live__ai-alert" role="status">
             <span>
-              <b>{ai.error.code}</b> · {ai.error.message} {ai.state !== 'blocked' ? 'Retrying automatically - local tracking continues.' : ''}
+              <b>LOCAL CV ACTIVE · AI REASONING UNAVAILABLE</b>
+              {ai.error ? ` · ${ai.error.code}: ${ai.error.message}` : ''} Detection, tracking and diagnostics continue locally.
             </span>
-            {ai.state === 'blocked' ? (
-              <button type="button" className="key key--small" onClick={() => settings.update({ forceDemo: true })}>
-                Switch to demo mode
-              </button>
-            ) : null}
           </div>
         ) : null}
+        {settings.devPanel ? <DevPanel hud={hud} dev={dev} /> : null}
       </header>
 
       <section className="live__panel" data-open={panelOpen}>
@@ -233,7 +272,7 @@ export default function LiveScan() {
             {!scan ? (
               <p className="live__empty t-data">
                 {phase === 'running'
-                  ? 'Watching. The first analysis runs once the view is steady.'
+                  ? 'Watching. Measured findings appear here within a couple of seconds.'
                   : 'Findings appear here as the scan runs.'}
               </p>
             ) : open.length === 0 && resolved.length === 0 ? (
@@ -245,6 +284,8 @@ export default function LiveScan() {
                 finding={f}
                 expanded={expanded === f.id}
                 onToggle={() => setExpanded((cur) => (cur === f.id ? null : f.id))}
+                onExplain={onExplain}
+                explaining={explaining === f.id}
               />
             ))}
             {resolved.length ? <div className="live__divider t-label">Resolved</div> : null}
@@ -313,13 +354,13 @@ export default function LiveScan() {
           <div className="deep__inner">
             <header className="deep__head">
               <span className="t-label">Deep scan · frozen frame</span>
-              {deep.status === 'analyzing' ? (
+              {deep.status === 'analyzing' || deep.status === 'detecting' ? (
                 <span className="deep__timer">
                   INVESTIGATING <Elapsed since={deep.startedAt} />
                 </span>
               ) : null}
             </header>
-            <div className="deep__image" data-scanning={deep.status === 'analyzing'}>
+            <div className="deep__image" data-scanning={deep.status === 'analyzing' || deep.status === 'detecting'}>
               {deep.report ? (
                 <AnnotatedImage
                   src={deep.imageUrl}
@@ -334,12 +375,17 @@ export default function LiveScan() {
                 </figure>
               )}
             </div>
-            {deep.status === 'analyzing' ? (
+            {deep.status === 'analyzing' || deep.status === 'detecting' ? (
               <ol className="deep__steps t-data">
                 <li data-done="true">Frame frozen · {deep.width}×{deep.height}</li>
-                <li data-done="true">Local context attached · {pad2(hud.objects)} tracked objects</li>
-                <li data-active="true">{demo ? 'Demo heuristics running (simulated)' : 'Vision model reasoning'}</li>
-                <li>Schema validation</li>
+                <li data-done="true">Fast detector + tracker · {pad2(hud.objects)} tracked objects</li>
+                <li data-active={deep.status === 'detecting'} data-done={deep.status === 'analyzing'}>
+                  {deep.step}
+                  {deep.status === 'detecting' && deepState.progress?.total
+                    ? ` · ${Math.round((100 * deepState.progress.loaded) / deepState.progress.total)}% of ${(deepState.progress.total / 1e6).toFixed(0)} MB`
+                    : ''}
+                </li>
+                <li data-active={deep.status === 'analyzing'}>{ai.enabled ? 'Local diagnostics + AI reasoning' : 'Local diagnostic engine'}</li>
                 <li>Lifecycle merge</li>
               </ol>
             ) : null}
@@ -360,6 +406,8 @@ export default function LiveScan() {
                 focusedId={focusId}
                 onFocus={setFocusId}
                 heading="Deep scan diagnostic"
+                onExplain={onExplain}
+                explainingId={explaining}
               />
             ) : null}
           </div>
@@ -380,7 +428,7 @@ export default function LiveScan() {
                 close
               </button>
             </div>
-            {scan && scan.analyses > 0 ? (
+            {scan && (scan.observations > 0 || scan.analyses > 0) ? (
               <div className="exit__summary">
                 <ReportView report={scanToReport(scan)} heading="Live scan summary" />
               </div>

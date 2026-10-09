@@ -88,23 +88,44 @@ async function recordedClip(page: Page): Promise<Buffer> {
 
 test.beforeEach(async ({ request }) => {
   const res = await request.get('/api/health').catch(() => null)
-  test.skip(!res || !res.ok(), 'Backend is not reachable on :8000 - start it first (DEMO MODE is fine).')
+  test.skip(!res || !res.ok(), 'Backend is not reachable on :8000 - start it first (no API key needed).')
 })
 
-test('home screen runs a real power-on self test', async ({ page }) => {
+/** Collect API calls made by the page. */
+function recordApi(page: Page): { url: string; method: string; hasImage: boolean }[] {
+  const calls: { url: string; method: string; hasImage: boolean }[] = []
+  page.on('request', (r) => {
+    if (!r.url().includes('/api/')) return
+    const body = r.postDataBuffer()
+    calls.push({ url: r.url().replace(/^https?:\/\/[^/]+/, ''), method: r.method(), hasImage: Boolean(body?.includes(Buffer.from('image/jpeg'))) })
+  })
+  return calls
+}
+
+test('home screen: local CV active, AI optional', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: /your world has bugs/i })).toBeVisible()
   await expect(page.locator('.post__line', { hasText: 'Backend link' })).toHaveAttribute('data-state', 'ok')
-  await expect(page.locator('.post__line', { hasText: 'Vision engine' })).toHaveAttribute('data-state', 'ok', { timeout: 120_000 })
+  await expect(page.locator('.post__line', { hasText: 'Local CV engine' })).toHaveAttribute('data-state', 'ok')
+  await expect(page.locator('.post__line', { hasText: 'Fast detector' })).toHaveAttribute('data-state', 'ok', { timeout: 120_000 })
   await expect(page.locator('.post__line', { hasText: 'Detector self-test' })).toContainText('PASS')
+  // Without a key the AI layer is "off" - a normal state, never a fault.
+  const ai = page.locator('.post__line', { hasText: 'AI reasoning' })
+  const health = await (await page.request.get('/api/health')).json()
+  if (!health.features.ai_reasoning) {
+    await expect(ai).toContainText('OFF')
+    await expect(ai).not.toHaveAttribute('data-state', 'fault')
+  }
 })
 
-test('live scan: camera, local ML, AI analysis, pause, deep scan, clear session', async ({ page }) => {
-  const firstAnalysis = page.waitForResponse((r) => r.url().includes('/api/analyze/frame') && r.ok(), { timeout: 150_000 })
+test('live scan: local observations only, deep scan, clear session', async ({ page }) => {
+  const calls = recordApi(page)
+  const firstObservation = page.waitForResponse((r) => r.url().includes('/api/scan/observe') && r.ok(), { timeout: 150_000 })
   await page.goto('/#/live')
   await expect(page.locator('.live')).toHaveAttribute('data-phase', 'running', { timeout: 120_000 })
   await expect(page.locator('.hud-fps__value')).not.toHaveText('--', { timeout: 30_000 })
-  await firstAnalysis
+  const observed = await (await firstObservation).json()
+  expect(observed.report.engine).toMatch(/^local-diagnostics/)
 
   await page.getByRole('button', { name: 'Pause' }).click()
   await expect(page.locator('.live')).toHaveAttribute('data-phase', 'paused')
@@ -113,11 +134,17 @@ test('live scan: camera, local ML, AI analysis, pause, deep scan, clear session'
   await expect(page.locator('.live')).toHaveAttribute('data-phase', 'running')
 
   await page.locator('button.ctl--deep').click()
-  await expect(page.locator('.deep .report')).toBeVisible({ timeout: 120_000 })
+  await expect(page.locator('.deep .report')).toBeVisible({ timeout: 170_000 })
   await expect(page.locator('.deep .readout__value')).toBeVisible()
   await page.getByRole('button', { name: /return to live/i }).click()
   await expect(page.locator('.deep')).toHaveCount(0)
-  await expect(page.locator('.live')).toHaveAttribute('data-phase', 'running')
+
+  const health = await (await page.request.get('/api/health')).json()
+  if (!health.features.ai_reasoning) {
+    // Local-only: no frame was ever uploaded.
+    expect(calls.filter((c) => c.hasImage)).toEqual([])
+    expect(calls.some((c) => c.url.startsWith('/api/scan/deep'))).toBe(true)
+  }
 
   await page.getByRole('button', { name: 'End scan' }).click()
   const cleared = page.waitForResponse((r) => r.request().method() === 'DELETE' && r.url().includes('/api/scan/'))
@@ -126,13 +153,20 @@ test('live scan: camera, local ML, AI analysis, pause, deep scan, clear session'
   await expect(page).toHaveURL(/#\/$/)
 })
 
-test('image debug: local detection + backend diagnostic', async ({ page }) => {
+test('image debug: fast + deep detectors, local diagnostic', async ({ page }) => {
+  const calls = recordApi(page)
   await page.goto('/#/image')
   await page.locator('input[type=file]').first().setInputFiles({ name: 'stop.png', mimeType: 'image/png', buffer: await stopSignPng(page) })
-  await expect(page.locator('.report')).toBeVisible({ timeout: 150_000 })
-  await expect(page.locator('.stages li[data-state="done"]')).toHaveCount(6)
-  await expect(page.locator('.stages li').nth(1)).toContainText('objects')
+  await expect(page.locator('.report')).toBeVisible({ timeout: 170_000 })
+  await expect(page.locator('.stages li').nth(1)).toContainText('boxes')
   await expect(page.locator('.report .readout__value')).toBeVisible()
+  await expect(page.locator('.report .scene-graph__node').first()).toContainText('stop sign')
+  const health = await (await page.request.get('/api/health')).json()
+  if (!health.features.ai_reasoning) {
+    expect(calls.some((c) => c.url === '/api/analyze/scene')).toBe(true)
+    expect(calls.filter((c) => c.hasImage)).toEqual([])
+    await expect(page.locator('.ai-run')).toContainText('Local-only')
+  }
 })
 
 test('image debug rejects files that are not images', async ({ page }) => {
@@ -141,24 +175,34 @@ test('image debug rejects files that are not images', async ({ page }) => {
   await expect(page.locator('.error-panel')).toContainText('Unsupported file')
 })
 
-test('AI failures are surfaced with recovery actions', async ({ page }) => {
-  await page.route('**/api/analyze/image', (route) =>
-    route.fulfill({
-      status: 503,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        error: { code: 'AI_UNAVAILABLE', message: 'The vision model is temporarily unavailable.', hint: 'Try again in a moment.', retryable: true },
-      }),
-    }),
-  )
+test('AI failure keeps the local report and says so', async ({ page }) => {
+  // Pretend an AI provider is configured, then make it fail.
+  await page.route('**/api/health', async (route) => {
+    const res = await route.fetch()
+    const body = await res.json()
+    body.ai = { ...body.ai, provider: 'gemini', model: 'gemini-flash-latest', configured: true, state: 'unverified', detail: 'test' }
+    body.features = { ...body.features, ai_reasoning: true }
+    await route.fulfill({ response: res, json: body })
+  })
+  await page.route('**/api/analyze/image', async (route) => {
+    const form = route.request().postDataBuffer()
+    expect(form?.includes(Buffer.from('name="scene"'))).toBe(true)
+    // Forward to the real local-only backend, then mark the AI step as failed.
+    const res = await route.fetch()
+    const body = await res.json()
+    body.ai = { status: 'unavailable', provider: 'gemini', model: 'gemini-flash-latest', error: { code: 'AI_RATE_LIMITED', message: 'The Gemini quota is exhausted.', retryable: true } }
+    await route.fulfill({ response: res, json: body })
+  })
   await page.goto('/#/image')
   await page.locator('input[type=file]').first().setInputFiles({ name: 'stop.png', mimeType: 'image/png', buffer: await stopSignPng(page) })
-  await expect(page.locator('.error-panel')).toContainText('AI unavailable', { timeout: 150_000 })
-  await expect(page.getByRole('button', { name: /retry/i })).toBeVisible()
-  await expect(page.getByRole('button', { name: /demo mode/i })).toBeVisible()
+  await expect(page.locator('.report')).toBeVisible({ timeout: 170_000 })
+  await expect(page.locator('.ai-run')).toContainText('AI reasoning unavailable')
+  await expect(page.locator('.ai-run')).toContainText('Local CV results are complete')
+  await expect(page.locator('.error-panel')).toHaveCount(0)
 })
 
-test('video debug: on-device sampling, scene detection, timeline', async ({ page }) => {
+test('video debug: tracked samples, local timeline, nothing but numbers uploaded', async ({ page }) => {
+  const calls = recordApi(page)
   await page.goto('/#/video')
   const clip = await recordedClip(page)
   await page.locator('input[type=file]').first().setInputFiles({ name: 'clip.webm', mimeType: 'video/webm', buffer: clip })
@@ -168,4 +212,6 @@ test('video debug: on-device sampling, scene detection, timeline', async ({ page
   await expect(page.locator('.scanstats__phase b')).toHaveText(/complete/i, { timeout: 170_000 })
   await expect(page.locator('.timeline li').first()).toBeVisible()
   await expect(page.locator('.keyframes img').first()).toBeVisible()
+  const health = await (await page.request.get('/api/health')).json()
+  if (!health.features.ai_reasoning) expect(calls.filter((c) => c.hasImage)).toEqual([])
 })

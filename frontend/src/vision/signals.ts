@@ -5,13 +5,17 @@
  *
  * All buffers are allocated once and reused.
  */
+import { VISION } from '../config'
 import type { FrameSignals, NBox, Signature } from './types'
 
-const W = 128
-const H = 96
-const GRID_W = 16
-const GRID_H = 12
-const BINS = 4
+// config/vision.json "signals" (shared with the backend's video fallback).
+const S = VISION.signals
+const W = S.thumbWidth
+const H = S.thumbHeight
+const GRID_W = S.gridWidth
+const GRID_H = S.gridHeight
+const BINS = S.histogramBins
+const SHIFT = 8 - Math.log2(BINS)
 
 type AnyCanvas = OffscreenCanvas | HTMLCanvasElement
 type AnyContext = OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D
@@ -31,7 +35,7 @@ export function signatureDistance(a: Signature, b: Signature): number {
   let grid = 0
   for (let i = 0; i < a.grid.length; i++) grid += Math.abs(a.grid[i]! - b.grid[i]!)
   grid /= a.grid.length
-  return 0.55 * hist + 0.45 * Math.min(1, grid * 3)
+  return S.histogramWeight * hist + (1 - S.histogramWeight) * Math.min(1, grid * S.gridGain)
 }
 
 export class SignalAnalyzer {
@@ -51,9 +55,13 @@ export class SignalAnalyzer {
     this.ctx = ctx
   }
 
-  /** Remember the most recent frame as the reference for scene change. */
+  /** Remember the most recent frame as the reference for scene change (start of a view). */
   setAnchor(): void {
     if (this.last) this.anchor = { hist: this.last.hist.slice(), grid: this.last.grid.slice() }
+  }
+
+  get hasAnchor(): boolean {
+    return this.anchor !== null
   }
 
   reset(): void {
@@ -81,7 +89,7 @@ export class SignalAnalyzer {
       gray[i] = lum
       sum += lum
       sumSq += lum * lum
-      hist[((r >> 6) << 4) | ((g >> 6) << 2) | (b >> 6)]! += 1
+      hist[((r >> SHIFT) * BINS + (g >> SHIFT)) * BINS + (b >> SHIFT)]! += 1
       const gx = Math.floor((i % W) / (W / GRID_W))
       const gy = Math.floor(Math.floor(i / W) / (H / GRID_H))
       grid[gy * GRID_W + gx]! += lum
@@ -109,8 +117,8 @@ export class SignalAnalyzer {
     }
     const lapMean = lapSum / lapN
     const lapVar = Math.max(0, lapSq / lapN - lapMean * lapMean)
-    // Log scale: ~1e-4 (very blurred) -> 0, ~0.04 (crisp detail) -> 1.
-    const sharpness = Math.min(1, Math.max(0, (Math.log10(lapVar + 1e-6) + 4) / 2.6))
+    // Variance of the Laplacian on a log scale: ~1e-4 (very blurred) -> 0, ~0.04 (crisp) -> 1.
+    const sharpness = Math.min(1, Math.max(0, (Math.log10(lapVar + 1e-6) + S.sharpnessLogOffset) / S.sharpnessLogSpan))
 
     // Motion: frame difference + bounding box of changed pixels.
     let motion = 0
@@ -125,7 +133,7 @@ export class SignalAnalyzer {
       for (let i = 0; i < n; i++) {
         const d = Math.abs(gray[i]! - this.prevGray[i]!)
         diffSum += d
-        if (d > 0.12) {
+        if (d > S.motionPixelDelta) {
           changed++
           const x = i % W
           const y = (i / W) | 0
@@ -135,8 +143,8 @@ export class SignalAnalyzer {
           if (y > maxY) maxY = y
         }
       }
-      motion = Math.min(1, (diffSum / n) * 6)
-      if (changed > n * 0.004 && maxX >= minX) {
+      motion = Math.min(1, (diffSum / n) * S.motionGain)
+      if (changed > n * S.motionMinFraction && maxX >= minX) {
         motionBox = { x: minX / W, y: minY / H, w: (maxX - minX + 1) / W, h: (maxY - minY + 1) / H }
       }
     }

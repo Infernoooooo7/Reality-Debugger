@@ -23,6 +23,7 @@ import hashlib
 import io
 import json
 import sys
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -109,11 +110,20 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def download(url: str, dest: Path) -> None:
-    print(f"  downloading {url}")
-    with urllib.request.urlopen(url, timeout=120) as resp, dest.open("wb") as out:  # noqa: S310 - fixed https URLs
-        while chunk := resp.read(1 << 20):
-            out.write(chunk)
+def download(url: str, dest: Path, attempts: int = 3) -> None:
+    for attempt in range(1, attempts + 1):
+        print(f"  downloading {url}" + (f" (attempt {attempt})" if attempt > 1 else ""))
+        try:
+            with urllib.request.urlopen(url, timeout=120) as resp, dest.open("wb") as out:  # noqa: S310 - fixed https URLs
+                while chunk := resp.read(1 << 20):
+                    out.write(chunk)
+            return
+        except OSError as error:  # URLError, timeouts, resets
+            dest.unlink(missing_ok=True)
+            if attempt == attempts:
+                raise
+            print(f"  {error}; retrying")
+            time.sleep(2 * attempt)
 
 
 def tflite_labels(path: Path) -> list[str | None]:

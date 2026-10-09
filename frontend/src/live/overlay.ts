@@ -1,6 +1,7 @@
 /**
  * Instrument overlay drawn on a canvas above the camera preview: tracked
- * objects (corner brackets + tags), finding anchors and live signals.
+ * objects (corner brackets + tags; ✓ = confirmed by both detectors,
+ * ◆ = deep detector only), finding anchors and live signals.
  * Boxes are interpolated between vision results so motion stays smooth even
  * when the detector runs at 6-10 fps.
  */
@@ -151,8 +152,13 @@ export class OverlayRenderer {
       s.box = this.frozen ? s.box : lerpBox(s.box, target, 0.35)
       const [x, y, w, h] = map(s.box)
       const alpha = t.state === 'confirmed' ? 0.95 : t.state === 'lost' ? 0.35 : 0.45
-      this.brackets(x, y, w, h, `rgba(232,235,228,${alpha})`, t.state === 'tentative')
-      if (t.state !== 'tentative') this.tag(x, y, `${t.key}  ${Math.round(t.score * 100)}%`, 'rgba(12,15,14,0.72)', `rgba(232,235,228,${alpha})`)
+      // Deep-detector-only objects are drawn in the signal blue; both-detector agreement gets a check mark.
+      const rgb = t.source === 'deep' ? '141,179,207' : '232,235,228'
+      this.brackets(x, y, w, h, `rgba(${rgb},${alpha})`, t.state === 'tentative' || t.source === 'deep')
+      if (t.state !== 'tentative') {
+        const mark = t.verified ? ' ✓' : t.source === 'deep' ? ' ◆' : ''
+        this.tag(x, y, `${t.key}  ${Math.round(t.score * 100)}%${mark}`, 'rgba(12,15,14,0.72)', `rgba(${rgb},${alpha})`)
+      }
     }
 
     // Finding anchors (tags of anchors sharing a box are stacked, not overdrawn)

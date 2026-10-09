@@ -42,3 +42,5 @@ e2e/output/
 # (the Docker build runs it); only the small fast model is committed.
 frontend/public/models/*.onnx
 frontend/public/models/*.part
+# Local benchmark images (not redistributable); see frontend/vision-lab.html
+frontend/public/test-media/
