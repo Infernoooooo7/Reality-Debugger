@@ -1,4 +1,4 @@
-"""Server-side vision: /api/vision/status, /models, /profiles, /detect and /compare.
+"""Server-side vision: /api/vision/status, /models, /profiles, /detect, /compare and /workspace-diff.
 
 Uploaded images are decoded in memory, analysed and dropped; nothing is
 stored or logged. A model that cannot be loaded returns HTTP 503
@@ -91,3 +91,16 @@ async def compare(
     refs = [await _image(request, r, f"reference image {i + 1}", limit) for i, r in enumerate(references)]
     query = await _image(request, image, "image")
     return await _run(service.compare, refs, query)
+
+
+@router.post("/workspace-diff", summary="Workspace comparison: objects added, removed or moved and changed regions against your own reference photo")
+async def workspace_diff(
+    request: Request,
+    reference: UploadFile = File(..., description="The workspace as you want it (your reference)."),
+    current: UploadFile = File(..., description="The workspace now, photographed from about the same place."),
+    mode: str = Form("standard", description="standard (one pass) or precision (tiles + full image, for small objects)"),
+) -> dict[str, Any]:
+    service = _service(request)
+    ref = await _image(request, reference, "reference image")
+    cur = await _image(request, current, "current image")
+    return await _run(service.workspace_diff, ref, cur, mode=mode)

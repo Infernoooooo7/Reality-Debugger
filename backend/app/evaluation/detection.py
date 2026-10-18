@@ -185,6 +185,11 @@ def coco_metrics(gt: dict[str, Any], results: list[dict[str, Any]], *, iou_type:
         ev.summarize()
     summary = {n: round(float(v) * 100, 2) for n, v in zip(names, ev.stats, strict=True)}
     precision = ev.eval["precision"]  # [T, R, K, A, M]
+    if max_dets[2] != 100:
+        # COCOeval.summarize() computes AP@[.5:.95] with a hard-coded maxDets=100 (-1 when 100 is not in maxDets);
+        # recompute it at the protocol's largest maxDets, as AP50/AP75/APs/APm/APl already are.
+        pr = precision[:, :, :, 0, -1]
+        summary["AP"] = round(float(np.mean(pr[pr > -1])) * 100, 2) if np.any(pr > -1) else -100.0
     per_class = {}
     for k, cat_id in enumerate(ev.params.catIds):
         pr = precision[:, :, k, 0, -1]

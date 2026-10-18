@@ -15,6 +15,7 @@ import {
   VideoReportSchema,
   ProfilesSchema,
   VisionCompareSchema,
+  VisionWorkspaceSchema,
   VisionDetectSchema,
   VisionStatusSchema,
   type AICheck,
@@ -28,6 +29,7 @@ import {
   type VideoReport,
   type Profiles,
   type VisionCompare,
+  type VisionWorkspace,
   type VisionDetect,
   type VisionStatus,
 } from './schemas'
@@ -365,6 +367,20 @@ export function visionCompare(image: Blob, references: Blob[], opts: { signal?: 
     },
     VisionCompareSchema,
     { signal: opts.signal, timeoutMs: 120_000 },
+  )
+}
+
+/** Workspace comparison: the workspace now against the user's own reference photo of it. */
+export function visionWorkspaceDiff(
+  reference: Blob,
+  current: Blob,
+  opts: { mode: 'standard' | 'precision'; signal?: AbortSignal },
+): Promise<VisionWorkspace> {
+  return request(
+    '/api/vision/workspace-diff',
+    { method: 'POST', body: form({ mode: opts.mode }, [['reference', reference, 'reference'], ['current', current, 'current']]) },
+    VisionWorkspaceSchema,
+    { signal: opts.signal, timeoutMs: 180_000 },
   )
 }
 

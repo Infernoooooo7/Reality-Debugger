@@ -1,0 +1,248 @@
+{
+ "schema_version": 1,
+ "task": "anomaly-detection",
+ "date": "2026-10-17T21:01:33Z",
+ "model": {
+  "id": "reference-difference",
+  "name": "Reference difference (ECC affine + CIE76 Delta E)",
+  "version": "n/a",
+  "feature_extractor": null
+ },
+ "dataset": {
+  "id": "visa",
+  "split": "official 1cls test",
+  "categories": [
+   "candle",
+   "capsules",
+   "cashew",
+   "chewinggum",
+   "fryum",
+   "macaroni1",
+   "macaroni2",
+   "pcb1",
+   "pcb2",
+   "pcb3",
+   "pcb4",
+   "pipe_fryum"
+  ]
+ },
+ "config_name": "refdiff-k10",
+ "config": {
+  "method": "reference-difference",
+  "k": 10,
+  "input_size": 224,
+  "eval_size": 224,
+  "holdout_normals_for_threshold": 20,
+  "seed": 0,
+  "reference_selection": "seeded random permutation of the official train (normal) images, disjoint from the held-out ones"
+ },
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v139",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "performance": {
+  "fit_s": 10.27,
+  "score_ms_per_image": 38.07,
+  "peak_rss_mb": 5942.0,
+  "wall_s_total_all_configs": 1996.5
+ },
+ "metrics": {
+  "mean_over_categories": {
+   "image_auroc": 71.23,
+   "image_ap": 76.59,
+   "pixel_auroc": 88.16,
+   "aupro_0.3": 56.92,
+   "defect_recall_at_threshold": 0.2758,
+   "false_alarm_rate_at_threshold": 0.0482
+  },
+  "per_category": {
+   "candle": {
+    "image_auroc": 67.22,
+    "image_ap": 67.25,
+    "pixel_auroc": 79.67,
+    "aupro_0.3": 48.63,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 24.8962,
+     "defect_recall": 0.12,
+     "false_alarm_rate": 0.05
+    },
+    "references": 10
+   },
+   "capsules": {
+    "image_auroc": 55.25,
+    "image_ap": 69.85,
+    "pixel_auroc": 79.21,
+    "aupro_0.3": 36.68,
+    "n_test": 160,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 89.4395,
+     "defect_recall": 0.0,
+     "false_alarm_rate": 0.0
+    },
+    "references": 10
+   },
+   "cashew": {
+    "image_auroc": 80.82,
+    "image_ap": 89.79,
+    "pixel_auroc": 94.06,
+    "aupro_0.3": 76.64,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 26.3497,
+     "defect_recall": 0.22,
+     "false_alarm_rate": 0.02
+    },
+    "references": 10
+   },
+   "chewinggum": {
+    "image_auroc": 74.1,
+    "image_ap": 86.83,
+    "pixel_auroc": 76.08,
+    "aupro_0.3": 33.51,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 19.3117,
+     "defect_recall": 0.23,
+     "false_alarm_rate": 0.0
+    },
+    "references": 10
+   },
+   "fryum": {
+    "image_auroc": 77.3,
+    "image_ap": 89.55,
+    "pixel_auroc": 89.97,
+    "aupro_0.3": 62.85,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 23.1531,
+     "defect_recall": 0.61,
+     "false_alarm_rate": 0.16
+    },
+    "references": 10
+   },
+   "macaroni1": {
+    "image_auroc": 48.5,
+    "image_ap": 50.99,
+    "pixel_auroc": 86.59,
+    "aupro_0.3": 44.98,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 57.0991,
+     "defect_recall": 0.03,
+     "false_alarm_rate": 0.04
+    },
+    "references": 10
+   },
+   "macaroni2": {
+    "image_auroc": 49.25,
+    "image_ap": 47.99,
+    "pixel_auroc": 84.98,
+    "aupro_0.3": 38.82,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 76.0128,
+     "defect_recall": 0.0,
+     "false_alarm_rate": 0.0
+    },
+    "references": 10
+   },
+   "pcb1": {
+    "image_auroc": 79.35,
+    "image_ap": 71.36,
+    "pixel_auroc": 89.44,
+    "aupro_0.3": 55.48,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 53.4953,
+     "defect_recall": 0.01,
+     "false_alarm_rate": 0.0
+    },
+    "references": 10
+   },
+   "pcb2": {
+    "image_auroc": 86.33,
+    "image_ap": 89.24,
+    "pixel_auroc": 94.52,
+    "aupro_0.3": 69.6,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 21.232,
+     "defect_recall": 0.57,
+     "false_alarm_rate": 0.02
+    },
+    "references": 10
+   },
+   "pcb3": {
+    "image_auroc": 73.84,
+    "image_ap": 77.61,
+    "pixel_auroc": 97.49,
+    "aupro_0.3": 76.46,
+    "n_test": 201,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 26.6723,
+     "defect_recall": 0.44,
+     "false_alarm_rate": 0.1386
+    },
+    "references": 10
+   },
+   "pcb4": {
+    "image_auroc": 94.57,
+    "image_ap": 95.03,
+    "pixel_auroc": 88.5,
+    "aupro_0.3": 56.4,
+    "n_test": 201,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 23.311,
+     "defect_recall": 0.8,
+     "false_alarm_rate": 0.0693
+    },
+    "references": 10
+   },
+   "pipe_fryum": {
+    "image_auroc": 68.28,
+    "image_ap": 83.56,
+    "pixel_auroc": 97.39,
+    "aupro_0.3": 83.04,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 13.5959,
+     "defect_recall": 0.28,
+     "false_alarm_rate": 0.08
+    },
+    "references": 10
+   }
+  }
+ },
+ "notes": [
+  "Image score = maximum of the anomaly map / patch scores; scores are distances, not probabilities.",
+  "Threshold = maximum image score of held-out normal training images; no anomalous image is used for any choice.",
+  "Pixel metrics at 224x224; ground-truth masks resized with nearest-neighbour interpolation (very thin defects can shrink or vanish).",
+  "Deviations from published PatchCore: ResNet-50 v1 instead of WideResNet-50-2; full-image resize instead of resize+centre-crop; k reference images instead of the full training set."
+ ],
+ "git_commit": "52bee7d+uncommitted"
+}

@@ -1,0 +1,229 @@
+{
+ "schema_version": 1,
+ "task": "tracking",
+ "date": "2026-10-17T21:14:58Z",
+ "model": {
+  "id": "bytetrack-ts+yolox_s",
+  "name": "Reality Debugger ByteTrack tracker (cmc-on) on yolox_s detections",
+  "version": "52bee7d+uncommitted"
+ },
+ "dataset": {
+  "id": "kitti_tracking",
+  "split": "training (selected sequences)",
+  "sequences": [
+   "0000",
+   "0002",
+   "0003",
+   "0012",
+   "0016"
+  ],
+  "frames": 818,
+  "fps": 10.0,
+  "image_sizes": {
+   "0000": [
+    1242,
+    375
+   ],
+   "0002": [
+    1242,
+    375
+   ],
+   "0003": [
+    1242,
+    375
+   ],
+   "0012": [
+    1242,
+    375
+   ],
+   "0016": [
+    1224,
+    370
+   ]
+  }
+ },
+ "config_name": "yolox_s-cmc-on",
+ "config": {
+  "tracker_options": {
+   "cmc": true
+  },
+  "input": "yolox_s"
+ },
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v139",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "performance": {
+  "tracker_ms_per_frame": 0.521,
+  "detector_s_total": 83.5,
+  "camera_motion_ms_per_frame": 78.27,
+  "note": "tracker time includes Node start-up and JSON I/O"
+ },
+ "metrics": {
+  "car": {
+   "combined": {
+    "HOTA": 41.42,
+    "DetA": 36.95,
+    "AssA": 48.08,
+    "LocA": 75.48,
+    "DetRe": 41.99,
+    "DetPr": 61.7,
+    "AssRe": 51.49,
+    "AssPr": 78.32,
+    "HOTA(0)": 61.67,
+    "gt_ids": 38,
+    "tracker_ids": 55,
+    "gt_dets": 2618,
+    "tracker_dets": 1782,
+    "MOTA": 23.76,
+    "MOTP_iou": 74.97,
+    "IDF1": 46.41,
+    "IDP": 57.3,
+    "IDR": 39.0,
+    "num_switches": 16,
+    "num_fragmentations": 40,
+    "mostly_tracked": 11,
+    "mostly_lost": 5,
+    "num_false_positives": 572,
+    "num_misses": 1408,
+    "num_objects": 2618,
+    "num_unique_objects": 38
+   },
+   "per_sequence": {
+    "0000": {
+     "HOTA": 51.67,
+     "DetA": 47.0,
+     "AssA": 58.8,
+     "MOTA": 42.39,
+     "IDF1": 69.49,
+     "num_switches": 3
+    },
+    "0002": {
+     "HOTA": 38.15,
+     "DetA": 36.96,
+     "AssA": 39.51,
+     "MOTA": 42.54,
+     "IDF1": 50.19,
+     "num_switches": 9
+    },
+    "0003": {
+     "HOTA": 65.2,
+     "DetA": 61.67,
+     "AssA": 69.67,
+     "MOTA": 75.48,
+     "IDF1": 85.96,
+     "num_switches": 1
+    },
+    "0012": {
+     "HOTA": 42.08,
+     "DetA": 28.8,
+     "AssA": 61.53,
+     "MOTA": 38.19,
+     "IDF1": 55.28,
+     "num_switches": 0
+    },
+    "0016": {
+     "HOTA": 25.84,
+     "DetA": 28.25,
+     "AssA": 25.69,
+     "MOTA": -29.78,
+     "IDF1": 14.6,
+     "num_switches": 3
+    }
+   }
+  },
+  "pedestrian": {
+   "combined": {
+    "HOTA": 46.06,
+    "DetA": 44.77,
+    "AssA": 47.71,
+    "LocA": 76.17,
+    "DetRe": 48.16,
+    "DetPr": 68.81,
+    "AssRe": 52.44,
+    "AssPr": 67.37,
+    "HOTA(0)": 67.38,
+    "gt_ids": 23,
+    "tracker_ids": 32,
+    "gt_dets": 2293,
+    "tracker_dets": 1605,
+    "MOTA": 55.91,
+    "MOTP_iou": 72.04,
+    "IDF1": 66.7,
+    "IDP": 81.0,
+    "IDR": 56.69,
+    "num_switches": 31,
+    "num_fragmentations": 70,
+    "mostly_tracked": 8,
+    "mostly_lost": 4,
+    "num_false_positives": 146,
+    "num_misses": 834,
+    "num_objects": 2293,
+    "num_unique_objects": 23
+   },
+   "per_sequence": {
+    "0000": {
+     "HOTA": 24.63,
+     "DetA": 12.7,
+     "AssA": 47.79,
+     "MOTA": 13.64,
+     "IDF1": 29.63,
+     "num_switches": 0
+    },
+    "0002": {
+     "HOTA": 52.69,
+     "DetA": 50.46,
+     "AssA": 55.02,
+     "MOTA": 56.11,
+     "IDF1": 74.85,
+     "num_switches": 1
+    },
+    "0003": {
+     "HOTA": 0.0,
+     "DetA": 0.0,
+     "AssA": 0.0,
+     "MOTA": NaN,
+     "IDF1": NaN,
+     "num_switches": 0
+    },
+    "0012": {
+     "HOTA": 0.0,
+     "DetA": 0.0,
+     "AssA": 0.0,
+     "MOTA": 0.0,
+     "IDF1": 0.0,
+     "num_switches": 0
+    },
+    "0016": {
+     "HOTA": 45.92,
+     "DetA": 46.04,
+     "AssA": 45.9,
+     "MOTA": 58.12,
+     "IDF1": 67.45,
+     "num_switches": 30
+    }
+   }
+  }
+ },
+ "camera_motion": {
+  "frames": 813,
+  "median_confidence": 0.837,
+  "share_used": 1.0
+ },
+ "notes": [
+  "KITTI-style preprocessing (approximates, but is not, the official devkit):\nCar is evaluated against tracks labelled \"car\"; Van boxes are ignore regions.\nPedestrian is evaluated against tracks labelled \"person\"; Person_sitting and\nCyclist boxes are ignore regions (COCO detectors call a cyclist's rider\n\"person\" and have no cyclist class). DontCare boxes are ignore regions for\nboth. Tracker boxes mostly inside an ignore region are not counted as false\npositives. No minimum-height filter is applied."
+ ],
+ "git_commit": "52bee7d+uncommitted"
+}

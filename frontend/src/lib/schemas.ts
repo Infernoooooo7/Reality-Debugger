@@ -488,7 +488,65 @@ export const VisionCompareSchema = z.object({
   evidence: z.string(),
 })
 
+const BoxTuple = z.array(z.number()).length(4)
+
+export const WorkspaceObjectSchema = z.object({
+  label: z.string(),
+  confidence: z.number(),
+  reference_box: BoxTuple.nullish(),
+  current_box: BoxTuple.nullish(),
+  current_box_in_reference: BoxTuple.nullish(),
+  moved_by: z.number().nullish(),
+  change: z.string().nullish(),
+  pixel_change: z.number().nullish(),
+  why: z.string().nullish(),
+})
+
+const PhotoSchema = z.object({ width: z.number(), height: z.number(), objects: z.number() })
+
+/** /api/vision/workspace-diff: measured differences against the user's own reference photo. */
+export const VisionWorkspaceSchema = z.object({
+  state: AnalysisStateSchema,
+  mode: z.enum(['standard', 'precision']),
+  model: z.object({ id: z.string(), vocabulary: z.string() }).passthrough(),
+  registration: z.object({
+    ok: z.boolean(),
+    method: z.string(),
+    matches: z.number(),
+    inliers: z.number(),
+    inlier_ratio: z.number(),
+    overlap: z.number().nullish(),
+    reason: z.string().nullish(),
+  }),
+  reference: PhotoSchema,
+  current: PhotoSchema,
+  counts: z.record(z.string(), z.object({ reference: z.number(), current: z.number() })),
+  objects: z
+    .object({
+      unchanged: z.array(WorkspaceObjectSchema),
+      moved: z.array(WorkspaceObjectSchema),
+      added: z.array(WorkspaceObjectSchema),
+      removed: z.array(WorkspaceObjectSchema),
+      uncertain: z.array(WorkspaceObjectSchema),
+    })
+    .nullish(),
+  changes: z
+    .object({
+      changed_fraction: z.number(),
+      regions: z.array(z.object({ box: BoxTuple, current_box: BoxTuple, area: z.number(), explained_by: z.array(z.string()), possibly: z.array(z.string()).default([]) })),
+      unexplained_regions: z.number(),
+    })
+    .nullish(),
+  summary: z.string(),
+  quality: z.object({ reference: QualitySchema, current: QualitySchema }),
+  notes: z.array(z.string()),
+  limitations: z.array(z.string()),
+  timings_ms: z.record(z.string(), z.number()),
+})
+
 export type VisionStatus = z.infer<typeof VisionStatusSchema>
+export type VisionWorkspace = z.infer<typeof VisionWorkspaceSchema>
+export type WorkspaceObject = z.infer<typeof WorkspaceObjectSchema>
 export type Profile = z.infer<typeof ProfileSchema>
 export type Profiles = z.infer<typeof ProfilesSchema>
 export type VisionObject = z.infer<typeof VisionObjectSchema>

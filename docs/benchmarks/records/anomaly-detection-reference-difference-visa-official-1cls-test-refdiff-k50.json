@@ -1,0 +1,248 @@
+{
+ "schema_version": 1,
+ "task": "anomaly-detection",
+ "date": "2026-10-17T21:01:33Z",
+ "model": {
+  "id": "reference-difference",
+  "name": "Reference difference (ECC affine + CIE76 Delta E)",
+  "version": "n/a",
+  "feature_extractor": null
+ },
+ "dataset": {
+  "id": "visa",
+  "split": "official 1cls test",
+  "categories": [
+   "candle",
+   "capsules",
+   "cashew",
+   "chewinggum",
+   "fryum",
+   "macaroni1",
+   "macaroni2",
+   "pcb1",
+   "pcb2",
+   "pcb3",
+   "pcb4",
+   "pipe_fryum"
+  ]
+ },
+ "config_name": "refdiff-k50",
+ "config": {
+  "method": "reference-difference",
+  "k": 50,
+  "input_size": 224,
+  "eval_size": 224,
+  "holdout_normals_for_threshold": 20,
+  "seed": 0,
+  "reference_selection": "seeded random permutation of the official train (normal) images, disjoint from the held-out ones"
+ },
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v139",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "performance": {
+  "fit_s": 11.94,
+  "score_ms_per_image": 32.97,
+  "peak_rss_mb": 5942.0,
+  "wall_s_total_all_configs": 1996.5
+ },
+ "metrics": {
+  "mean_over_categories": {
+   "image_auroc": 72.86,
+   "image_ap": 79.13,
+   "pixel_auroc": 89.28,
+   "aupro_0.3": 59.46,
+   "defect_recall_at_threshold": 0.3283,
+   "false_alarm_rate_at_threshold": 0.0605
+  },
+  "per_category": {
+   "candle": {
+    "image_auroc": 65.51,
+    "image_ap": 67.56,
+    "pixel_auroc": 78.45,
+    "aupro_0.3": 44.69,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 24.1863,
+     "defect_recall": 0.08,
+     "false_alarm_rate": 0.02
+    },
+    "references": 50
+   },
+   "capsules": {
+    "image_auroc": 41.6,
+    "image_ap": 62.48,
+    "pixel_auroc": 79.74,
+    "aupro_0.3": 38.95,
+    "n_test": 160,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 88.2137,
+     "defect_recall": 0.0,
+     "false_alarm_rate": 0.0
+    },
+    "references": 50
+   },
+   "cashew": {
+    "image_auroc": 81.56,
+    "image_ap": 89.28,
+    "pixel_auroc": 93.68,
+    "aupro_0.3": 71.72,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 25.932,
+     "defect_recall": 0.19,
+     "false_alarm_rate": 0.0
+    },
+    "references": 50
+   },
+   "chewinggum": {
+    "image_auroc": 77.5,
+    "image_ap": 88.77,
+    "pixel_auroc": 77.3,
+    "aupro_0.3": 33.41,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 19.3117,
+     "defect_recall": 0.23,
+     "false_alarm_rate": 0.0
+    },
+    "references": 50
+   },
+   "fryum": {
+    "image_auroc": 79.6,
+    "image_ap": 90.35,
+    "pixel_auroc": 90.57,
+    "aupro_0.3": 65.39,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 25.3916,
+     "defect_recall": 0.51,
+     "false_alarm_rate": 0.1
+    },
+    "references": 50
+   },
+   "macaroni1": {
+    "image_auroc": 55.19,
+    "image_ap": 57.52,
+    "pixel_auroc": 87.2,
+    "aupro_0.3": 47.14,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 53.4512,
+     "defect_recall": 0.07,
+     "false_alarm_rate": 0.01
+    },
+    "references": 50
+   },
+   "macaroni2": {
+    "image_auroc": 54.7,
+    "image_ap": 54.21,
+    "pixel_auroc": 86.48,
+    "aupro_0.3": 45.74,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 76.0128,
+     "defect_recall": 0.0,
+     "false_alarm_rate": 0.0
+    },
+    "references": 50
+   },
+   "pcb1": {
+    "image_auroc": 86.41,
+    "image_ap": 89.57,
+    "pixel_auroc": 97.81,
+    "aupro_0.3": 77.32,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 15.6567,
+     "defect_recall": 0.71,
+     "false_alarm_rate": 0.11
+    },
+    "references": 50
+   },
+   "pcb2": {
+    "image_auroc": 89.76,
+    "image_ap": 91.53,
+    "pixel_auroc": 94.79,
+    "aupro_0.3": 70.1,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 25.3261,
+     "defect_recall": 0.34,
+     "false_alarm_rate": 0.0
+    },
+    "references": 50
+   },
+   "pcb3": {
+    "image_auroc": 73.95,
+    "image_ap": 75.75,
+    "pixel_auroc": 97.52,
+    "aupro_0.3": 75.05,
+    "n_test": 201,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 24.1277,
+     "defect_recall": 0.52,
+     "false_alarm_rate": 0.2376
+    },
+    "references": 50
+   },
+   "pcb4": {
+    "image_auroc": 96.84,
+    "image_ap": 96.9,
+    "pixel_auroc": 90.75,
+    "aupro_0.3": 57.41,
+    "n_test": 201,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 18.906,
+     "defect_recall": 0.94,
+     "false_alarm_rate": 0.1881
+    },
+    "references": 50
+   },
+   "pipe_fryum": {
+    "image_auroc": 71.68,
+    "image_ap": 85.6,
+    "pixel_auroc": 97.05,
+    "aupro_0.3": 86.59,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 14.1637,
+     "defect_recall": 0.35,
+     "false_alarm_rate": 0.06
+    },
+    "references": 50
+   }
+  }
+ },
+ "notes": [
+  "Image score = maximum of the anomaly map / patch scores; scores are distances, not probabilities.",
+  "Threshold = maximum image score of held-out normal training images; no anomalous image is used for any choice.",
+  "Pixel metrics at 224x224; ground-truth masks resized with nearest-neighbour interpolation (very thin defects can shrink or vanish).",
+  "Deviations from published PatchCore: ResNet-50 v1 instead of WideResNet-50-2; full-image resize instead of resize+centre-crop; k reference images instead of the full training set."
+ ],
+ "git_commit": "52bee7d+uncommitted"
+}

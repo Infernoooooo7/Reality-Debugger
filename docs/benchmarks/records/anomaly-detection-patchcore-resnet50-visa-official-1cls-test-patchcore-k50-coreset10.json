@@ -1,0 +1,261 @@
+{
+ "schema_version": 1,
+ "task": "anomaly-detection",
+ "date": "2026-10-17T21:01:33Z",
+ "model": {
+  "id": "patchcore-resnet50",
+  "name": "PatchCore (ResNet-50 v1 stages 2+3)",
+  "version": "3ffe1fa2bea7",
+  "feature_extractor": "resnet50_v1_patch_features"
+ },
+ "dataset": {
+  "id": "visa",
+  "split": "official 1cls test",
+  "categories": [
+   "candle",
+   "capsules",
+   "cashew",
+   "chewinggum",
+   "fryum",
+   "macaroni1",
+   "macaroni2",
+   "pcb1",
+   "pcb2",
+   "pcb3",
+   "pcb4",
+   "pipe_fryum"
+  ]
+ },
+ "config_name": "patchcore-k50-coreset10",
+ "config": {
+  "method": "patchcore",
+  "k": 50,
+  "coreset_ratio": 0.1,
+  "input_size": 224,
+  "eval_size": 224,
+  "holdout_normals_for_threshold": 20,
+  "seed": 0,
+  "reference_selection": "seeded random permutation of the official train (normal) images, disjoint from the held-out ones"
+ },
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v139",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "performance": {
+  "fit_s": 179.86,
+  "score_ms_per_image": 133.24,
+  "peak_rss_mb": 5942.0,
+  "wall_s_total_all_configs": 1996.5
+ },
+ "metrics": {
+  "mean_over_categories": {
+   "image_auroc": 89.25,
+   "image_ap": 91.12,
+   "pixel_auroc": 97.99,
+   "aupro_0.3": 85.21,
+   "defect_recall_at_threshold": 0.6342,
+   "false_alarm_rate_at_threshold": 0.0717
+  },
+  "per_category": {
+   "candle": {
+    "image_auroc": 91.64,
+    "image_ap": 92.65,
+    "pixel_auroc": 98.75,
+    "aupro_0.3": 93.86,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 1.8616,
+     "defect_recall": 0.73,
+     "false_alarm_rate": 0.09
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "capsules": {
+    "image_auroc": 78.77,
+    "image_ap": 86.68,
+    "pixel_auroc": 97.57,
+    "aupro_0.3": 63.39,
+    "n_test": 160,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 2.8227,
+     "defect_recall": 0.33,
+     "false_alarm_rate": 0.0333
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "cashew": {
+    "image_auroc": 96.14,
+    "image_ap": 98.15,
+    "pixel_auroc": 98.69,
+    "aupro_0.3": 89.94,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 2.1306,
+     "defect_recall": 0.66,
+     "false_alarm_rate": 0.0
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "chewinggum": {
+    "image_auroc": 98.3,
+    "image_ap": 99.32,
+    "pixel_auroc": 98.57,
+    "aupro_0.3": 85.42,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 2.1756,
+     "defect_recall": 0.93,
+     "false_alarm_rate": 0.02
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "fryum": {
+    "image_auroc": 89.06,
+    "image_ap": 95.28,
+    "pixel_auroc": 95.47,
+    "aupro_0.3": 83.05,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 2.4553,
+     "defect_recall": 0.5,
+     "false_alarm_rate": 0.0
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "macaroni1": {
+    "image_auroc": 84.1,
+    "image_ap": 85.36,
+    "pixel_auroc": 97.34,
+    "aupro_0.3": 87.08,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 1.9017,
+     "defect_recall": 0.57,
+     "false_alarm_rate": 0.15
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "macaroni2": {
+    "image_auroc": 71.82,
+    "image_ap": 74.69,
+    "pixel_auroc": 96.94,
+    "aupro_0.3": 86.9,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 2.496,
+     "defect_recall": 0.31,
+     "false_alarm_rate": 0.06
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "pcb1": {
+    "image_auroc": 92.46,
+    "image_ap": 91.55,
+    "pixel_auroc": 99.55,
+    "aupro_0.3": 88.42,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 2.7648,
+     "defect_recall": 0.27,
+     "false_alarm_rate": 0.02
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "pcb2": {
+    "image_auroc": 86.79,
+    "image_ap": 86.7,
+    "pixel_auroc": 97.52,
+    "aupro_0.3": 80.54,
+    "n_test": 200,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 1.9039,
+     "defect_recall": 0.77,
+     "false_alarm_rate": 0.13
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "pcb3": {
+    "image_auroc": 85.38,
+    "image_ap": 85.92,
+    "pixel_auroc": 98.22,
+    "aupro_0.3": 81.21,
+    "n_test": 201,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 2.0628,
+     "defect_recall": 0.59,
+     "false_alarm_rate": 0.1089
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "pcb4": {
+    "image_auroc": 98.02,
+    "image_ap": 97.76,
+    "pixel_auroc": 98.25,
+    "aupro_0.3": 87.85,
+    "n_test": 201,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 1.8774,
+     "defect_recall": 0.98,
+     "false_alarm_rate": 0.1485
+    },
+    "memory_bank": 3920,
+    "references": 50
+   },
+   "pipe_fryum": {
+    "image_auroc": 98.52,
+    "image_ap": 99.37,
+    "pixel_auroc": 99.03,
+    "aupro_0.3": 94.87,
+    "n_test": 150,
+    "n_anomalous": 100,
+    "at_calibrated_threshold": {
+     "threshold": 1.8035,
+     "defect_recall": 0.97,
+     "false_alarm_rate": 0.1
+    },
+    "memory_bank": 3920,
+    "references": 50
+   }
+  }
+ },
+ "notes": [
+  "Image score = maximum of the anomaly map / patch scores; scores are distances, not probabilities.",
+  "Threshold = maximum image score of held-out normal training images; no anomalous image is used for any choice.",
+  "Pixel metrics at 224x224; ground-truth masks resized with nearest-neighbour interpolation (very thin defects can shrink or vanish).",
+  "Deviations from published PatchCore: ResNet-50 v1 instead of WideResNet-50-2; full-image resize instead of resize+centre-crop; k reference images instead of the full training set."
+ ],
+ "git_commit": "52bee7d+uncommitted"
+}

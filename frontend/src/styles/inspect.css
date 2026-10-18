@@ -312,3 +312,48 @@
   color: var(--chalk-2);
   font-size: var(--text-sm);
 }
+
+/* Workspace vs reference */
+.vbox[data-state='added'] {
+  border: 2px solid var(--phosphor);
+}
+
+.vbox[data-state='removed'] {
+  border: 2px solid var(--critical);
+}
+
+.vbox[data-state='moved'] {
+  border: 2px solid var(--amber);
+}
+
+.vbox[data-state='moved-from'] {
+  border: 2px dashed var(--amber);
+}
+
+.vbox[data-state='changed'] {
+  border: 1px dashed var(--steel);
+}
+
+.ws-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--gap-3);
+}
+
+.ws-pair figcaption {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  background: rgba(7, 9, 8, 0.75);
+}
+
+.ws-lists {
+  display: grid;
+  gap: var(--gap-3);
+}
+
+.ws-list ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}

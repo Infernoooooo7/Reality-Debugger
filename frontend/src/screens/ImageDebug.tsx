@@ -4,6 +4,7 @@ import { AIBadge, LocalBadge, PersonalitySwitch } from '../components/Bits'
 import { ErrorPanel } from '../components/ErrorPanel'
 import { Icon } from '../components/Icon'
 import { ReportView } from '../components/ReportView'
+import { ZoneLayer } from '../components/ZoneLayer'
 import { DETECTION, VISION } from '../config'
 import { analyzeImage, analyzeScene, ApiError, isAbort, toApiError } from '../lib/api'
 import { formatBytes, formatMs } from '../lib/format'
@@ -18,8 +19,9 @@ import { deepDetector } from '../vision/deep/client'
 import { detectTiled, planTile, tileWindows, TILING_DEFAULTS, type TiledResult } from '../vision/deep/tiling'
 import { fuseStill, type FusedObject } from '../vision/fusion'
 import { detectorRun, modelFacts } from '../vision/runs'
-import { coveragePayload, stillScene, type CoveragePayload, type DetectorRunPayload } from '../vision/scene'
-import type { StillResult } from '../vision/types'
+import { coveragePayload, stillScene, type CoveragePayload, type DetectorRunPayload, type ScenePayload, type ZonePayload } from '../vision/scene'
+import { loadZones, measureZones, newZone, saveZones } from '../vision/zones'
+import type { NBox, StillResult } from '../vision/types'
 import '../styles/debug.css'
 
 // JPG/PNG/WEBP everywhere; HEIC/HEIF/AVIF etc. work wherever the browser can
@@ -62,6 +64,12 @@ export default function ImageDebug() {
   const abortRef = useRef<AbortController | null>(null)
   const capturer = useRef<JpegCapturer | null>(null)
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null)
+  // Keep-clear areas (remembered on this device) and what the last analysis measured, for a local re-check.
+  const [zones, setZones] = useState<ZonePayload[]>(() => loadZones())
+  const [editingZones, setEditingZones] = useState(false)
+  const [zonesStale, setZonesStale] = useState(false)
+  const lastScene = useRef<ScenePayload | null>(null)
+  const lastBoxes = useRef<NBox[]>([])
   const limit = health?.limits.max_image_bytes ?? 15 * 1024 * 1024
   const withAI = aiEnabled(health)
 
@@ -182,7 +190,16 @@ export default function ImageDebug() {
         } catch {
           coverage = null // reported by the backend as "structure not measured"
         }
-        const scene = stillScene(fused, fast?.signals ?? null, { width: bitmap.width, height: bitmap.height, detectors, runs, coverage })
+        const scene = stillScene(fused, fast?.signals ?? null, {
+          width: bitmap.width,
+          height: bitmap.height,
+          detectors,
+          runs,
+          coverage,
+          zones: measureZones(bitmap, bitmap.width, bitmap.height, zones, fused.map((o) => o.box)),
+        })
+        lastScene.current = scene
+        lastBoxes.current = fused.map((o) => o.box)
         const verified = fused.filter((o) => o.verified).length
         setStage(
           'fuse',
@@ -217,6 +234,7 @@ export default function ImageDebug() {
         setStage('local', 'done', `${result.findings.filter((f) => f.source === 'local').length} measured findings`)
         setStage('report', 'done', `${result.findings.length} findings${result.warnings.length ? ` · ${result.warnings.length} warning(s)` : ''}`)
         setReport(result)
+        setZonesStale(false)
         record(result)
       } catch (e) {
         if (isAbort(e)) return
@@ -231,8 +249,34 @@ export default function ImageDebug() {
         setBusy(false)
       }
     },
-    [health, limit, record, settings.personality, withAI],
+    [health, limit, record, settings.personality, withAI, zones],
   )
+
+  const updateZones = (next: ZonePayload[]) => {
+    setZones(next)
+    saveZones(next)
+    if (report) setZonesStale(true)
+  }
+
+  /** Re-run only the local checks with the current keep-clear areas (no detector pass, nothing uploaded). */
+  const recheckZones = async () => {
+    const base = lastScene.current
+    if (!base || !imageEl || !picked) return
+    setBusy(true)
+    setError(null)
+    try {
+      const scene = { ...base, zones: measureZones(imageEl, picked.width, picked.height, zones, lastBoxes.current) }
+      const result = await analyzeScene(scene, { personality: settings.personality })
+      lastScene.current = scene
+      setReport(result)
+      setZonesStale(false)
+      record(result)
+    } catch (e) {
+      if (!isAbort(e)) setError(toApiError(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const onFiles = (files: FileList | null) => {
     const file = files?.[0]
@@ -262,6 +306,7 @@ export default function ImageDebug() {
         <section className="debug__input">
           {picked ? (
             <div className="debug__preview">
+              <div className="zone-host">
               {report ? (
                 <AnnotatedImage src={picked.url} findings={report.findings} focusedId={focusId} onFocus={setFocusId} alt="Analysed image" />
               ) : (
@@ -281,6 +326,36 @@ export default function ImageDebug() {
                   ))}
                 </figure>
               )}
+                <ZoneLayer
+                  zones={zones}
+                  editing={editingZones}
+                  onAdd={(box) => {
+                    const z = newZone(box, zones)
+                    if (z) updateZones([...zones, z])
+                  }}
+                  onRemove={(id) => updateZones(zones.filter((z) => z.id !== id))}
+                />
+              </div>
+              <div className="zone-tools">
+                <button type="button" className="key key--small" aria-pressed={editingZones} onClick={() => setEditingZones(!editingZones)}>
+                  {editingZones ? 'Done marking' : 'Mark keep-clear area'}
+                </button>
+                {zones.length ? (
+                  <button type="button" className="key key--small key--ghost" onClick={() => updateZones([])} disabled={busy}>
+                    Clear areas ({zones.length})
+                  </button>
+                ) : null}
+                {report && zonesStale && !busy ? (
+                  <button type="button" className="key key--small key--signal" onClick={() => void recheckZones()}>
+                    Re-check with these areas
+                  </button>
+                ) : null}
+                <span className="t-muted zone-tools__hint">
+                  {editingZones
+                    ? 'Drag on the image to mark an area that should stay empty.'
+                    : 'Areas are remembered on this device and apply to photos framed the same way.'}
+                </span>
+              </div>
               <dl className="debug__meta t-data">
                 <div>
                   <dt>File</dt>

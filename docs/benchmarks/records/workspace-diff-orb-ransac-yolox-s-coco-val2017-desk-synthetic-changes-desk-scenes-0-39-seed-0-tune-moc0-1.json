@@ -1,0 +1,121 @@
+{
+ "schema_version": 1,
+ "task": "workspace-diff",
+ "date": "2026-10-18T08:57:35Z",
+ "model": {
+  "id": "orb-ransac+yolox_s",
+  "name": "workspace comparison (registration, object diff, changed regions)",
+  "version": "deployed"
+ },
+ "dataset": {
+  "id": "coco_val2017-desk-synthetic-changes",
+  "split": "desk scenes 0-39, seed 0"
+ },
+ "config": {
+  "workspace": {
+   "max_side": 1024,
+   "features": 3000,
+   "ratio": 0.75,
+   "reproj_px": 4.0,
+   "min_inliers": 30,
+   "min_inlier_ratio": 0.25,
+   "min_overlap": 0.5,
+   "max_area_change": 3.0,
+   "unchanged_iou": 0.5,
+   "max_move": 0.35,
+   "min_evidence": 0.5,
+   "diff_threshold": 0.15,
+   "blur_sigma": 2.0,
+   "min_region": 0.002,
+   "min_object_change": 0.1
+  },
+  "detection_threshold": 0.3,
+  "camera": "rotation +-4 deg, scale 0.94-1.06, shift +-4%, perspective +-3e-5",
+  "exposure": "gain 0.75-1.2, bias +-15, JPEG 85",
+  "objects": "COCO desk-category objects (area 4000-40000 px^2) cut out with their masks from non-desk images"
+ },
+ "config_name": "tune-moc0.1",
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v139",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "metrics": {
+  "scenes": 40,
+  "pairs": {
+   "none": {
+    "pairs": 40,
+    "registered": 40,
+    "false_object_changes": 0,
+    "regions": 1
+   },
+   "added": {
+    "pairs": 39,
+    "registered": 39,
+    "region_hit": 38,
+    "object_detected": 8,
+    "false_object_changes": 17,
+    "object_change_hit": 6
+   },
+   "removed": {
+    "pairs": 40,
+    "registered": 40,
+    "region_hit": 39,
+    "object_detected": 12,
+    "false_object_changes": 25,
+    "object_change_hit": 10
+   }
+  },
+  "registration_success": {
+   "none": 1.0,
+   "added": 1.0,
+   "removed": 1.0
+  },
+  "corner_error_per_mille_of_diagonal": {
+   "median": 1.14,
+   "p95": 4.76
+  },
+  "changed_region_recall": {
+   "added": 0.974,
+   "removed": 0.975
+  },
+  "object_change_recall": {
+   "added": 0.154,
+   "removed": 0.25
+  },
+  "pasted_object_detected": {
+   "added": 0.205,
+   "removed": 0.3
+  },
+  "no_change_pairs": {
+   "false_object_changes_per_pair": 0.0,
+   "regions_per_pair": 0.025,
+   "median_changed_fraction": 0.0
+  },
+  "false_object_changes_per_pair_with_a_change": 0.532,
+  "unrelated_pairs": {
+   "pairs": 30,
+   "wrongly_registered": 0
+  },
+  "timing_ms_median": {
+   "detection_both_photos": 170.7,
+   "comparison": 52.1
+  }
+ },
+ "notes": [
+  "Synthetic changes of real photos: warped borders are black, and pasted objects can look unnatural; a real before/after workspace dataset would be a better test.",
+  "Camera moves are planar warps, so there is no parallax."
+ ],
+ "git_commit": "52bee7d+uncommitted"
+}

@@ -288,6 +288,79 @@ Not measured:
 
 Both appear in the report as analyses that did not run.
 
+## 5b. Workspace reference comparison
+
+"Is my desk as I left it?" is answered by a separate tool: Inspect →
+Workspace vs reference (`POST /api/vision/workspace-diff`, see
+`docs/API.md`). It compares a current photo with the user's own reference
+photo. It reports measured differences only:
+
+- the photos are registered (ORB + RANSAC homography);
+- recognised objects are paired and reported as added, removed or moved;
+- changed regions are reported.
+
+It never feeds the generic report's score and never judges what a good
+workspace looks like.
+
+**Object changes need pixel evidence.** An object counts as added, removed
+or moved only if at least 15% of its box changed in pixels after registration.
+Otherwise the two detectors' outputs simply differ (flicker between two shots
+of the same scene), and the object is listed as uncertain.
+
+### Evaluation
+
+No labelled before/after workspace dataset is available, so changes were
+synthesised with known ground truth on real photos:
+
+- **References:** COCO val2017 desk scenes.
+- **"Now" photos:** made from the reference with:
+  - a random hand-held camera move (±4°, scale 0.94–1.06, shift ±4%, mild perspective);
+  - an exposure change and JPEG re-encoding;
+  - either no change, or a real COCO object (cut out with its mask) added or removed.
+- **Unrelated pairs:** test that registration refuses different scenes.
+
+The threshold was chosen on tune scenes 0–39 and reported on held-out scenes
+60–117 (`tools/evaluate.py workspace`).
+
+**Choosing the pixel-evidence threshold** (tune scenes 0–39: 40 unchanged, 39 added and 40 removed pairs):
+
+| Min. changed share of the box | 0 (no check) | 0.05 | 0.10 | **0.15** | 0.25 | 0.40 |
+|---|---|---|---|---|---|---|
+| False object changes per unchanged pair | 0.800 | 0.000 | 0.000 | **0.000** | 0.000 | 0.000 |
+| False object changes per pair with a change | 1.620 | 0.620 | 0.532 | **0.481** | 0.405 | 0.278 |
+| Object-change recall, added | 0.154 | 0.154 | 0.154 | **0.154** | 0.128 | 0.077 |
+| Object-change recall, removed | 0.250 | 0.250 | 0.250 | **0.250** | 0.250 | 0.150 |
+
+The rule was to take the largest value that loses no recall, which gives
+0.15. (These are the results after a pairing fix: an earlier run matched
+moved objects farthest-first. All workspace records were regenerated.)
+
+**Held-out result** (scenes 60–117; 58 unchanged, 54 added and 58 removed pairs, 40 unrelated pairs):
+
+| Measure | Result |
+|---|---|
+| Registration of related pairs | 170 / 170 |
+| Corner error vs the true camera move | median 1.05‰, p95 4.09‰ of the image diagonal |
+| Unrelated pairs wrongly registered | 0 / 40 |
+| Changed region at the added / removed object | 0.907 / 0.948 |
+| False changed regions per unchanged pair | 0.034 |
+| Object reported added / removed with the right label | 0.352 / 0.310 |
+| Pasted object detected at all in the photo that contains it | 0.407 / 0.397 |
+| False object changes per unchanged pair | 0.000 |
+| False object changes per pair with a change | 0.295 |
+| Median time (4-core CPU, both detections + comparison) | 223 ms + 54 ms |
+
+**Reading the result.** The pixel channel finds a new or removed object about
+nine times in ten. Naming it is limited by the detector, which found only
+about 40% of the pasted objects. Such objects are often unusually scaled or
+partly cut, and some are below the evidence threshold; those appear as
+"possibly <label> (NN%)" on the changed region.
+
+These changes are synthetic: planar camera moves without parallax, black
+warp borders, and pasted rather than real objects. Real before/after photos
+have parallax, shadows and reflections, so they will produce more changed
+regions that no object explains. The report says so in its limitations.
+
 ## 6. Regression tests
 
 - **Backend** (`backend/tests/test_inspection.py`):
@@ -350,4 +423,5 @@ Records cited (`docs/benchmarks/records/`):
 - [coverage record] `inspection-coverage-efficientdet-lite0-yolox-s-coco-val2017-lvis-v1-minival-val2017-default.json`
 - [confidence record] `detection-confidence-bands-efficientdet-lite0-yolox-s-coco-val2017-val2017-default.json`
 - [still-pipeline record] `still-pipeline-efficientdet-lite0-yolox-s-coco-val2017-desk-composites-browser.json`
+- workspace records `workspace-diff-orb-ransac-yolox-s-coco-val2017-desk-synthetic-changes-*` (tune: scenes 0-39, test: scenes 60-117)
 - mosaic records `detection-mosaic-tiling-yolox-s-coco-val2017-*`

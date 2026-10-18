@@ -33,6 +33,10 @@ JSON endpoints take `application/json`. Endpoints that accept images take
 | `POST` | `/api/analyze/scene` | Image Debug without AI: scene model (JSON) → `DiagnosticReport` |
 | `POST` | `/api/analyze/image` | Image Debug with AI: image + scene model → `DiagnosticReport` |
 | `POST` | `/api/analyze/video` | Video Debug: sampled scene models (+ keyframes if AI is on), or a whole video (server fallback) → `VideoReport` |
+| `GET` | `/api/vision/status` | Server-side models, availability and memory budget |
+| `POST` | `/api/vision/detect` | Server-side detection (`standard` or tiled `precision` mode) with category queries |
+| `POST` | `/api/vision/compare` | Part inspection: an image against 2-10 known-good references (anomaly map) |
+| `POST` | `/api/vision/workspace-diff` | Workspace vs your own reference photo: objects added, removed or moved, changed regions |
 
 `personality` is `serious` (the default), `brutal` or `unhinged`. It changes
 wording only, never measurements.
@@ -239,6 +243,53 @@ The response is a `VideoReport`:
 - `report`: a `DiagnosticReport` whose findings carry `first_seen_s` and `last_seen_s`.
 - `timeline`: entries with `t`, `kind`, `severity`, `finding_id`, `text` and `source` (`local` or `ai`).
 - `video`, `sampling` and `keyframes`.
+
+## Workspace vs reference
+
+`POST /api/vision/workspace-diff` (multipart) takes these fields:
+- `reference`: the workspace as you want it;
+- `current`: the workspace now, photographed from about the same place;
+- `mode`: `standard` or `precision`.
+
+Both images are analysed in memory and discarded. The comparison is separate
+from the diagnostic report and makes no judgement about what a good workspace
+looks like (`backend/app/vision/workspace.py`, thresholds in
+`config/inference.json` under `workspace`):
+
+1. **Registration.** ORB features, Lowe's ratio test and a RANSAC homography
+   map the current photo onto the reference. It is accepted only with enough
+   agreeing matches, a plausible transform and enough overlap. Otherwise
+   `registration.ok` is false with the `reason`, and only per-category counts
+   of confident detections are compared.
+2. **Objects.** The server detector's boxes are paired per category: unchanged
+   (IoU ≥ 0.5 after registration), moved, added or removed. Added and removed
+   need a detection confidence ≥ 0.5.
+3. **Corroboration.** An object counts as added, removed or moved only if at
+   least `minObjectChange` of its box changed in pixels (both places for a
+   move). A box present in one photo only, over unchanged pixels, is a detector
+   disagreement and is listed under `uncertain` with the reason.
+4. **Changed regions.** These are areas whose luminance changed after
+   registration and exposure matching. Each region names the object changes
+   that explain it (`explained_by`), or the weak detections that may explain
+   it (`possibly`). A region with neither is a change the detector did not
+   recognise, or lighting.
+
+The response contains:
+- `registration`: `ok`, `matches`, `inliers`, `inlier_ratio`, `overlap`, `reason`,
+  and `current_to_reference` (a 3×3 homography in full-resolution pixels);
+- `objects`: `unchanged`, `moved`, `added`, `removed` and `uncertain`, each
+  item with `reference_box`, `current_box`, `pixel_change`, `moved_by` and
+  `why`;
+- `changes`: `changed_fraction` and `regions` with `box` (reference px) and
+  `current_box`;
+- `counts`;
+- `summary`;
+- `limitations`;
+- `quality` of both photos;
+- `timings_ms`.
+
+The measured accuracy, on synthetic changes of real photos, is in
+`docs/SCORING.md` (section 5b).
 
 ## Error codes
 

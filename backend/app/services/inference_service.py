@@ -157,11 +157,13 @@ class VisionService:
         )
 
     def _object_state(self, d: Detection, threshold: float) -> tuple[ObjectState, str | None]:
+        if d.confidence < threshold:
+            return ObjectState.TENTATIVE, None  # below the operating threshold: tentative whatever the runner-up class
         ratio = float(self.config.get("inference.ambiguity.secondClassRatio"))
         second = (d.uncertainty or {}).get("second_class_score")
         if second is not None and d.confidence > 0 and second / d.confidence >= ratio:
             return ObjectState.AMBIGUOUS, d.extra.get("second_class")
-        return (ObjectState.DETECTED if d.confidence >= threshold else ObjectState.TENTATIVE), None
+        return ObjectState.DETECTED, None
 
     def detect(self, image_bgr: np.ndarray, *, mode: str = "standard", profile: str = "general",
                queries: list[str] | None = None) -> dict[str, Any]:
@@ -250,6 +252,47 @@ class VisionService:
                 "count": len(by_state["detected"]), "object_ids": [o["id"] for o in hits], "explanation": text}
 
     # -- reference comparison --------------------------------------------------------------------
+    def workspace_diff(self, reference_bgr: np.ndarray, current_bgr: np.ndarray, *, mode: str = "standard") -> dict[str, Any]:
+        """What measurably changed between the user's reference photo of a workspace and a current photo
+        (app/vision/workspace.py). Separate from generic detection: no judgement of a "good" workspace."""
+        from app.vision.workspace import WorkspaceConfig, compare_workspace
+
+        cfg = WorkspaceConfig.from_config(self.config.get)
+        t0 = time.perf_counter()
+        ref = self.detect(reference_bgr, mode=mode)
+        cur = self.detect(current_bgr, mode=mode)
+        t1 = time.perf_counter()
+
+        threshold = float(self.config.get("detection.deep.scoreThreshold"))
+
+        def usable(result: dict[str, Any]) -> list[dict[str, Any]]:
+            return [{"label": o["label"], "confidence": o["confidence"], "box": o["box"]} for o in result["objects"] if o["confidence"] >= threshold]
+
+        out = compare_workspace(reference_bgr, current_bgr, usable(ref), usable(cur), cfg)
+        t2 = time.perf_counter()
+        states = {ref["state"], cur["state"]}
+        state = next((s for s in ("model_unavailable", "insufficient_image_quality", "analysis_incomplete") if s in states), "complete")
+        limitations = [
+            f"Objects are compared only for the detector's categories ({ref['model']['vocabulary']}); any other change shows up only as a changed region.",
+            "Changed regions respond to lighting, shadows, reflections and screen content as well as to objects.",
+            "Registration assumes the reference was taken from about the same place: objects at different depths shift with the "
+            "viewpoint (parallax) and can look moved.",
+            f"Added and removed objects need a detection confidence of at least {cfg.min_evidence:.1f}; weaker differences are listed as uncertain.",
+        ]
+        if not out["registration"]["ok"]:
+            limitations.insert(0, f"The photos could not be aligned: {out['registration']['reason']}.")
+        return {
+            "state": state,
+            "mode": mode,
+            "model": ref["model"],
+            **out,
+            "quality": {"reference": ref["quality"], "current": cur["quality"]},
+            "notes": sorted(set(ref["notes"]) | set(cur["notes"])),
+            "limitations": limitations,
+            "coordinate_system": COORDINATES,
+            "timings_ms": {"detection": round((t1 - t0) * 1000, 1), "comparison": round((t2 - t1) * 1000, 1), "total": round((t2 - t0) * 1000, 1)},
+        }
+
     def compare(self, references: list[np.ndarray], image_bgr: np.ndarray) -> dict[str, Any]:
         from app.vision.anomaly import anomaly_regions, leave_one_out_scores, nearest_distance
 

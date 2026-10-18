@@ -238,9 +238,11 @@ export async function renderShareCard(report: Report, image: CardImage | null): 
   } else {
     ctx.fillText('TOP ISSUE', M, y)
     y += 52
-    ctx.fillStyle = COLORS.phosphor
+    // No finding is good news only when the inspection could have found one (docs/SCORING.md).
+    const clear = report.inspection ? report.inspection.coverage === 'sufficient' : report.status === 'STABLE'
+    ctx.fillStyle = clear ? COLORS.phosphor : COLORS.chalk2
     ctx.font = `600 42px ${BODY}`
-    ctx.fillText('No active bugs. Suspiciously clean.', M, y)
+    ctx.fillText(clear ? 'No active bugs.' : 'None found - inspection limited, not an all-clear.', M, y)
     y += 58
   }
   y += 18

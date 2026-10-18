@@ -92,6 +92,8 @@ export interface ZonePayload {
   name: string
   kind: 'keep_clear'
   box: NBox
+  /** Visible detail inside the area (vision/zones.ts), so "no recognised object" is not taken for "clear". */
+  structure?: { edge_density: number; unexplained_share: number | null }
 }
 
 export function coveragePayload(stats: StructureStats): CoveragePayload {

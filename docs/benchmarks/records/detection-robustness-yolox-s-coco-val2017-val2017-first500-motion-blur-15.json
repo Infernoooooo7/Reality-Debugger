@@ -1,0 +1,1441 @@
+{
+ "schema_version": 1,
+ "task": "detection-robustness",
+ "date": "2026-10-17T21:11:01Z",
+ "model": {
+  "id": "yolox_s",
+  "name": "YOLOX-S",
+  "version": "0.1.1rc0",
+  "weights_sha256": "c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063",
+  "precision": "fp32"
+ },
+ "dataset": {
+  "id": "coco_val2017",
+  "split": "val2017-first500",
+  "images": 500,
+  "instances": 3504,
+  "evaluated_categories": [
+   "person",
+   "bicycle",
+   "car",
+   "motorcycle",
+   "airplane",
+   "bus",
+   "train",
+   "truck",
+   "boat",
+   "traffic light",
+   "fire hydrant",
+   "stop sign",
+   "parking meter",
+   "bench",
+   "bird",
+   "cat",
+   "dog",
+   "horse",
+   "sheep",
+   "cow",
+   "elephant",
+   "bear",
+   "zebra",
+   "giraffe",
+   "backpack",
+   "umbrella",
+   "handbag",
+   "tie",
+   "suitcase",
+   "frisbee",
+   "skis",
+   "snowboard",
+   "sports ball",
+   "kite",
+   "baseball bat",
+   "baseball glove",
+   "skateboard",
+   "surfboard",
+   "tennis racket",
+   "bottle",
+   "wine glass",
+   "cup",
+   "fork",
+   "knife",
+   "spoon",
+   "bowl",
+   "banana",
+   "apple",
+   "sandwich",
+   "orange",
+   "broccoli",
+   "carrot",
+   "hot dog",
+   "pizza",
+   "donut",
+   "cake",
+   "chair",
+   "couch",
+   "potted plant",
+   "bed",
+   "dining table",
+   "toilet",
+   "tv",
+   "laptop",
+   "mouse",
+   "remote",
+   "keyboard",
+   "cell phone",
+   "microwave",
+   "oven",
+   "toaster",
+   "sink",
+   "refrigerator",
+   "book",
+   "clock",
+   "vase",
+   "scissors",
+   "teddy bear",
+   "hair drier",
+   "toothbrush"
+  ],
+  "max_detections_per_image": 100
+ },
+ "config_name": "motion_blur_15",
+ "config_description": "motion_blur_15: {'length_px': 15}; detector in its protocol configuration",
+ "config": {
+  "corruption": "motion_blur_15",
+  "length_px": 15,
+  "detector_config": "protocol"
+ },
+ "operating_threshold": 0.3,
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v139",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "inference_precision": "fp32",
+ "performance": {
+  "model_ms": {
+   "median": 96.87,
+   "p90": 120.01,
+   "p99": 134.99,
+   "mean": 98.47
+  },
+  "wall_ms_incl_decode": {
+   "median": 1092.08,
+   "p90": 1248.97
+  },
+  "throughput_images_per_s": 0.91,
+  "images": 500,
+  "model_load_ms": 244.3,
+  "peak_rss_mb_process": 518.4,
+  "total_run_s": 551.1,
+  "note": null
+ },
+ "metrics": {
+  "coco": {
+   "AP": 18.48,
+   "AP50": 28.86,
+   "AP75": 19.34,
+   "APs": 3.6,
+   "APm": 17.67,
+   "APl": 34.98,
+   "AR1": 19.03,
+   "AR10": 27.85,
+   "AR100": 28.59,
+   "ARs": 4.64,
+   "ARm": 29.79,
+   "ARl": 52.37
+  },
+  "f1_optimal": {
+   "threshold": 0.2,
+   "precision": 0.5327,
+   "recall": 0.3002,
+   "f1": 0.384,
+   "tp": 1052,
+   "fp": 923,
+   "fn": 2452
+  },
+  "at_operating_threshold": {
+   "threshold": 0.3,
+   "precision": 0.6488,
+   "recall": 0.2688,
+   "f1": 0.3801,
+   "tp": 942,
+   "fp": 510,
+   "fn": 2562
+  },
+  "operating_points": [
+   {
+    "threshold": 0.05,
+    "precision": 0.2568,
+    "recall": 0.3836,
+    "f1": 0.3076,
+    "tp": 1344,
+    "fp": 3890,
+    "fn": 2160
+   },
+   {
+    "threshold": 0.1,
+    "precision": 0.3701,
+    "recall": 0.341,
+    "f1": 0.355,
+    "tp": 1195,
+    "fp": 2034,
+    "fn": 2309
+   },
+   {
+    "threshold": 0.15,
+    "precision": 0.4642,
+    "recall": 0.3205,
+    "f1": 0.3792,
+    "tp": 1123,
+    "fp": 1296,
+    "fn": 2381
+   },
+   {
+    "threshold": 0.2,
+    "precision": 0.5327,
+    "recall": 0.3002,
+    "f1": 0.384,
+    "tp": 1052,
+    "fp": 923,
+    "fn": 2452
+   },
+   {
+    "threshold": 0.25,
+    "precision": 0.5914,
+    "recall": 0.2834,
+    "f1": 0.3832,
+    "tp": 993,
+    "fp": 686,
+    "fn": 2511
+   },
+   {
+    "threshold": 0.3,
+    "precision": 0.6488,
+    "recall": 0.2688,
+    "f1": 0.3801,
+    "tp": 942,
+    "fp": 510,
+    "fn": 2562
+   },
+   {
+    "threshold": 0.35,
+    "precision": 0.6816,
+    "recall": 0.2554,
+    "f1": 0.3716,
+    "tp": 895,
+    "fp": 418,
+    "fn": 2609
+   },
+   {
+    "threshold": 0.4,
+    "precision": 0.7186,
+    "recall": 0.2434,
+    "f1": 0.3637,
+    "tp": 853,
+    "fp": 334,
+    "fn": 2651
+   },
+   {
+    "threshold": 0.45,
+    "precision": 0.7456,
+    "recall": 0.2309,
+    "f1": 0.3526,
+    "tp": 809,
+    "fp": 276,
+    "fn": 2695
+   },
+   {
+    "threshold": 0.5,
+    "precision": 0.7821,
+    "recall": 0.2172,
+    "f1": 0.34,
+    "tp": 761,
+    "fp": 212,
+    "fn": 2743
+   },
+   {
+    "threshold": 0.55,
+    "precision": 0.8144,
+    "recall": 0.2041,
+    "f1": 0.3263,
+    "tp": 715,
+    "fp": 163,
+    "fn": 2789
+   },
+   {
+    "threshold": 0.6,
+    "precision": 0.8365,
+    "recall": 0.1884,
+    "f1": 0.3075,
+    "tp": 660,
+    "fp": 129,
+    "fn": 2844
+   },
+   {
+    "threshold": 0.65,
+    "precision": 0.8707,
+    "recall": 0.1729,
+    "f1": 0.2886,
+    "tp": 606,
+    "fp": 90,
+    "fn": 2898
+   },
+   {
+    "threshold": 0.7,
+    "precision": 0.8871,
+    "recall": 0.157,
+    "f1": 0.2667,
+    "tp": 550,
+    "fp": 70,
+    "fn": 2954
+   },
+   {
+    "threshold": 0.75,
+    "precision": 0.9167,
+    "recall": 0.1381,
+    "f1": 0.2401,
+    "tp": 484,
+    "fp": 44,
+    "fn": 3020
+   },
+   {
+    "threshold": 0.8,
+    "precision": 0.9432,
+    "recall": 0.109,
+    "f1": 0.1954,
+    "tp": 382,
+    "fp": 23,
+    "fn": 3122
+   },
+   {
+    "threshold": 0.85,
+    "precision": 0.9611,
+    "recall": 0.0776,
+    "f1": 0.1436,
+    "tp": 272,
+    "fp": 11,
+    "fn": 3232
+   },
+   {
+    "threshold": 0.9,
+    "precision": 0.9906,
+    "recall": 0.03,
+    "f1": 0.0582,
+    "tp": 105,
+    "fp": 1,
+    "fn": 3399
+   },
+   {
+    "threshold": 0.95,
+    "precision": 1.0,
+    "recall": 0.0011,
+    "f1": 0.0023,
+    "tp": 4,
+    "fp": 0,
+    "fn": 3500
+   }
+  ],
+  "calibration": {
+   "ece": 0.0109,
+   "detections": 14493,
+   "iou": 0.5,
+   "bins": [
+    {
+     "range": [
+      0.01,
+      0.109
+     ],
+     "count": 11464,
+     "mean_confidence": 0.032,
+     "precision": 0.0372
+    },
+    {
+     "range": [
+      0.109,
+      0.208
+     ],
+     "count": 1110,
+     "mean_confidence": 0.1501,
+     "precision": 0.1198
+    },
+    {
+     "range": [
+      0.208,
+      0.307
+     ],
+     "count": 481,
+     "mean_confidence": 0.2523,
+     "precision": 0.2204
+    },
+    {
+     "range": [
+      0.307,
+      0.406
+     ],
+     "count": 265,
+     "mean_confidence": 0.3539,
+     "precision": 0.3321
+    },
+    {
+     "range": [
+      0.406,
+      0.505
+     ],
+     "count": 210,
+     "mean_confidence": 0.4555,
+     "precision": 0.4381
+    },
+    {
+     "range": [
+      0.505,
+      0.604
+     ],
+     "count": 184,
+     "mean_confidence": 0.5535,
+     "precision": 0.5435
+    },
+    {
+     "range": [
+      0.604,
+      0.703
+     ],
+     "count": 164,
+     "mean_confidence": 0.6514,
+     "precision": 0.6707
+    },
+    {
+     "range": [
+      0.703,
+      0.802
+     ],
+     "count": 213,
+     "mean_confidence": 0.7566,
+     "precision": 0.784
+    },
+    {
+     "range": [
+      0.802,
+      0.901
+     ],
+     "count": 300,
+     "mean_confidence": 0.857,
+     "precision": 0.93
+    },
+    {
+     "range": [
+      0.901,
+      1.0
+     ],
+     "count": 102,
+     "mean_confidence": 0.9218,
+     "precision": 0.9902
+    }
+   ],
+   "note": "Confidence read as an estimate of precision at IoU 0.5 (detection calibration, cf. Kuppers et al. 2020)."
+  }
+ },
+ "per_class": {
+  "airplane": {
+   "AP": 45.17,
+   "AP50": 59.65,
+   "gt": 12,
+   "recall": 0.5833,
+   "misses": {
+    "undetected": 4,
+    "below_threshold": 1
+   }
+  },
+  "apple": {
+   "AP": 1.39,
+   "AP50": 1.98,
+   "gt": 17,
+   "recall": 0.0588,
+   "misses": {
+    "undetected": 15,
+    "wrong_class": 1
+   }
+  },
+  "backpack": {
+   "AP": 0.9,
+   "AP50": 1.83,
+   "gt": 46,
+   "recall": 0.0,
+   "misses": {
+    "undetected": 39,
+    "below_threshold": 7
+   }
+  },
+  "banana": {
+   "AP": 12.23,
+   "AP50": 25.27,
+   "gt": 38,
+   "recall": 0.2105,
+   "misses": {
+    "undetected": 22,
+    "lost_to_neighbour": 1,
+    "poor_localization": 2,
+    "below_threshold": 5
+   }
+  },
+  "baseball bat": {
+   "AP": 23.04,
+   "AP50": 38.35,
+   "gt": 8,
+   "recall": 0.375,
+   "misses": {
+    "undetected": 3,
+    "below_threshold": 1,
+    "wrong_class": 1
+   }
+  },
+  "baseball glove": {
+   "AP": 21.0,
+   "AP50": 51.34,
+   "gt": 10,
+   "recall": 0.5,
+   "misses": {
+    "below_threshold": 2,
+    "undetected": 3
+   }
+  },
+  "bear": {
+   "AP": 53.16,
+   "AP50": 56.21,
+   "gt": 4,
+   "recall": 0.5,
+   "misses": {
+    "wrong_class": 2
+   }
+  },
+  "bed": {
+   "AP": 41.3,
+   "AP50": 52.65,
+   "gt": 19,
+   "recall": 0.5789,
+   "misses": {
+    "undetected": 1,
+    "wrong_class": 2,
+    "poor_localization": 4,
+    "below_threshold": 1
+   }
+  },
+  "bench": {
+   "AP": 6.01,
+   "AP50": 9.83,
+   "gt": 38,
+   "recall": 0.0526,
+   "misses": {
+    "below_threshold": 5,
+    "wrong_class": 5,
+    "undetected": 26
+   }
+  },
+  "bicycle": {
+   "AP": 1.45,
+   "AP50": 8.03,
+   "gt": 34,
+   "recall": 0.0882,
+   "misses": {
+    "poor_localization": 3,
+    "below_threshold": 4,
+    "undetected": 23,
+    "wrong_class": 1
+   }
+  },
+  "bird": {
+   "AP": 4.2,
+   "AP50": 7.95,
+   "gt": 48,
+   "recall": 0.0833,
+   "misses": {
+    "below_threshold": 4,
+    "undetected": 38,
+    "poor_localization": 2
+   }
+  },
+  "boat": {
+   "AP": 0.31,
+   "AP50": 0.71,
+   "gt": 38,
+   "recall": 0.0,
+   "misses": {
+    "undetected": 34,
+    "below_threshold": 3,
+    "wrong_class": 1
+   }
+  },
+  "book": {
+   "AP": 2.26,
+   "AP50": 8.49,
+   "gt": 109,
+   "recall": 0.0459,
+   "misses": {
+    "undetected": 68,
+    "below_threshold": 29,
+    "poor_localization": 7
+   }
+  },
+  "bottle": {
+   "AP": 3.3,
+   "AP50": 5.9,
+   "gt": 116,
+   "recall": 0.0345,
+   "misses": {
+    "undetected": 103,
+    "below_threshold": 9
+   }
+  },
+  "bowl": {
+   "AP": 19.22,
+   "AP50": 24.73,
+   "gt": 60,
+   "recall": 0.2667,
+   "misses": {
+    "undetected": 33,
+    "wrong_class": 4,
+    "below_threshold": 7
+   }
+  },
+  "broccoli": {
+   "AP": 9.09,
+   "AP50": 16.31,
+   "gt": 45,
+   "recall": 0.0889,
+   "misses": {
+    "undetected": 31,
+    "wrong_class": 1,
+    "below_threshold": 8,
+    "poor_localization": 1
+   }
+  },
+  "bus": {
+   "AP": 25.76,
+   "AP50": 35.33,
+   "gt": 34,
+   "recall": 0.4118,
+   "misses": {
+    "undetected": 20
+   }
+  },
+  "cake": {
+   "AP": 8.75,
+   "AP50": 12.1,
+   "gt": 13,
+   "recall": 0.0769,
+   "misses": {
+    "wrong_class": 2,
+    "below_threshold": 4,
+    "undetected": 6
+   }
+  },
+  "car": {
+   "AP": 11.77,
+   "AP50": 27.31,
+   "gt": 167,
+   "recall": 0.2455,
+   "misses": {
+    "wrong_class": 3,
+    "poor_localization": 12,
+    "undetected": 84,
+    "below_threshold": 25,
+    "lost_to_neighbour": 2
+   }
+  },
+  "carrot": {
+   "AP": 30.1,
+   "AP50": 44.16,
+   "gt": 29,
+   "recall": 0.3103,
+   "misses": {
+    "below_threshold": 7,
+    "poor_localization": 8,
+    "undetected": 5
+   }
+  },
+  "cat": {
+   "AP": 53.23,
+   "AP50": 66.16,
+   "gt": 17,
+   "recall": 0.7647,
+   "misses": {
+    "below_threshold": 2,
+    "undetected": 2
+   }
+  },
+  "cell phone": {
+   "AP": 17.93,
+   "AP50": 29.3,
+   "gt": 28,
+   "recall": 0.25,
+   "misses": {
+    "undetected": 14,
+    "below_threshold": 5,
+    "wrong_class": 2
+   }
+  },
+  "chair": {
+   "AP": 13.03,
+   "AP50": 22.29,
+   "gt": 197,
+   "recall": 0.1929,
+   "misses": {
+    "undetected": 111,
+    "poor_localization": 9,
+    "below_threshold": 35,
+    "wrong_class": 4
+   }
+  },
+  "clock": {
+   "AP": 18.8,
+   "AP50": 38.61,
+   "gt": 20,
+   "recall": 0.25,
+   "misses": {
+    "below_threshold": 5,
+    "undetected": 10
+   }
+  },
+  "couch": {
+   "AP": 32.64,
+   "AP50": 47.03,
+   "gt": 27,
+   "recall": 0.2222,
+   "misses": {
+    "below_threshold": 9,
+    "wrong_class": 5,
+    "undetected": 5,
+    "poor_localization": 2
+   }
+  },
+  "cow": {
+   "AP": 10.06,
+   "AP50": 13.35,
+   "gt": 15,
+   "recall": 0.1333,
+   "misses": {
+    "undetected": 9,
+    "wrong_class": 1,
+    "below_threshold": 3
+   }
+  },
+  "cup": {
+   "AP": 12.51,
+   "AP50": 20.46,
+   "gt": 108,
+   "recall": 0.1852,
+   "misses": {
+    "below_threshold": 14,
+    "undetected": 73,
+    "poor_localization": 1
+   }
+  },
+  "dining table": {
+   "AP": 20.59,
+   "AP50": 30.78,
+   "gt": 82,
+   "recall": 0.2439,
+   "misses": {
+    "below_threshold": 16,
+    "undetected": 42,
+    "wrong_class": 3,
+    "poor_localization": 1
+   }
+  },
+  "dog": {
+   "AP": 31.49,
+   "AP50": 41.64,
+   "gt": 9,
+   "recall": 0.5556,
+   "misses": {
+    "below_threshold": 1,
+    "wrong_class": 1,
+    "undetected": 2
+   }
+  },
+  "donut": {
+   "AP": 6.67,
+   "AP50": 12.49,
+   "gt": 27,
+   "recall": 0.0741,
+   "misses": {
+    "below_threshold": 3,
+    "undetected": 22
+   }
+  },
+  "elephant": {
+   "AP": 35.3,
+   "AP50": 55.51,
+   "gt": 17,
+   "recall": 0.5294,
+   "misses": {
+    "wrong_class": 2,
+    "poor_localization": 3,
+    "below_threshold": 2,
+    "undetected": 1
+   }
+  },
+  "fire hydrant": {
+   "AP": 35.89,
+   "AP50": 45.54,
+   "gt": 11,
+   "recall": 0.3636,
+   "misses": {
+    "undetected": 4,
+    "wrong_class": 3
+   }
+  },
+  "fork": {
+   "AP": 11.42,
+   "AP50": 20.85,
+   "gt": 17,
+   "recall": 0.1176,
+   "misses": {
+    "below_threshold": 4,
+    "undetected": 10,
+    "lost_to_neighbour": 1
+   }
+  },
+  "frisbee": {
+   "AP": 34.6,
+   "AP50": 53.78,
+   "gt": 14,
+   "recall": 0.5714,
+   "misses": {
+    "wrong_class": 1,
+    "undetected": 4,
+    "poor_localization": 1
+   }
+  },
+  "giraffe": {
+   "AP": 44.27,
+   "AP50": 53.63,
+   "gt": 9,
+   "recall": 0.3333,
+   "misses": {
+    "below_threshold": 2,
+    "undetected": 3,
+    "wrong_class": 1
+   }
+  },
+  "hair drier": {
+   "AP": null,
+   "AP50": null
+  },
+  "handbag": {
+   "AP": 2.35,
+   "AP50": 4.74,
+   "gt": 41,
+   "recall": 0.0244,
+   "misses": {
+    "below_threshold": 9,
+    "undetected": 28,
+    "poor_localization": 1,
+    "wrong_class": 2
+   }
+  },
+  "horse": {
+   "AP": 35.59,
+   "AP50": 54.48,
+   "gt": 28,
+   "recall": 0.4643,
+   "misses": {
+    "below_threshold": 3,
+    "undetected": 4,
+    "poor_localization": 4,
+    "wrong_class": 4
+   }
+  },
+  "hot dog": {
+   "AP": 26.51,
+   "AP50": 43.81,
+   "gt": 15,
+   "recall": 0.2,
+   "misses": {
+    "below_threshold": 7,
+    "undetected": 5
+   }
+  },
+  "keyboard": {
+   "AP": 13.61,
+   "AP50": 28.34,
+   "gt": 22,
+   "recall": 0.2273,
+   "misses": {
+    "below_threshold": 5,
+    "undetected": 11,
+    "wrong_class": 1
+   }
+  },
+  "kite": {
+   "AP": 9.81,
+   "AP50": 22.22,
+   "gt": 25,
+   "recall": 0.2,
+   "misses": {
+    "undetected": 9,
+    "poor_localization": 6,
+    "wrong_class": 2,
+    "below_threshold": 3
+   }
+  },
+  "knife": {
+   "AP": 2.67,
+   "AP50": 4.58,
+   "gt": 34,
+   "recall": 0.0294,
+   "misses": {
+    "wrong_class": 3,
+    "undetected": 26,
+    "below_threshold": 4
+   }
+  },
+  "laptop": {
+   "AP": 34.24,
+   "AP50": 51.87,
+   "gt": 30,
+   "recall": 0.5667,
+   "misses": {
+    "below_threshold": 4,
+    "undetected": 4,
+    "poor_localization": 5
+   }
+  },
+  "microwave": {
+   "AP": 0.0,
+   "AP50": 0.0,
+   "gt": 4,
+   "recall": 0.0,
+   "misses": {
+    "undetected": 4
+   }
+  },
+  "motorcycle": {
+   "AP": 11.38,
+   "AP50": 22.27,
+   "gt": 45,
+   "recall": 0.1556,
+   "misses": {
+    "below_threshold": 8,
+    "undetected": 27,
+    "wrong_class": 3
+   }
+  },
+  "mouse": {
+   "AP": 27.21,
+   "AP50": 60.19,
+   "gt": 15,
+   "recall": 0.4,
+   "misses": {
+    "below_threshold": 7,
+    "undetected": 2
+   }
+  },
+  "orange": {
+   "AP": 33.48,
+   "AP50": 42.28,
+   "gt": 23,
+   "recall": 0.5652,
+   "misses": {
+    "undetected": 8,
+    "wrong_class": 1,
+    "poor_localization": 1
+   }
+  },
+  "oven": {
+   "AP": 6.66,
+   "AP50": 10.55,
+   "gt": 18,
+   "recall": 0.0556,
+   "misses": {
+    "below_threshold": 3,
+    "undetected": 13,
+    "wrong_class": 1
+   }
+  },
+  "parking meter": {
+   "AP": 18.72,
+   "AP50": 27.56,
+   "gt": 14,
+   "recall": 0.0714,
+   "misses": {
+    "below_threshold": 4,
+    "undetected": 8,
+    "wrong_class": 1
+   }
+  },
+  "person": {
+   "AP": 28.28,
+   "AP50": 48.05,
+   "gt": 1069,
+   "recall": 0.4069,
+   "misses": {
+    "undetected": 406,
+    "below_threshold": 120,
+    "poor_localization": 103,
+    "lost_to_neighbour": 2,
+    "wrong_class": 3
+   }
+  },
+  "pizza": {
+   "AP": 24.68,
+   "AP50": 32.75,
+   "gt": 19,
+   "recall": 0.2632,
+   "misses": {
+    "undetected": 8,
+    "wrong_class": 2,
+    "below_threshold": 4
+   }
+  },
+  "potted plant": {
+   "AP": 9.49,
+   "AP50": 16.42,
+   "gt": 44,
+   "recall": 0.1364,
+   "misses": {
+    "undetected": 27,
+    "poor_localization": 3,
+    "below_threshold": 7,
+    "lost_to_neighbour": 1
+   }
+  },
+  "refrigerator": {
+   "AP": 28.46,
+   "AP50": 36.91,
+   "gt": 16,
+   "recall": 0.3125,
+   "misses": {
+    "below_threshold": 3,
+    "undetected": 6,
+    "wrong_class": 2
+   }
+  },
+  "remote": {
+   "AP": 1.09,
+   "AP50": 3.05,
+   "gt": 29,
+   "recall": 0.0,
+   "misses": {
+    "below_threshold": 8,
+    "undetected": 20,
+    "wrong_class": 1
+   }
+  },
+  "sandwich": {
+   "AP": 5.42,
+   "AP50": 11.07,
+   "gt": 19,
+   "recall": 0.0526,
+   "misses": {
+    "wrong_class": 6,
+    "undetected": 8,
+    "below_threshold": 4
+   }
+  },
+  "scissors": {
+   "AP": 0.0,
+   "AP50": 0.0,
+   "gt": 2,
+   "recall": 0.0,
+   "misses": {
+    "undetected": 2
+   }
+  },
+  "sheep": {
+   "AP": 11.34,
+   "AP50": 15.39,
+   "gt": 18,
+   "recall": 0.0556,
+   "misses": {
+    "wrong_class": 6,
+    "below_threshold": 2,
+    "undetected": 9
+   }
+  },
+  "sink": {
+   "AP": 13.0,
+   "AP50": 22.29,
+   "gt": 20,
+   "recall": 0.15,
+   "misses": {
+    "undetected": 13,
+    "below_threshold": 4
+   }
+  },
+  "skateboard": {
+   "AP": 4.74,
+   "AP50": 13.93,
+   "gt": 12,
+   "recall": 0.25,
+   "misses": {
+    "below_threshold": 3,
+    "undetected": 4,
+    "poor_localization": 2
+   }
+  },
+  "skis": {
+   "AP": 5.01,
+   "AP50": 10.87,
+   "gt": 25,
+   "recall": 0.08,
+   "misses": {
+    "below_threshold": 6,
+    "undetected": 13,
+    "poor_localization": 2,
+    "wrong_class": 2
+   }
+  },
+  "snowboard": {
+   "AP": 0.96,
+   "AP50": 7.59,
+   "gt": 6,
+   "recall": 0.1667,
+   "misses": {
+    "undetected": 4,
+    "below_threshold": 1
+   }
+  },
+  "spoon": {
+   "AP": 2.02,
+   "AP50": 4.26,
+   "gt": 22,
+   "recall": 0.0455,
+   "misses": {
+    "undetected": 17,
+    "below_threshold": 4
+   }
+  },
+  "sports ball": {
+   "AP": 11.46,
+   "AP50": 32.59,
+   "gt": 22,
+   "recall": 0.4091,
+   "misses": {
+    "below_threshold": 3,
+    "poor_localization": 2,
+    "undetected": 8
+   }
+  },
+  "stop sign": {
+   "AP": 55.94,
+   "AP50": 65.35,
+   "gt": 4,
+   "recall": 0.5,
+   "misses": {
+    "undetected": 1,
+    "below_threshold": 1
+   }
+  },
+  "suitcase": {
+   "AP": 16.9,
+   "AP50": 25.44,
+   "gt": 22,
+   "recall": 0.1364,
+   "misses": {
+    "undetected": 13,
+    "below_threshold": 6
+   }
+  },
+  "surfboard": {
+   "AP": 23.08,
+   "AP50": 42.42,
+   "gt": 28,
+   "recall": 0.3214,
+   "misses": {
+    "below_threshold": 7,
+    "undetected": 10,
+    "wrong_class": 2
+   }
+  },
+  "teddy bear": {
+   "AP": 22.22,
+   "AP50": 30.29,
+   "gt": 14,
+   "recall": 0.2857,
+   "misses": {
+    "undetected": 6,
+    "lost_to_neighbour": 1,
+    "wrong_class": 3
+   }
+  },
+  "tennis racket": {
+   "AP": 18.69,
+   "AP50": 48.91,
+   "gt": 22,
+   "recall": 0.4545,
+   "misses": {
+    "below_threshold": 2,
+    "undetected": 9,
+    "poor_localization": 1
+   }
+  },
+  "tie": {
+   "AP": 14.14,
+   "AP50": 25.65,
+   "gt": 51,
+   "recall": 0.2549,
+   "misses": {
+    "undetected": 33,
+    "below_threshold": 3,
+    "poor_localization": 2
+   }
+  },
+  "toaster": {
+   "AP": null,
+   "AP50": null
+  },
+  "toilet": {
+   "AP": 51.93,
+   "AP50": 72.93,
+   "gt": 17,
+   "recall": 0.6471,
+   "misses": {
+    "poor_localization": 1,
+    "below_threshold": 2,
+    "undetected": 3
+   }
+  },
+  "toothbrush": {
+   "AP": 0.0,
+   "AP50": 0.0,
+   "gt": 1,
+   "recall": 0.0,
+   "misses": {
+    "undetected": 1
+   }
+  },
+  "traffic light": {
+   "AP": 5.41,
+   "AP50": 15.84,
+   "gt": 29,
+   "recall": 0.1379,
+   "misses": {
+    "undetected": 23,
+    "below_threshold": 2
+   }
+  },
+  "train": {
+   "AP": 37.95,
+   "AP50": 54.52,
+   "gt": 14,
+   "recall": 0.5,
+   "misses": {
+    "wrong_class": 1,
+    "undetected": 4,
+    "poor_localization": 1,
+    "below_threshold": 1
+   }
+  },
+  "truck": {
+   "AP": 6.53,
+   "AP50": 7.96,
+   "gt": 29,
+   "recall": 0.069,
+   "misses": {
+    "undetected": 20,
+    "wrong_class": 6,
+    "below_threshold": 1
+   }
+  },
+  "tv": {
+   "AP": 42.73,
+   "AP50": 67.63,
+   "gt": 33,
+   "recall": 0.6061,
+   "misses": {
+    "below_threshold": 5,
+    "wrong_class": 1,
+    "undetected": 7
+   }
+  },
+  "umbrella": {
+   "AP": 21.02,
+   "AP50": 35.83,
+   "gt": 20,
+   "recall": 0.3,
+   "misses": {
+    "undetected": 10,
+    "poor_localization": 1,
+    "below_threshold": 3
+   }
+  },
+  "vase": {
+   "AP": 7.63,
+   "AP50": 12.94,
+   "gt": 22,
+   "recall": 0.1364,
+   "misses": {
+    "below_threshold": 4,
+    "undetected": 15
+   }
+  },
+  "wine glass": {
+   "AP": 8.64,
+   "AP50": 13.14,
+   "gt": 47,
+   "recall": 0.0851,
+   "misses": {
+    "undetected": 34,
+    "below_threshold": 6,
+    "wrong_class": 2,
+    "poor_localization": 1
+   }
+  },
+  "zebra": {
+   "AP": 41.95,
+   "AP50": 64.88,
+   "gt": 31,
+   "recall": 0.4839,
+   "misses": {
+    "undetected": 5,
+    "poor_localization": 2,
+    "wrong_class": 2,
+    "lost_to_neighbour": 1,
+    "below_threshold": 6
+   }
+  }
+ },
+ "error_analysis": {
+  "threshold": 0.3,
+  "candidates_available": false,
+  "missed_total": 2562,
+  "miss_causes": {
+   "small": {
+    "undetected": 1223,
+    "poor_localization": 47,
+    "below_threshold": 135,
+    "wrong_class": 6,
+    "lost_to_neighbour": 1
+   },
+   "medium": {
+    "below_threshold": 262,
+    "poor_localization": 103,
+    "wrong_class": 33,
+    "undetected": 436,
+    "lost_to_neighbour": 4
+   },
+   "large": {
+    "undetected": 99,
+    "below_threshold": 101,
+    "wrong_class": 64,
+    "poor_localization": 44,
+    "lost_to_neighbour": 4
+   },
+   "all": {
+    "undetected": 1758,
+    "below_threshold": 498,
+    "poor_localization": 194,
+    "wrong_class": 103,
+    "lost_to_neighbour": 9
+   }
+  },
+  "miss_causes_share": {
+   "lost_to_neighbour": 0.0035,
+   "suppressed_by_nms": 0.0,
+   "wrong_class": 0.0402,
+   "poor_localization": 0.0757,
+   "below_threshold": 0.1944,
+   "undetected": 0.6862
+  },
+  "miss_cause_flags_inclusive": {
+   "undetected": 1758,
+   "below_threshold": 666,
+   "poor_localization": 203,
+   "wrong_class": 103,
+   "lost_to_neighbour": 9
+  },
+  "false_positive_types": {
+   "background": 97,
+   "localization": 154,
+   "wrong_class": 139,
+   "duplicate": 23,
+   "both": 97
+  },
+  "top_confusions": [
+   {
+    "ground_truth": "truck",
+    "predicted": "car",
+    "count": 4
+   },
+   {
+    "ground_truth": "fire hydrant",
+    "predicted": "vase",
+    "count": 3
+   },
+   {
+    "ground_truth": "bench",
+    "predicted": "chair",
+    "count": 3
+   },
+   {
+    "ground_truth": "car",
+    "predicted": "bus",
+    "count": 2
+   },
+   {
+    "ground_truth": "sheep",
+    "predicted": "cow",
+    "count": 2
+   },
+   {
+    "ground_truth": "couch",
+    "predicted": "person",
+    "count": 2
+   },
+   {
+    "ground_truth": "zebra",
+    "predicted": "dog",
+    "count": 2
+   },
+   {
+    "ground_truth": "wine glass",
+    "predicted": "cup",
+    "count": 2
+   },
+   {
+    "ground_truth": "couch",
+    "predicted": "bed",
+    "count": 2
+   },
+   {
+    "ground_truth": "chair",
+    "predicted": "person",
+    "count": 2
+   }
+  ],
+  "error_examples": {
+   "most_missed_images": [
+    18380,
+    36494,
+    31296,
+    39484,
+    39405
+   ],
+   "most_false_positive_images": [
+    9400,
+    16249,
+    5001,
+    45472,
+    55150
+   ]
+  }
+ },
+ "unmapped_detections": 0,
+ "notes": [
+  "COCO 2017 val: held out from the detectors' COCO train2017 training data.",
+  "Subset: the first 500 images by image id (deterministic)."
+ ],
+ "git_commit": "52bee7d+uncommitted"
+}

@@ -33,6 +33,7 @@ from app.runtime_config import RuntimeConfig
 from app.schemas.common import AnalysisMode
 from app.schemas.diagnostics import DetectorReport, InspectionReason, InspectionReport, SkippedAnalysis
 from app.schemas.scene import DetectorRun, SceneModel
+from app.services import geometry
 
 STILL_MODES = {AnalysisMode.IMAGE, AnalysisMode.DEEP, AnalysisMode.VIDEO}
 
@@ -173,6 +174,21 @@ def assess(scene: SceneModel | None, *, mode: AnalysisMode, config: RuntimeConfi
             message=f"{total} objects were recognised but only the {len(objects)} most confident were sent for analysis "
                     "(payload limit), so the spatial checks did not see the rest.",
             evidence={"recognised": total, "analysed": len(objects)}))
+
+    # -- keep-clear areas with nothing recognised in them --------------------------------------------
+    inside_min = float(get("diagnostics.rules.keep_clear_zone.minInsideFraction"))
+    for zone in scene.zones:
+        st = zone.structure
+        if st is None or st.edge_density is None or st.edge_density < min_edges:
+            continue
+        if any(geometry.containment(o.box, zone.box) >= inside_min for o in objects):
+            continue  # the keep_clear_zone rule reports it
+        if st.unexplained_share is not None and st.unexplained_share > max_unexplained:
+            reasons.append(InspectionReason(
+                code="zone_unverified", level="limited",
+                message=f"No recognised object is inside \"{zone.name}\", but {st.edge_density * 100:.0f}% of the area is detailed "
+                        "structure that no recognised object explains: unrecognised items there cannot be ruled out.",
+                evidence={"zone": zone.name, "edge_density": st.edge_density, "unexplained_share": st.unexplained_share}))
 
     # -- vocabulary ---------------------------------------------------------------------------------
     # Every loaded detector has a closed vocabulary, which limits every open-world scan

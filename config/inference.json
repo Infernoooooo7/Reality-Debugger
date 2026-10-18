@@ -30,22 +30,22 @@
       "ref": "SAHI 'full inference' + slices (FI + SF) is its best configuration."
     },
     "merge": {
-      "value": "nmm",
-      "purpose": "How detections from tiles and the full image are combined: greedy non-maximum merging (union of boxes of one object) or NMS.",
-      "source": "paper",
-      "ref": "SAHI GreedyNMMPostprocess with IoS 0.5 (its default)."
+      "value": "nms",
+      "purpose": "How detections from tiles and the full image are combined: class-aware NMS, or greedy non-maximum merging (SAHI's union of boxes, 'nmm').",
+      "source": "empirical",
+      "ref": "Chosen on 40 tune mosaics (COCO val2017 images 360-719, 3x3, 1920x1920): AP 38.9 with NMS vs 34.3 with SAHI's NMM (IoS 0.5); test mosaics (images 0-359): 36.9 vs 31.2 (detection-mosaic-tiling-* records). Same merge as the browser (config/vision.json deep.tiling)."
     },
     "matchMetric": {
-      "value": "ios",
-      "purpose": "Overlap measure for merging (intersection over the smaller box: a half object in one tile still matches the whole object).",
-      "source": "paper",
-      "ref": "SAHI default match metric IOS."
+      "value": "iou",
+      "purpose": "Overlap measure for merging: IoU for NMS ('ios', intersection over the smaller box, is SAHI's choice for NMM).",
+      "source": "empirical",
+      "ref": "Paired with merge 'nms' in the mosaic benchmark."
     },
     "matchThreshold": {
       "value": 0.5,
       "purpose": "Overlap at which two detections of the same class are merged.",
-      "source": "paper",
-      "ref": "SAHI default match threshold 0.5."
+      "source": "empirical",
+      "ref": "IoU 0.5 in the mosaic benchmark (config/vision.json deep.tiling.mergeIou)."
     },
     "maxTiles": {
       "value": 24,
@@ -107,21 +107,21 @@
       "unit": "images",
       "purpose": "Fewest known-good reference images accepted (the decision threshold is set by leave-one-out over them).",
       "source": "heuristic",
-      "ref": "Leave-one-out needs at least two references; VisA results improve with more (10 -> 200 references)."
+      "ref": "Leave-one-out needs at least two references. How results change with the number of references is not measured yet (tools/evaluate.py anomaly on VisA)."
     },
     "maxReferences": {
       "value": 10,
       "unit": "images",
       "purpose": "Most reference images accepted per request (bounds time and memory: 10 x 784 patch features of 1024 floats = 32 MB).",
       "source": "heuristic",
-      "ref": "Matches the k=10 configuration measured on VisA."
+      "ref": "Bounds request time and memory; not tuned (the VisA evaluation in tools/evaluate.py anomaly has no recorded result yet)."
     },
     "thresholdMargin": {
       "value": 1.0,
       "unit": "x leave-one-out maximum",
       "purpose": "Decision threshold = this factor x the highest leave-one-out score among the references.",
       "source": "heuristic",
-      "ref": "1.0 = the most anomalous known-good reference; the VisA evaluation uses the same rule with 20 held-out normal images."
+      "ref": "1.0 = the most anomalous known-good reference. tools/evaluate.py anomaly applies the same rule on VisA; no result is recorded yet."
     },
     "regionMinAreaFraction": {
       "value": 0.0005,
@@ -129,6 +129,103 @@
       "purpose": "Smallest above-threshold region reported as an anomaly region.",
       "source": "heuristic",
       "ref": "Suppresses isolated pixels of the smoothed anomaly map."
+    }
+    },
+  "workspace": {
+    "maxSide": {
+      "value": 1024,
+      "unit": "px",
+      "purpose": "Workspace comparison: both photos are reduced to this long side for registration and change detection (never enlarged).",
+      "source": "heuristic",
+      "ref": "Enough ORB features for a desk photo while keeping the server under a second per pair on one CPU thread."
+    },
+    "orbFeatures": {
+      "value": 3000,
+      "unit": "features",
+      "purpose": "ORB keypoints per photo for registration.",
+      "source": "heuristic",
+      "ref": "OpenCV ORB (Rublee et al., ICCV 2011); default is 500, more keypoints make cluttered scenes register more reliably."
+    },
+    "ratioTest": {
+      "value": 0.75,
+      "purpose": "Lowe's ratio test for feature matches.",
+      "source": "paper",
+      "ref": "Lowe, IJCV 2004 (0.8 in the paper; 0.75 is the common OpenCV tutorial value)."
+    },
+    "ransacReprojectionPx": {
+      "value": 4.0,
+      "unit": "px at analysis size",
+      "purpose": "RANSAC inlier distance for the homography.",
+      "source": "heuristic",
+      "ref": "OpenCV findHomography accepts 1-10 px; 4 px at 1024 px is about 0.4% of the frame."
+    },
+    "minInliers": {
+      "value": 30,
+      "unit": "matches",
+      "purpose": "Fewest RANSAC inliers for a registration to be accepted.",
+      "source": "heuristic",
+      "ref": "Held-out synthetic benchmark (desk scenes 60-117, tools/evaluate.py workspace): all 170 related pairs registered, 0 of 40 unrelated pairs accepted (workspace-diff-*-test record)."
+    },
+    "minInlierRatio": {
+      "value": 0.25,
+      "purpose": "Fewest share of ratio-test matches that must agree on the homography.",
+      "source": "heuristic",
+      "ref": "Unrelated photos give scattered matches that rarely agree."
+    },
+    "minOverlap": {
+      "value": 0.5,
+      "unit": "fraction of the reference",
+      "purpose": "The registered current photo must cover at least this share of the reference; otherwise positions are not compared.",
+      "source": "heuristic",
+      "ref": "Comparing positions over less than half of the scene would mostly report objects outside the shared view."
+    },
+    "maxAreaChange": {
+      "value": 3.0,
+      "unit": "x",
+      "purpose": "Rejects registrations that rescale the frame area by more than this factor (implausible for the same workspace).",
+      "source": "heuristic",
+      "ref": "Guards against degenerate homographies."
+    },
+    "unchangedIou": {
+      "value": 0.5,
+      "purpose": "A same-category object whose registered box overlaps the reference box at least this much is unchanged.",
+      "source": "paper",
+      "ref": "The COCO/PASCAL match criterion (IoU 0.5) used throughout this project's evaluations."
+    },
+    "maxMove": {
+      "value": 0.35,
+      "unit": "fraction of the reference diagonal",
+      "purpose": "A same-category object displaced by less than this is reported as moved; farther apart they count as removed and added.",
+      "source": "heuristic",
+      "ref": "About a third of the frame: a cup moved across a desk is still the same cup."
+    },
+    "diffThreshold": {
+      "value": 0.15,
+      "unit": "luminance (0..1)",
+      "purpose": "Per-pixel difference, after registration and exposure matching, that counts as a change.",
+      "source": "heuristic",
+      "ref": "Held-out synthetic benchmark: changed regions found 91% of added and 95% of removed objects, with 0.03 false regions per unchanged pair after an exposure change (workspace-diff-*-test record). Real lighting changes (shadows, reflections) also exceed it, so regions are reported as measurements, not as object changes."
+    },
+    "blurSigma": {
+      "value": 2.0,
+      "unit": "px at analysis size",
+      "purpose": "Gaussian smoothing before differencing (suppresses residual misalignment and sensor noise).",
+      "source": "heuristic",
+      "ref": "Comparable to the RANSAC tolerance."
+    },
+    "minRegionArea": {
+      "value": 0.002,
+      "unit": "fraction of the overlap",
+      "purpose": "Smallest changed region reported.",
+      "source": "heuristic",
+      "ref": "About a coin on a desk photographed at arm's length."
+    },
+    "minObjectChange": {
+      "value": 0.15,
+      "unit": "fraction of the object's box",
+      "purpose": "An object reported as added, removed or moved must have at least this share of changed pixels in its box (both places for a move); otherwise the detectors merely disagree and it is listed as uncertain.",
+      "source": "heuristic",
+      "ref": "Chosen on tune scenes 0-39 (tools/evaluate.py workspace): the largest value without loss of object-change recall; it cut false object changes on unchanged pairs from 0.80 to 0.00 per pair (0.25 already lost recall). Held-out scenes 60-117: 0.00 per unchanged pair, 0.30 per pair with a real change (workspace-diff-* records)."
     }
   }
 }

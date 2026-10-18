@@ -202,6 +202,68 @@ test('image debug: a detector failure is reported, never as "no issues"', async 
   await expect(page.locator('.report__diagnosis')).not.toContainText('No measurable issues')
 })
 
+test('image debug: a marked keep-clear area reports what is inside it', async ({ page }) => {
+  await page.goto('/#/image')
+  await page.locator('input[type=file]').first().setInputFiles({ name: 'stop.png', mimeType: 'image/png', buffer: await stopSignPng(page) })
+  await expect(page.locator('.report')).toBeVisible({ timeout: 170_000 })
+  await page.getByRole('button', { name: 'Mark keep-clear area' }).click()
+  const layer = page.locator('.zones')
+  const r = (await layer.boundingBox())!
+  await page.mouse.move(r.x + r.width * 0.25, r.y + r.height * 0.1)
+  await page.mouse.down()
+  await page.mouse.move(r.x + r.width * 0.75, r.y + r.height * 0.75, { steps: 8 })
+  await page.mouse.up()
+  await expect(page.locator('.zones__area')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Done marking' }).click()
+  await page.getByRole('button', { name: 'Re-check with these areas' }).click()
+  await expect(page.locator('.report .finding').filter({ hasText: 'keep-clear area' })).toHaveCount(1, { timeout: 30_000 })
+})
+
+/** A textured stand-in for a workspace photo (deterministic), optionally with a new object on it. */
+async function workspacePng(page: Page, withObject: boolean): Promise<Buffer> {
+  const b64 = await page.evaluate((extra) => {
+    const c = document.createElement('canvas')
+    c.width = 800
+    c.height = 600
+    const ctx = c.getContext('2d')!
+    let seed = 11
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    ctx.fillStyle = '#7a7368'
+    ctx.fillRect(0, 0, 800, 600)
+    for (let i = 0; i < 180; i++) {
+      ctx.fillStyle = `rgb(${Math.floor(rand() * 255)},${Math.floor(rand() * 255)},${Math.floor(rand() * 255)})`
+      const x = rand() * 800
+      const y = rand() * 600
+      if (rand() < 0.5) ctx.fillRect(x, y, 10 + rand() * 70, 10 + rand() * 70)
+      else {
+        ctx.beginPath()
+        ctx.arc(x, y, 5 + rand() * 35, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+    if (extra) {
+      ctx.fillStyle = '#21d07a'
+      ctx.fillRect(520, 260, 110, 90)
+      ctx.fillStyle = '#fafafa'
+      ctx.fillRect(545, 280, 60, 50)
+    }
+    return c.toDataURL('image/png').split(',')[1]!
+  }, withObject)
+  return Buffer.from(b64, 'base64')
+}
+
+test('inspect: workspace vs reference reports a measured change', async ({ page }) => {
+  await page.goto('/#/inspect')
+  await page.getByRole('tab', { name: 'Workspace vs reference' }).click()
+  const inputs = page.locator('.inspect__panel input[type=file]')
+  await inputs.nth(0).setInputFiles({ name: 'reference.png', mimeType: 'image/png', buffer: await workspacePng(page, false) })
+  await inputs.nth(1).setInputFiles({ name: 'now.png', mimeType: 'image/png', buffer: await workspacePng(page, true) })
+  await page.getByRole('button', { name: /compare with reference/i }).click()
+  await expect(page.locator('.inspect__result .notice')).toContainText('Photos aligned', { timeout: 120_000 })
+  await expect(page.locator('.ws-pair .vbox[data-state="changed"]').first()).toBeVisible()
+  await expect(page.locator('.inspect__result')).toContainText('Limits of this comparison')
+})
+
 test('AI failure keeps the local report and says so', async ({ page }) => {
   // Pretend an AI provider is configured, then make it fail.
   await page.route('**/api/health', async (route) => {

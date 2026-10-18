@@ -29,6 +29,15 @@ from app.vision.registry import ModelRegistry  # noqa: E402
 DETECTION = json.loads((ROOT / "config" / "detection.json").read_text())
 
 
+def config_value(key: str) -> object:
+    """A value from config/<file>.json by dotted key ("inference.workspace.maxSide"), without the backend's loader."""
+    file, *path = key.split(".")
+    node = json.loads((ROOT / "config" / f"{file}.json").read_text())
+    for part in path:
+        node = node[part]
+    return node["value"] if isinstance(node, dict) and "value" in node else node
+
+
 def _v(node: dict) -> float:
     return node["value"]
 
@@ -241,7 +250,13 @@ def cmd_tracking(args: argparse.Namespace) -> int:
     }
     if args.variants:
         variants = {k: v for k, v in variants.items() if k in args.variants.split(",")}
-    out = run_kitti(detectors, variants, paths.data_root() / "processed" / "tracking")
+    try:
+        out = run_kitti(detectors, variants, paths.data_root() / "processed" / "tracking")
+    finally:
+        for name, fn in detectors.items():
+            closer = getattr(getattr(fn, "__defaults__", None) and fn.__defaults__[0], "close", None)
+            if closer:
+                closer()  # MediaPipe tasks crash if left to the interpreter's shutdown
     for p in out:
         print("  wrote", p.relative_to(ROOT))
     return 0
@@ -771,6 +786,315 @@ def cmd_confidence(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_workspace(args: argparse.Namespace) -> int:
+    """Workspace reference comparison (app/vision/workspace.py) on synthetic changes of real photos: no labelled
+    before/after workspace dataset is available, so the changes are made with known ground truth.
+
+    For COCO val2017 desk scenes (desk_images order from --offset) a "current" photo is made from the reference by
+    a random hand-held camera move (rotation, scale, shift, mild perspective), an exposure change and JPEG
+    re-encoding, plus one of: no change, an object added, an object removed. The object is a real COCO object of
+    a desk category cut out with its segmentation mask from a photo outside the evaluated scenes. Unrelated pairs
+    (two different scenes) check that registration refuses them. Detection is the deployed YOLOX-S (one pass,
+    display threshold), as the /api/vision/workspace-diff endpoint runs it in standard mode."""
+    import collections
+    import math
+    import statistics
+
+    import cv2
+    import numpy as np
+    from pycocotools import mask as mask_utils
+
+    from app.evaluation import records
+    from app.vision.detectors.yolox import YoloxConfig, YoloxDetector
+    from app.vision.workspace import WorkspaceConfig, compare_workspace, iou, map_box
+
+    cfg = WorkspaceConfig.from_config(config_value)
+    if args.min_object_change is not None:
+        cfg.min_object_change = args.min_object_change
+    registry = ModelRegistry()
+    entry = registry.get("yolox_s")
+    avail = registry.availability("yolox_s", verify=True)
+    if not avail.available:
+        raise SystemExit(f"yolox_s: {avail.reason}")
+    det = YoloxDetector(entry, Path(avail.path), list(adapters.COCO80))
+    deployed = YoloxConfig(score_floor=_v(DETECTION["deep"]["preNmsScore"]), nms_iou=_v(DETECTION["deep"]["nmsIou"]),
+                           class_agnostic=_v(DETECTION["deep"]["classAgnosticNms"]))
+    threshold = float(_v(DETECTION["deep"]["scoreThreshold"]))
+    coco = adapters.CocoAdapter()
+    names = {c["id"]: c["name"] for c in coco.gt["categories"]}
+    images = {im["id"]: im for im in coco.gt["images"]}
+    scenes = desk_images(coco.gt)[args.offset: args.offset + args.scenes]
+    excluded = set(desk_images(coco.gt))
+    paste_labels = {"cup", "bottle", "cell phone", "book", "mouse", "remote", "scissors", "laptop", "keyboard", "wine glass", "vase"}
+    sources = [a for a in coco.gt["annotations"] if not a["iscrowd"] and names[a["category_id"]] in paste_labels
+               and a["image_id"] not in excluded and 4000 <= a["area"] <= 40000 and isinstance(a["segmentation"], list)]
+    sources.sort(key=lambda a: a["id"])
+
+    def detections(img: np.ndarray) -> list[dict]:
+        res = det.detect(img, config=deployed)
+        return [{"label": d.class_name, "confidence": float(d.confidence), "box": [float(v) for v in d.box]}
+                for d in res.detections if d.confidence >= threshold]
+
+    def cutout(a: dict) -> tuple[np.ndarray, np.ndarray]:
+        im = images[a["image_id"]]
+        bgr = cv2.imread(str(coco.image_path(im)))
+        rle = mask_utils.merge(mask_utils.frPyObjects(a["segmentation"], im["height"], im["width"]))
+        m = mask_utils.decode(rle).astype(np.float32)
+        x, y, w, h = (int(round(v)) for v in a["bbox"])
+        return bgr[y:y + h, x:x + w], cv2.GaussianBlur(m[y:y + h, x:x + w], (5, 5), 1.0)
+
+    def paste(base: np.ndarray, obj: np.ndarray, alpha: np.ndarray, x: int, y: int) -> np.ndarray:
+        out = base.copy()
+        h, w = obj.shape[:2]
+        roi = out[y:y + h, x:x + w].astype(np.float32)
+        a = alpha[..., None]
+        out[y:y + h, x:x + w] = (roi * (1 - a) + obj.astype(np.float32) * a).astype(np.uint8)
+        return out
+
+    def camera(rng: np.random.Generator, w: int, h: int) -> np.ndarray:
+        m = cv2.getRotationMatrix2D((w / 2, h / 2), float(rng.uniform(-4, 4)), float(rng.uniform(0.94, 1.06)))
+        hm = np.vstack([m, [0, 0, 1]])
+        hm[0, 2] += float(rng.uniform(-0.04, 0.04)) * w
+        hm[1, 2] += float(rng.uniform(-0.04, 0.04)) * h
+        hm[2, 0], hm[2, 1] = float(rng.uniform(-3e-5, 3e-5)), float(rng.uniform(-3e-5, 3e-5))
+        return hm
+
+    def shoot(rng: np.random.Generator, img: np.ndarray, hm: np.ndarray) -> np.ndarray:
+        h, w = img.shape[:2]
+        out = cv2.warpPerspective(img, hm, (w, h))
+        out = np.clip(out.astype(np.float32) * float(rng.uniform(0.75, 1.2)) + float(rng.uniform(-15, 15)), 0, 255).astype(np.uint8)
+        ok, enc = cv2.imencode(".jpg", out, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        return cv2.imdecode(enc, cv2.IMREAD_COLOR)
+
+    pairs = []
+    for k, iid in enumerate(scenes):
+        for change in ("none", "added", "removed"):
+            pairs.append((k, iid, change))
+    tallies: dict[str, list] = collections.defaultdict(list)
+    per_change = {c: collections.Counter() for c in ("none", "added", "removed")}
+    for n, (k, iid, change) in enumerate(pairs):
+        rng = np.random.default_rng(args.seed * 100003 + n)
+        photo = cv2.imread(str(coco.image_path(images[iid])))
+        h, w = photo.shape[:2]
+        hm = camera(rng, w, h)
+        truth = None
+        reference, scene_now = photo, photo
+        if change != "none":
+            a = sources[int(rng.integers(0, len(sources)))]
+            obj, alpha = cutout(a)
+            oh, ow = obj.shape[:2]
+            if oh >= h * 0.8 or ow >= w * 0.8:
+                continue
+            x = int(rng.integers(int(0.1 * w), int(0.9 * w) - ow)) if int(0.9 * w) - ow > int(0.1 * w) else 0
+            y = int(rng.integers(int(0.1 * h), int(0.9 * h) - oh)) if int(0.9 * h) - oh > int(0.1 * h) else 0
+            with_obj = paste(photo, obj, alpha, x, y)
+            truth = {"label": names[a["category_id"]], "box": [x, y, x + ow, y + oh]}
+            reference, scene_now = (photo, with_obj) if change == "added" else (with_obj, photo)
+        current = shoot(rng, scene_now, hm)
+        if args.debug_dir and n < 9:
+            Path(args.debug_dir).mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(Path(args.debug_dir) / f"pair{n}_{change}.jpg"), np.hstack([reference, current]))
+        t0 = time.perf_counter()
+        ref_dets, cur_dets = detections(reference), detections(current)
+        t1 = time.perf_counter()
+        out = compare_workspace(reference, current, ref_dets, cur_dets, cfg)
+        t2 = time.perf_counter()
+        tallies["detect_ms"].append((t1 - t0) * 1000)
+        tallies["compare_ms"].append((t2 - t1) * 1000)
+        c = per_change[change]
+        c["pairs"] += 1
+        reg = out["registration"]
+        if not reg["ok"]:
+            c["registration_failed"] += 1
+            continue
+        c["registered"] += 1
+        # corner error against the known move, in reference pixels
+        h_est = np.array(reg["current_to_reference"])
+        pts = np.float32([[0, 0], [w, 0], [w, h], [0, h]]).reshape(-1, 1, 2)
+        err = np.linalg.norm(cv2.perspectiveTransform(pts, h_est) - cv2.perspectiveTransform(pts, np.linalg.inv(hm)), axis=2).max()
+        tallies["corner_error"].append(float(err) / math.hypot(w, h) * 1000)  # per mille of the diagonal
+        objs = out["objects"]
+        regions = out["changes"]["regions"]
+        if truth is None:
+            c["false_object_changes"] += len(objs["added"]) + len(objs["removed"]) + len(objs["moved"])
+            c["regions"] += len(regions)
+            tallies["changed_fraction_none"].append(out["changes"]["changed_fraction"])
+            continue
+        cx, cy = (truth["box"][0] + truth["box"][2]) / 2, (truth["box"][1] + truth["box"][3]) / 2  # reference pixels
+        if any(g["box"][0] - 5 <= cx <= g["box"][2] + 5 and g["box"][1] - 5 <= cy <= g["box"][3] + 5 for g in regions):
+            c["region_hit"] += 1
+        # Was the object detected at all in the photo that contains it? (separates detector misses from diff errors)
+        if change == "added":
+            in_current = map_box(truth["box"], hm, 1.0, 1.0, (w, h))
+            seen = any(o["label"] == truth["label"] and iou(o["box"], in_current) >= 0.5 for o in cur_dets)
+        else:
+            seen = any(o["label"] == truth["label"] and iou(o["box"], truth["box"]) >= 0.5 for o in ref_dets)
+        c["object_detected"] += int(seen)
+        key, box_key = ("added", "current_box_in_reference") if change == "added" else ("removed", "reference_box")
+        if any(o["label"] == truth["label"] and o[box_key] and iou(o[box_key], truth["box"]) >= 0.3 for o in objs[key]):
+            c["object_change_hit"] += 1
+        others = [o for o in objs["added"] + objs["removed"] + objs["moved"]
+                  if not (o["label"] == truth["label"] and (o.get(box_key) and iou(o[box_key], truth["box"]) >= 0.3))]
+        c["false_object_changes"] += len(others)
+    unrelated = collections.Counter()
+    for n in range(args.unrelated):
+        a_id, b_id = scenes[n % len(scenes)], scenes[(n * 7 + 3) % len(scenes)]
+        if a_id == b_id:
+            continue
+        a_img, b_img = cv2.imread(str(coco.image_path(images[a_id]))), cv2.imread(str(coco.image_path(images[b_id])))
+        out = compare_workspace(a_img, b_img, [], [], cfg)
+        unrelated["pairs"] += 1
+        unrelated["accepted"] += int(out["registration"]["ok"])
+
+    def pct(c: collections.Counter, num: str, den: str) -> float | None:
+        return round(c[num] / c[den], 3) if c[den] else None
+
+    metrics = {
+        "scenes": len(scenes),
+        "pairs": {ch: dict(per_change[ch]) for ch in per_change},
+        "registration_success": {ch: pct(per_change[ch], "registered", "pairs") for ch in per_change},
+        "corner_error_per_mille_of_diagonal": {"median": round(statistics.median(tallies["corner_error"]), 2) if tallies["corner_error"] else None,
+                                               "p95": round(float(np.percentile(tallies["corner_error"], 95)), 2) if tallies["corner_error"] else None},
+        "changed_region_recall": {ch: pct(per_change[ch], "region_hit", "registered") for ch in ("added", "removed")},
+        "object_change_recall": {ch: pct(per_change[ch], "object_change_hit", "registered") for ch in ("added", "removed")},
+        "pasted_object_detected": {ch: pct(per_change[ch], "object_detected", "registered") for ch in ("added", "removed")},
+        "no_change_pairs": {"false_object_changes_per_pair": pct(per_change["none"], "false_object_changes", "registered"),
+                            "regions_per_pair": pct(per_change["none"], "regions", "registered"),
+                            "median_changed_fraction": round(statistics.median(tallies["changed_fraction_none"]), 4) if tallies["changed_fraction_none"] else None},
+        "false_object_changes_per_pair_with_a_change": round((per_change["added"]["false_object_changes"] + per_change["removed"]["false_object_changes"])
+                                                             / max(1, per_change["added"]["registered"] + per_change["removed"]["registered"]), 3),
+        "unrelated_pairs": {"pairs": unrelated["pairs"], "wrongly_registered": unrelated["accepted"]},
+        "timing_ms_median": {"detection_both_photos": round(statistics.median(tallies["detect_ms"]), 1), "comparison": round(statistics.median(tallies["compare_ms"]), 1)},
+    }
+    record = {
+        "task": "workspace-diff", "date": records.now(),
+        "model": {"id": "orb-ransac+yolox_s", "name": "workspace comparison (registration, object diff, changed regions)", "version": "deployed"},
+        "dataset": {"id": "coco_val2017-desk-synthetic-changes", "split": f"desk scenes {args.offset}-{args.offset + len(scenes) - 1}, seed {args.seed}"},
+        "config": {"workspace": {k: getattr(cfg, k) for k in cfg.__slots__}, "detection_threshold": threshold,
+                   "camera": "rotation +-4 deg, scale 0.94-1.06, shift +-4%, perspective +-3e-5", "exposure": "gain 0.75-1.2, bias +-15, JPEG 85",
+                   "objects": "COCO desk-category objects (area 4000-40000 px^2) cut out with their masks from non-desk images"},
+        "config_name": args.config_name, "environment": records.environment(), "metrics": metrics,
+        "notes": ["Synthetic changes of real photos: warped borders are black, and pasted objects can look unnatural; a real "
+                  "before/after workspace dataset would be a better test.", "Camera moves are planar warps, so there is no parallax."],
+    }
+    path = records.write(record)
+    print(json.dumps(metrics, indent=1))
+    print("  wrote", path.relative_to(ROOT))
+    return 0
+
+
+def cmd_openvocab(args: argparse.Namespace) -> int:
+    """Open-vocabulary evaluation on the desk scenes (cmd_desk): how many of the objects outside COCO-80 an
+    open-vocabulary detector recovers, with the right LVIS category. The deployed detectors recognise none of them
+    by construction. Prompted with all 1203 LVIS v1 category names; scored with LVIS federated rules: a detection
+    is judged only if its category is annotated in the image or listed as verified absent (neg_category_ids);
+    unmatched detections of categories marked not exhaustive are ignored. Evaluation only: the weights are not
+    part of the app (Ultralytics YOLOE and YOLO-World weights are AGPL-3.0).
+    Needs: pip install torch ultralytics git+https://github.com/ultralytics/CLIP.git (a separate environment)."""
+    import collections
+    import statistics
+
+    import numpy as np
+
+    from app.evaluation import records
+    from app.evaluation.detection import iou_matrix
+    from app.evaluation.vocabulary import classify_lvis_categories
+
+    try:
+        import ultralytics
+    except ImportError as exc:  # pragma: no cover - optional
+        raise SystemExit(f"ultralytics is not installed in this environment ({exc}); see the docstring") from exc
+
+    coco = adapters.CocoAdapter()
+    lvis = adapters.LvisAdapter()
+    cats = classify_lvis_categories(lvis.gt["categories"], args.wordnet_dir)
+    lv_cats = sorted(lvis.gt["categories"], key=lambda c: c["id"])
+    prompts = [c["synonyms"][0].replace("_", " ") if c.get("synonyms") else c["name"].replace("_", " ") for c in lv_cats]
+    index_to_cat = [c["id"] for c in lv_cats]
+    images = {im["id"]: im for im in lvis.gt["images"]}
+    coco_images = {im["id"]: im for im in coco.gt["images"]}
+    anns = collections.defaultdict(list)
+    for a in lvis.gt["annotations"]:
+        anns[a["image_id"]].append(a)
+    desk = [i for i in sorted(desk_images(coco.gt)) if i in images]
+    if "yoloe" in Path(args.model).name:
+        model = ultralytics.YOLOE(args.model)
+        model.set_classes(prompts, model.get_text_pe(prompts))  # MobileCLIP text embeddings
+    else:
+        model = ultralytics.YOLOWorld(args.model)
+        model.set_classes(prompts)  # CLIP ViT-B/32 text embeddings
+    xyxy = lambda b: [b[0], b[1], b[0] + b[2], b[1] + b[3]]  # noqa: E731
+    thresholds = [float(t) for t in args.thresholds.split(",")]
+    tally = {t: collections.Counter() for t in thresholds}
+    times = []
+    for iid in desk:
+        im = images[iid]
+        path = coco.image_path(coco_images[iid])
+        t0 = time.perf_counter()
+        res = model.predict(str(path), conf=min(thresholds), iou=0.5, imgsz=args.imgsz, max_det=300, verbose=False)[0]
+        times.append((time.perf_counter() - t0) * 1000)
+        boxes = res.boxes.xyxy.cpu().numpy() if len(res.boxes) else np.zeros((0, 4))
+        scores = res.boxes.conf.cpu().numpy() if len(res.boxes) else np.zeros(0)
+        classes = [index_to_cat[int(c)] for c in (res.boxes.cls.cpu().numpy() if len(res.boxes) else [])]
+        gt = anns[iid]
+        positive = {a["category_id"] for a in gt}
+        negative = set(im.get("neg_category_ids", []))
+        not_exhaustive = set(im.get("not_exhaustive_category_ids", []))
+        for t in thresholds:
+            c = tally[t]
+            keep = [k for k in np.argsort(-scores) if scores[k] >= t]
+            used: set[int] = set()
+            for k in keep:
+                cat = classes[k]
+                if cat not in positive and cat not in negative:
+                    continue  # not judgeable under federated rules
+                best, bj = 0.5, -1
+                for j, a in enumerate(gt):
+                    if j in used or a["category_id"] != cat:
+                        continue
+                    v = float(iou_matrix(np.array([boxes[k]]), np.array([xyxy(a["bbox"])]))[0, 0])
+                    if v >= best:
+                        best, bj = v, j
+                if bj >= 0:
+                    used.add(bj)
+                    c["tp"] += 1
+                elif cat not in not_exhaustive:
+                    c["fp"] += 1
+            for j, a in enumerate(gt):
+                group = "outside_coco80" if cats[a["category_id"]]["relation"] == "outside" else "within_coco80"
+                c[f"{group}_objects"] += 1
+                c[f"{group}_found"] += j in used
+            c["detections"] += len(keep)
+    metrics = {"images": len(desk), "model": args.model, "imgsz": args.imgsz, "vocabulary": len(prompts),
+               "ms_per_image_median_cpu": round(statistics.median(times), 1),
+               "by_threshold": {}}
+    for t, c in tally.items():
+        judged = c["tp"] + c["fp"]
+        metrics["by_threshold"][f"{t:.2f}"] = {
+            "recall_outside_coco80": round(c["outside_coco80_found"] / c["outside_coco80_objects"], 3) if c["outside_coco80_objects"] else None,
+            "objects_outside_coco80": c["outside_coco80_objects"],
+            "recall_within_coco80": round(c["within_coco80_found"] / c["within_coco80_objects"], 3) if c["within_coco80_objects"] else None,
+            "precision_federated": round(c["tp"] / judged, 3) if judged else None,
+            "judged_detections": judged,
+            "detections_per_image": round(c["detections"] / len(desk), 1),
+        }
+    record = {
+        "task": "open-vocabulary", "date": records.now(),
+        "model": {"id": Path(args.model).stem, "name": f"{'YOLOE' if 'yoloe' in Path(args.model).name else 'YOLO-World'} (Ultralytics), prompted with LVIS names",
+                  "version": Path(args.model).name, "license": "AGPL-3.0 (evaluation only, not shipped)"},
+        "dataset": {"id": "lvis_v1_minival-desk", "split": f"desk-{len(desk)}"},
+        "config": {"prompts": "first LVIS synonym of each of the 1203 categories", "imgsz": args.imgsz, "nms_iou": 0.5,
+                   "match": "same LVIS category, IoU >= 0.5, greedy by score; LVIS federated judging"},
+        "config_name": "default", "environment": records.environment(), "metrics": metrics,
+        "notes": ["LVIS is federated: recall counts only annotated objects, precision only judgeable detections.",
+                  "Recall within COCO-80 uses LVIS's own annotations of those categories (not COCO's)."],
+    }
+    path = records.write(record)
+    print(json.dumps(metrics, indent=1))
+    print("  wrote", path.relative_to(ROOT))
+    return 0
+
+
 def cmd_mosaic(args: argparse.Namespace) -> int:
     """Large images with many small objects: 3x3 mosaics of held-out COCO val2017 images (1920x1920, ground truth
     shifted with the images). Compares one downscaled whole-image pass (what the app did) with a bounded tiled pass
@@ -922,6 +1246,21 @@ def main() -> int:
     p.add_argument("--threshold", type=float, default=0.3)
     p.add_argument("--agree-iou", type=float, default=0.3, help="fusion matchIou (config/detection.json)")
     p.set_defaults(fn=cmd_confidence)
+    p = sub.add_parser("workspace")
+    p.add_argument("--scenes", type=int, default=60)
+    p.add_argument("--offset", type=int, default=0)
+    p.add_argument("--unrelated", type=int, default=40)
+    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--debug-dir", default=None, help="write the first pairs side by side here")
+    p.add_argument("--min-object-change", type=float, default=None, help="override workspace.minObjectChange (tuning)")
+    p.add_argument("--config-name", default="default")
+    p.set_defaults(fn=cmd_workspace)
+    p = sub.add_parser("openvocab")
+    p.add_argument("--model", default="yoloe-11s-seg.pt")
+    p.add_argument("--imgsz", type=int, default=640)
+    p.add_argument("--thresholds", default="0.05,0.1,0.25")
+    p.add_argument("--wordnet-dir", default=None)
+    p.set_defaults(fn=cmd_openvocab)
     p = sub.add_parser("quality")
     p.add_argument("--model", default="yolox_s")
     p.add_argument("--limit", type=int, default=500)

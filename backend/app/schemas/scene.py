@@ -124,6 +124,7 @@ class SceneZone(BaseModel):
     name: Annotated[str, _text(48)] = "keep-clear area"
     kind: Literal["keep_clear"] = "keep_clear"
     box: Annotated[Box, BeforeValidator(_box)]
+    structure: SceneCoverage | None = Field(default=None, description="Visible detail inside the area, measured by the client.")
 
 
 class SceneModel(BaseModel):

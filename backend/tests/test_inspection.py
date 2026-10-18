@@ -222,3 +222,18 @@ def test_tracked_scenes_keep_low_confidence_objects(client: TestClient) -> None:
     body = {"scan_id": None, "scene": scene(LAPTOP, {**CUP, "confidence": 0.35}, at_ms=0)}
     res = client.post("/api/scan/observe", json=body).json()
     assert any(f["rule"] == "spill_risk" for f in res["scan"]["findings"])  # persistence is the evidence in live scans
+
+
+def test_an_empty_looking_keep_clear_area_full_of_detail_is_not_called_clear() -> None:
+    zone = {"id": "z1", "name": "left of the keyboard", "box": {"x": 0.0, "y": 0.6, "w": 0.25, "h": 0.4},
+            "structure": {"edge_density": 0.3, "unexplained_share": 0.95}}
+    busy = still(*DESK)
+    busy["zones"] = [zone]
+    reason = next(r for r in assess(busy).reasons if r.code == "zone_unverified")
+    assert "left of the keyboard" in reason.message and reason.evidence["unexplained_share"] == 0.95
+    plain = still(*DESK)
+    plain["zones"] = [{**zone, "structure": {"edge_density": 0.004, "unexplained_share": 1.0}}]  # a bare surface
+    assert "zone_unverified" not in codes(assess(plain))
+    occupied = still(*DESK, obj("c", "cup", 0.05, 0.7, 0.1, 0.15))
+    occupied["zones"] = [zone]  # the keep_clear_zone rule reports the cup instead
+    assert "zone_unverified" not in codes(assess(occupied))
