@@ -10,11 +10,11 @@
   },
   "precision": {
     "tile": {
-      "value": 640,
+      "value": 512,
       "unit": "px",
       "purpose": "Tile side of sliced inference in source pixels (precision mode).",
-      "source": "heuristic",
-      "ref": "SAHI defaults (Akyon et al., ICIP 2022, arXiv:2202.06934); replaced by the VisDrone tune-split sweep result when available."
+      "source": "empirical",
+      "ref": "VisDrone2019-DET val tune split (191 images, YOLOX-S, tiles + whole, NMS 0.5): AP 18.3 at 512 px vs 16.6 at 640 and 17.7 at 384; test split (357 images): AP 17.0 vs 9.3 for the whole image alone (detection-tiling-yolox-s-visdrone-det-val-* records, docs/SCORING.md section 4)."
     },
     "overlap": {
       "value": 0.2,
@@ -52,7 +52,7 @@
       "unit": "tiles",
       "purpose": "Upper bound on tiles per image (larger tiles are used when exceeded).",
       "source": "heuristic",
-      "ref": "Bounds server time on very large images; a 4000x3000 photo at 640 px tiles and 0.2 overlap needs 48 tiles."
+      "ref": "Bounds server time on very large images: a 4000x3000 photo at 512 px tiles and 0.2 overlap needs 80 tiles, so the tile grows to 1000 px (20 tiles; the photo is then seen at about half resolution). VisDrone photos (up to 2000x1500) stay at 512 px with at most 20 tiles."
     },
     "timeBudgetMs": {
       "value": 25000,

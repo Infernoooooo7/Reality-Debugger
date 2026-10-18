@@ -1,0 +1,593 @@
+{
+ "schema_version": 1,
+ "task": "detection-tiling",
+ "date": "2026-10-18T09:37:46Z",
+ "model": {
+  "id": "yolox_s",
+  "name": "YOLOX-S",
+  "version": "0.1.1rc0",
+  "weights_sha256": "c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063",
+  "precision": "fp32"
+ },
+ "dataset": {
+  "id": "visdrone_det_val",
+  "split": "tune",
+  "images": 191,
+  "instances": 13932,
+  "evaluated_categories": [
+   "person",
+   "bicycle",
+   "car",
+   "motorcycle",
+   "bus",
+   "truck"
+  ],
+  "max_detections_per_image": 500
+ },
+ "config_name": "tile384-ov0.2-nms",
+ "config_description": "sliced inference: 384px tiles, 0.2 overlap, nms merge, full-image pass True",
+ "config": {
+  "tile": 384,
+  "overlap": 0.2,
+  "full_image": true,
+  "merge": "nms",
+  "match_metric": "iou",
+  "match_threshold": 0.5,
+  "class_agnostic": false,
+  "min_image_side_for_tiling": 0,
+  "max_tiles": 64,
+  "time_budget_ms": null
+ },
+ "operating_threshold": 0.3,
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v139",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.3",
+   "opencv-python-headless": "5.0.0.93",
+   "onnxruntime": "1.30.0",
+   "mediapipe": "1.1.0",
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "inference_precision": "fp32",
+ "performance": {
+  "model_ms": {
+   "median": 1598.95,
+   "p90": 5351.2,
+   "p99": 12495.53,
+   "mean": 2524.57
+  },
+  "wall_ms_incl_decode": {
+   "median": 6742.86,
+   "p90": 22718.48
+  },
+  "throughput_images_per_s": 0.09,
+  "images": 191,
+  "model_load_ms": 155.5,
+  "peak_rss_mb_process": 636.7,
+  "total_run_s": 2090.6,
+  "note": "Timings not comparable: this run shared the 4-core CPU with other jobs (load average about 8). Use the test-split records for timing."
+ },
+ "metrics": {
+  "coco": {
+   "AP": 17.69,
+   "AP50": 34.21,
+   "AP75": 15.76,
+   "APs": 12.22,
+   "APm": 29.12,
+   "APl": 42.62,
+   "AR1": 6.54,
+   "AR10": 21.76,
+   "AR500": 33.97,
+   "ARs": 26.39,
+   "ARm": 48.08,
+   "ARl": 68.65
+  },
+  "f1_optimal": {
+   "threshold": 0.3,
+   "precision": 0.6423,
+   "recall": 0.4985,
+   "f1": 0.5613,
+   "tp": 6945,
+   "fp": 3867,
+   "fn": 6987
+  },
+  "at_operating_threshold": {
+   "threshold": 0.3,
+   "precision": 0.6423,
+   "recall": 0.4985,
+   "f1": 0.5613,
+   "tp": 6945,
+   "fp": 3867,
+   "fn": 6987
+  },
+  "operating_points": [
+   {
+    "threshold": 0.05,
+    "precision": 0.3283,
+    "recall": 0.6438,
+    "f1": 0.4349,
+    "tp": 8969,
+    "fp": 18347,
+    "fn": 4963
+   },
+   {
+    "threshold": 0.1,
+    "precision": 0.4232,
+    "recall": 0.6039,
+    "f1": 0.4977,
+    "tp": 8414,
+    "fp": 11468,
+    "fn": 5518
+   },
+   {
+    "threshold": 0.15,
+    "precision": 0.4926,
+    "recall": 0.5712,
+    "f1": 0.529,
+    "tp": 7958,
+    "fp": 8196,
+    "fn": 5974
+   },
+   {
+    "threshold": 0.2,
+    "precision": 0.5493,
+    "recall": 0.5458,
+    "f1": 0.5476,
+    "tp": 7604,
+    "fp": 6238,
+    "fn": 6328
+   },
+   {
+    "threshold": 0.25,
+    "precision": 0.597,
+    "recall": 0.5217,
+    "f1": 0.5568,
+    "tp": 7269,
+    "fp": 4907,
+    "fn": 6663
+   },
+   {
+    "threshold": 0.3,
+    "precision": 0.6423,
+    "recall": 0.4985,
+    "f1": 0.5613,
+    "tp": 6945,
+    "fp": 3867,
+    "fn": 6987
+   },
+   {
+    "threshold": 0.35,
+    "precision": 0.6825,
+    "recall": 0.4745,
+    "f1": 0.5598,
+    "tp": 6611,
+    "fp": 3075,
+    "fn": 7321
+   },
+   {
+    "threshold": 0.4,
+    "precision": 0.7152,
+    "recall": 0.4501,
+    "f1": 0.5525,
+    "tp": 6271,
+    "fp": 2497,
+    "fn": 7661
+   },
+   {
+    "threshold": 0.45,
+    "precision": 0.7442,
+    "recall": 0.4251,
+    "f1": 0.5411,
+    "tp": 5922,
+    "fp": 2036,
+    "fn": 8010
+   },
+   {
+    "threshold": 0.5,
+    "precision": 0.7714,
+    "recall": 0.3986,
+    "f1": 0.5256,
+    "tp": 5553,
+    "fp": 1646,
+    "fn": 8379
+   },
+   {
+    "threshold": 0.55,
+    "precision": 0.7946,
+    "recall": 0.3698,
+    "f1": 0.5047,
+    "tp": 5152,
+    "fp": 1332,
+    "fn": 8780
+   },
+   {
+    "threshold": 0.6,
+    "precision": 0.8138,
+    "recall": 0.3381,
+    "f1": 0.4777,
+    "tp": 4710,
+    "fp": 1078,
+    "fn": 9222
+   },
+   {
+    "threshold": 0.65,
+    "precision": 0.8384,
+    "recall": 0.302,
+    "f1": 0.4441,
+    "tp": 4208,
+    "fp": 811,
+    "fn": 9724
+   },
+   {
+    "threshold": 0.7,
+    "precision": 0.8564,
+    "recall": 0.2572,
+    "f1": 0.3957,
+    "tp": 3584,
+    "fp": 601,
+    "fn": 10348
+   },
+   {
+    "threshold": 0.75,
+    "precision": 0.8726,
+    "recall": 0.206,
+    "f1": 0.3333,
+    "tp": 2870,
+    "fp": 419,
+    "fn": 11062
+   },
+   {
+    "threshold": 0.8,
+    "precision": 0.8747,
+    "recall": 0.1493,
+    "f1": 0.2551,
+    "tp": 2080,
+    "fp": 298,
+    "fn": 11852
+   },
+   {
+    "threshold": 0.85,
+    "precision": 0.8767,
+    "recall": 0.0868,
+    "f1": 0.1579,
+    "tp": 1209,
+    "fp": 170,
+    "fn": 12723
+   },
+   {
+    "threshold": 0.9,
+    "precision": 0.8578,
+    "recall": 0.0264,
+    "f1": 0.0512,
+    "tp": 368,
+    "fp": 61,
+    "fn": 13564
+   },
+   {
+    "threshold": 0.95,
+    "precision": 0.8,
+    "recall": 0.0003,
+    "f1": 0.0006,
+    "tp": 4,
+    "fp": 1,
+    "fn": 13928
+   }
+  ],
+  "calibration": {
+   "ece": 0.0143,
+   "detections": 48987,
+   "iou": 0.5,
+   "bins": [
+    {
+     "range": [
+      0.01,
+      0.109
+     ],
+     "count": 29923,
+     "mean_confidence": 0.0387,
+     "precision": 0.0426
+    },
+    {
+     "range": [
+      0.109,
+      0.208
+     ],
+     "count": 5536,
+     "mean_confidence": 0.1516,
+     "precision": 0.1413
+    },
+    {
+     "range": [
+      0.208,
+      0.307
+     ],
+     "count": 2884,
+     "mean_confidence": 0.2541,
+     "precision": 0.2223
+    },
+    {
+     "range": [
+      0.307,
+      0.406
+     ],
+     "count": 1967,
+     "mean_confidence": 0.3531,
+     "precision": 0.3355
+    },
+    {
+     "range": [
+      0.406,
+      0.505
+     ],
+     "count": 1550,
+     "mean_confidence": 0.4538,
+     "precision": 0.4677
+    },
+    {
+     "range": [
+      0.505,
+      0.604
+     ],
+     "count": 1400,
+     "mean_confidence": 0.5545,
+     "precision": 0.6086
+    },
+    {
+     "range": [
+      0.604,
+      0.703
+     ],
+     "count": 1602,
+     "mean_confidence": 0.6555,
+     "precision": 0.7066
+    },
+    {
+     "range": [
+      0.703,
+      0.802
+     ],
+     "count": 1789,
+     "mean_confidence": 0.7533,
+     "precision": 0.8323
+    },
+    {
+     "range": [
+      0.802,
+      0.901
+     ],
+     "count": 1923,
+     "mean_confidence": 0.8506,
+     "precision": 0.8804
+    },
+    {
+     "range": [
+      0.901,
+      1.0
+     ],
+     "count": 413,
+     "mean_confidence": 0.9158,
+     "precision": 0.8571
+    }
+   ],
+   "note": "Confidence read as an estimate of precision at IoU 0.5 (detection calibration, cf. Kuppers et al. 2020)."
+  }
+ },
+ "per_class": {
+  "bicycle": {
+   "AP": 4.98,
+   "AP50": 11.19,
+   "gt": 533,
+   "recall": 0.1332,
+   "misses": {
+    "below_threshold": 50,
+    "undetected": 299,
+    "wrong_class": 87,
+    "poor_localization": 24,
+    "lost_to_neighbour": 2
+   }
+  },
+  "bus": {
+   "AP": 22.17,
+   "AP50": 33.78,
+   "gt": 157,
+   "recall": 0.4777,
+   "misses": {
+    "wrong_class": 30,
+    "undetected": 29,
+    "below_threshold": 21,
+    "lost_to_neighbour": 1,
+    "poor_localization": 1
+   }
+  },
+  "car": {
+   "AP": 36.24,
+   "AP50": 63.03,
+   "gt": 6107,
+   "recall": 0.6553,
+   "misses": {
+    "undetected": 845,
+    "below_threshold": 652,
+    "poor_localization": 531,
+    "wrong_class": 50,
+    "lost_to_neighbour": 27
+   }
+  },
+  "motorcycle": {
+   "AP": 10.13,
+   "AP50": 27.79,
+   "gt": 1508,
+   "recall": 0.2261,
+   "misses": {
+    "undetected": 665,
+    "below_threshold": 246,
+    "wrong_class": 192,
+    "poor_localization": 63,
+    "lost_to_neighbour": 1
+   }
+  },
+  "person": {
+   "AP": 21.6,
+   "AP50": 51.12,
+   "gt": 5363,
+   "recall": 0.4371,
+   "misses": {
+    "poor_localization": 508,
+    "undetected": 1453,
+    "below_threshold": 966,
+    "lost_to_neighbour": 66,
+    "wrong_class": 26
+   }
+  },
+  "truck": {
+   "AP": 11.01,
+   "AP50": 18.36,
+   "gt": 264,
+   "recall": 0.4242,
+   "misses": {
+    "wrong_class": 36,
+    "below_threshold": 47,
+    "undetected": 58,
+    "poor_localization": 10,
+    "lost_to_neighbour": 1
+   }
+  }
+ },
+ "error_analysis": {
+  "threshold": 0.3,
+  "candidates_available": false,
+  "missed_total": 6987,
+  "miss_causes": {
+   "small": {
+    "poor_localization": 914,
+    "undetected": 3074,
+    "below_threshold": 1809,
+    "lost_to_neighbour": 76,
+    "wrong_class": 331
+   },
+   "medium": {
+    "poor_localization": 210,
+    "below_threshold": 163,
+    "lost_to_neighbour": 21,
+    "undetected": 270,
+    "wrong_class": 84
+   },
+   "large": {
+    "below_threshold": 10,
+    "wrong_class": 6,
+    "undetected": 5,
+    "poor_localization": 13,
+    "lost_to_neighbour": 1
+   },
+   "all": {
+    "poor_localization": 1137,
+    "undetected": 3349,
+    "below_threshold": 1982,
+    "lost_to_neighbour": 98,
+    "wrong_class": 421
+   }
+  },
+  "miss_causes_share": {
+   "lost_to_neighbour": 0.014,
+   "suppressed_by_nms": 0.0,
+   "wrong_class": 0.0603,
+   "poor_localization": 0.1627,
+   "below_threshold": 0.2837,
+   "undetected": 0.4793
+  },
+  "miss_cause_flags_inclusive": {
+   "poor_localization": 1226,
+   "undetected": 3349,
+   "below_threshold": 2695,
+   "lost_to_neighbour": 98,
+   "wrong_class": 434
+  },
+  "false_positive_types": {
+   "localization": 1473,
+   "both": 334,
+   "background": 737,
+   "duplicate": 122,
+   "wrong_class": 1201
+  },
+  "top_confusions": [
+   {
+    "ground_truth": "motorcycle",
+    "predicted": "person",
+    "count": 158
+   },
+   {
+    "ground_truth": "bicycle",
+    "predicted": "person",
+    "count": 53
+   },
+   {
+    "ground_truth": "car",
+    "predicted": "truck",
+    "count": 34
+   },
+   {
+    "ground_truth": "truck",
+    "predicted": "car",
+    "count": 32
+   },
+   {
+    "ground_truth": "bicycle",
+    "predicted": "motorcycle",
+    "count": 31
+   },
+   {
+    "ground_truth": "motorcycle",
+    "predicted": "car",
+    "count": 24
+   },
+   {
+    "ground_truth": "bus",
+    "predicted": "car",
+    "count": 17
+   },
+   {
+    "ground_truth": "person",
+    "predicted": "motorcycle",
+    "count": 14
+   },
+   {
+    "ground_truth": "bus",
+    "predicted": "truck",
+    "count": 13
+   },
+   {
+    "ground_truth": "car",
+    "predicted": "bus",
+    "count": 11
+   }
+  ],
+  "error_examples": {
+   "most_missed_images": [
+    371,
+    367,
+    372,
+    74,
+    374
+   ],
+   "most_false_positive_images": [
+    374,
+    373,
+    425,
+    371,
+    368
+   ]
+  }
+ },
+ "unmapped_detections": 64514,
+ "notes": [
+  "VisDrone classes mapped to COCO (pedestrian/people->person, car/van->car, motor->motorcycle); tricycles, 'others' and ignored regions are ignore regions for every class.",
+  "Up to 500 detections per image are evaluated (VisDrone protocol)."
+ ],
+ "git_commit": "8b2ecad+uncommitted"
+}

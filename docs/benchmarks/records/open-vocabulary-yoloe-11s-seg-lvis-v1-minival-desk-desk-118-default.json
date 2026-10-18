@@ -1,0 +1,76 @@
+{
+ "schema_version": 1,
+ "task": "open-vocabulary",
+ "date": "2026-10-18T09:46:27Z",
+ "model": {
+  "id": "yoloe-11s-seg",
+  "name": "YOLOE (Ultralytics), prompted with LVIS names",
+  "version": "yoloe-11s-seg.pt",
+  "license": "AGPL-3.0 (evaluation only, not shipped)"
+ },
+ "dataset": {
+  "id": "lvis_v1_minival-desk",
+  "split": "desk-118"
+ },
+ "config": {
+  "prompts": "first LVIS synonym of each of the 1203 categories",
+  "imgsz": 640,
+  "nms_iou": 0.5,
+  "match": "same LVIS category, IoU >= 0.5, greedy by score; LVIS federated judging"
+ },
+ "config_name": "default",
+ "environment": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpu_count": 4,
+  "memory_gb": 16.5,
+  "gpu": null,
+  "os": "Linux 6.18.44-fc-v139",
+  "python": "3.13.16",
+  "packages": {
+   "numpy": "2.5.4",
+   "opencv-python-headless": null,
+   "onnxruntime": null,
+   "mediapipe": null,
+   "pycocotools": "2.0.11"
+  },
+  "ort_threads": "default (min(4, cpus))"
+ },
+ "metrics": {
+  "images": 118,
+  "model": "yoloe-11s-seg.pt",
+  "imgsz": 640,
+  "vocabulary": 1203,
+  "ms_per_image_median_cpu": 186.1,
+  "by_threshold": {
+   "0.05": {
+    "recall_outside_coco80": 0.206,
+    "objects_outside_coco80": 933,
+    "recall_within_coco80": 0.358,
+    "precision_federated": 0.69,
+    "judged_detections": 568,
+    "detections_per_image": 37.5
+   },
+   "0.10": {
+    "recall_outside_coco80": 0.19,
+    "objects_outside_coco80": 933,
+    "recall_within_coco80": 0.34,
+    "precision_federated": 0.763,
+    "judged_detections": 481,
+    "detections_per_image": 25.3
+   },
+   "0.25": {
+    "recall_outside_coco80": 0.16,
+    "objects_outside_coco80": 933,
+    "recall_within_coco80": 0.292,
+    "precision_federated": 0.843,
+    "judged_detections": 370,
+    "detections_per_image": 13.8
+   }
+  }
+ },
+ "notes": [
+  "LVIS is federated: recall counts only annotated objects, precision only judgeable detections.",
+  "Recall within COCO-80 uses LVIS's own annotations of those categories (not COCO's)."
+ ],
+ "git_commit": "8b2ecad"
+}

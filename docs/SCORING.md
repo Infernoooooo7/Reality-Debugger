@@ -225,6 +225,34 @@ pass makes 49 false detections:
 the image at 43% of its resolution, and small-object recall is 0.008. The
 report says so (`downscaled`) rather than hiding it.
 
+### Server precision mode on real small-object photos (VisDrone)
+
+The server's precision mode (`/api/vision/detect?mode=precision`, configured in
+`config/inference.json` under `precision`) uses fixed-size tiles plus the whole
+image. Its tile size was chosen on real drone photos rather than mosaics, with
+the deployed YOLOX-S in Python (`tools/evaluate.py tiling`). The data is
+VisDrone2019-DET val, split by a fixed hash into tune (191 images) and test
+(357 images); the 6 VisDrone classes that map to COCO are scored, with up to
+500 detections per image.
+
+| Configuration | Tune AP | Tune AP small | Test AP | Test AP50 | Test AP small | Test ms / image |
+|---|---|---|---|---|---|---|
+| whole image only | 9.1 | 3.4 | 9.3 | 16.4 | 3.0 | 96 |
+| 640-px tiles + whole, NMS | 16.6 | 9.6 | not run | | | |
+| 384-px tiles + whole, NMS | 17.7 | 12.2 | not run | | | |
+| **512-px tiles + whole, NMS (chosen)** | **18.3** | 11.3 | **17.0** | **31.3** | **11.5** | 871 |
+| 512-px tiles + whole, greedy NMM | 10.6 | 5.8 | not run | | | |
+
+- Tiles of 512 px with 20% overlap had the best tune AP, so only that
+  configuration was run on the test split, where it nearly doubles AP (9.3 →
+  17.0) and nearly quadruples small-object AP (3.0 → 11.5).
+- It costs about 9× the model time on a 4-core CPU.
+- NMS again beats greedy merging by a wide margin, as on the mosaics.
+- Tune timings are not comparable: that run shared the CPU with other jobs. The
+  test timings come from an otherwise idle machine.
+- AP is still low in absolute terms: most VisDrone objects are a few pixels
+  wide, and YOLOX-S was trained on COCO.
+
 ## 5. Findings rest on measurable evidence
 
 **Evidence gate (Image Debug).** A single photo has no temporal confirmation.

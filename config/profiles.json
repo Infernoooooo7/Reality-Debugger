@@ -26,7 +26,7 @@
         "Boxes, cartons, pallets, price tags, barcodes, shelf gaps (no category in the shipped models)",
         "Exact counts in dense shelves: overlapping identical items are merged or missed; counts are lower bounds"
       ],
-      "evidence": ["tiling-yolox-s-visdrone-det-val-*.json (small objects)", "detection-yolox-s-coco-val2017-val2017-deployed.json (per-class AP)"],
+      "evidence": ["detection-tiling-yolox-s-visdrone-det-val-*.json (small objects)", "detection-yolox-s-coco-val2017-val2017-deployed.json (per-class AP)"],
       "notes": ["Precision mode (tiled) is the default because shelf items are small in a wide photo."]
     },
     "industrial_inspection": {
